@@ -1,0 +1,22 @@
+module vertxServer;
+
+import org.vertx.java.core.buffer.Buffer;
+
+load yvertx;
+fs = load yvertx.fs;
+https = load yvertx.https;
+
+verticle do {container, vertx}:
+    (vertx |> https.createWithHandler do req:
+        vertx |> fs.readFile "foo.html" \case of
+            Some buffer:
+               (req |> https.putHeaders ["Content-Length": string (buffer is ~Buffer)#length(),
+                                         "Content-Type": "text/html"])
+                    #response#end(buffer);
+            None ex :
+                println "Error reading file: \(ex)";
+        esac;
+    done) #listen(8080, 'localhost');
+
+    \();
+done;

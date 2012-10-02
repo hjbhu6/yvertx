@@ -1,0 +1,28 @@
+/**
+ * @author <a href="http://tfox.org">Tim Fox</a>
+ * @authoer Christian Essl
+ */
+module bridgeServer;
+
+load yvertx;
+sockjs = load yvertx.sockjs;
+https = load yvertx.https;
+
+verticle do {vertx, container}:
+    server = vertx |> https.createWithHandler do req:
+        if "/" == req#path then 
+            req#response#sendFile("index.html") //serve the index.html
+        fi;
+        if strEnds? req#path "vertxbus.js" then
+            req#response#sendFile("vertxbus.js") //serve the js
+        fi
+    done;
+    
+    //Let everything trough
+    permitted = emptyJS %% onil;
+    sockJSServer = vertx |> sockjs.create server;
+    sockJSServer |> sockjs.bridge [] {prefix = "/eventbus"} permitted permitted;
+    server#listen(8080);
+    \()
+done; 
+ 

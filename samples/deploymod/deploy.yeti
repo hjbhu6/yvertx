@@ -1,0 +1,15 @@
+module deploy;
+
+load yvertx;
+
+verticle do {vertx, container}:
+    println "Deploying module";
+    container |> deployModule "org.foo.MyMod-v1.0" 
+                    {``some-var`` = "hello"} 
+                    1 
+                    do deploymentId:
+            println "This gets called when deployment is complete, deployment id is \(deploymentId)";
+        done;
+    \();
+done;
+

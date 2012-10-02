@@ -1,0 +1,153 @@
+module yvertx.fs;
+
+                 
+import java.util.Map;                 
+
+import org.vertx.java.core: Handler, Vertx;
+import org.vertx.java.core.buffer: Buffer;
+import org.vertx.java.core.file:FileSystem,
+                                FileSystemProps,
+                                FileProps,
+                                AsyncFile;
+
+yvertx = load yvertx;
+
+_tarh = yvertx.helper.toTypedAsyncResultHandler;
+_arh = yvertx.toAsyncResultHandler;
+
+_fs vertx = (vertx is ~Vertx)#fileSystem();
+
+chmod path perms handler vertx =
+    (_fs vertx)#chmod(path is string, perms is string, _arh handler);
+chmodDir path perms dirPerms handler vertx =
+    (_fs vertx)#chmod(path is string, perms is string, dirPerms is string,
+                     _arh handler);
+copy from to recursive handler vertx =
+    (_fs vertx)#copy(from is string, to is string, recursive is boolean, _arh handler);
+
+createFile path perms handler vertx =
+    case perms of
+    None _ :
+        (_fs vertx)#createFile(path is string, _arh handler);
+    Some perm:
+        (_fs vertx)#createFile(path, perm is string, _arh handler);
+    esac;
+delete path recursive handler vertx =
+    (_fs vertx)#delete(path is string, recursive is boolean, _arh handler);
+
+exists path handler vertx =
+    (_fs vertx)#exists(path is string, _tarh (unsafely_as boolean) handler);
+    
+fsProps path handler vertx =
+    (_fs vertx)#fsProps(path is string, 
+                        _tarh (unsafely_as ~FileSystemProps) handler);
+link link existing handler vertx =
+    (_fs vertx)#link(link is string, existing is string, _arh handler);
+ 
+lprops path handler vertx =
+    (_fs vertx)#lprops(path is string, _tarh (unsafely_as ~FileProps) handler);
+
+mkdir path perms createParents handler vertx =
+    case perms of
+    None _ : 
+        (_fs vertx)#mkdir(path is string, 
+                          createParents is boolean, _arh handler);
+    Some perm:
+        (_fs vertx)#mkdir(path is string, perm is string, 
+                          createParents is boolean, _arh handler);
+    esac;
+
+move from to handler vertx =
+    (_fs vertx)#move(from is string, to is string, _arh handler);
+
+props path handler vertx =
+    (_fs vertx)#props(path is string, _tarh (unsafely_as ~FileProps) handler);
+    
+readDir path filter handler vertx =
+   (mfn obj = map string (wrapArray ((obj is ~Object) unsafely_as ~String[]));
+    case filter of
+    None _:
+        (_fs vertx)#readDir(path is string, _tarh mfn handler);
+    Some fil:
+        (_fs vertx)#readDir(path is string, fil is string, _tarh mfn handler);
+    esac);
+
+readFile path handler vertx =
+    (_fs vertx)#readFile(path is string, _tarh (unsafely_as ~Buffer) handler);
+
+readSymlink path handler vertx =
+    (_fs vertx)#readSymlink(path is string, _tarh (unsafely_as string) handler);
+    
+symlink link existing handler vertx =
+    (_fs vertx)#symlink(link is string, existing is string, _arh handler);
+truncate path len handler vertx =
+    (_fs vertx)#truncate(path is string, len is number, _arh handler);
+
+unlink link handler vertx =
+    (_fs vertx)#unlink(link is string, _arh handler);
+
+writeFile path data handler vertx =
+    (_fs vertx)#writeFile(path is string, data is ~Buffer, _arh handler);
+
+open opts path handler vertx =
+   (var createNew = true;
+    var flush = false;
+    var read = true;
+    var write = true;
+    var perms = () as ~String;
+    for opts do opt:
+        case opt of
+        CreateNew b : createNew := b;
+        Read b: read := b;
+        Write b: write := b;
+        Flush b: flush := b;
+        Perms s: perms := s;
+        esac
+    done;
+    
+    (_fs vertx)#open(path is string, perms, read, write, createNew,
+                          flush, _tarh (unsafely_as ~AsyncFile) handler));
+
+closeAFile handler file =
+    (file is ~AsyncFile)#close(_arh handler);
+
+flushAFile handler file =
+    (file is ~AsyncFile)#flush(_arh handler);
+
+readAFile buffer offset position length handler file =
+    (file is ~AsyncFile)#read(buffer is ~Buffer, offset is number,
+                              position is number,
+                              length is number,
+                              _tarh (unsafely_as ~Buffer) handler);
+
+writeAFile buffer position handler file =
+    (file is ~AsyncFile)#write(buffer is ~Buffer, position is number,
+                               _arh handler);
+
+{
+    chmod, 
+    chmodDir, 
+    copy, 
+    createFile, 
+    delete, 
+    exists, 
+    fsProps, 
+    link, 
+    lprops,
+    mkdir, 
+    move, 
+    props, 
+    readDir, 
+    readFile, 
+    readSymlink, 
+    symlink, 
+    truncate, 
+    unlink,
+    writeFile,
+    open,
+    closeAFile, 
+    readAFile, 
+    flushAFile, 
+    writeAFile,                               
+    
+}

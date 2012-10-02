@@ -1,0 +1,65 @@
+module yvertx.bus;
+
+import org.vertx.java.core: Handler, Vertx;
+import org.vertx.java.core.json:JsonObject;
+import org.vertx.java.core.eventbus:Message;
+
+load yvertx;
+
+toMessageHandler fn is (~Message -> 'a) -> ~Handler =
+        toHandler fn;
+
+toJsonMessageHandler fn =
+        toMessageHandler do msg:
+            fn {message = msg,
+                get body () = fromJS (msg#body unsafely_as ~JsonObject),
+                get replyAddress () = string msg#replyAddress,
+                reply v = msg#reply(toJS v),
+                replyWithHandler v handler = 
+                    msg#reply(toJS v, toJsonMessageHandler handler)
+               }
+        done;
+
+publish address msg vertx = 
+    (vertx is ~Vertx)#eventBus()#publish(address is string, toJS msg);
+
+send address msg handler vertx =
+    (vertx is ~Vertx)#eventBus()#send(address is string, toJS msg, 
+            toJsonMessageHandler handler);
+    
+    
+register address handler resultHandler vertx =
+   (vert = (vertx is ~Vertx);
+    case address of
+    None _: 
+        string vert#eventBus()#registerHandler(toJsonMessageHandler handler,
+                                        toAsyncResultHandler resultHandler);
+    Some address:
+        string vert#eventBus()#registerHandler(address is string,
+                                        toJsonMessageHandler handler,
+                                        toAsyncResultHandler resultHandler);
+    esac);
+    
+registerLocal address handler vertx =
+   (vert = (vertx is ~Vertx);
+    case address of
+    None _ :
+        string vert#eventBus()#registerLocalHandler(toJsonMessageHandler handler);
+    Some address:
+        string vert#eventBus()#registerLocalHandler(address is string,
+                                        toJsonMessageHandler handler);
+    esac);
+        
+
+unregister id handler vertx =
+    (vertx is ~Vertx)#eventBus()#unregisterHandler(id is string, toAsyncResultHandler handler);
+        
+{
+    toMessageHandler,
+    toJsonMessageHandler,
+    publish,
+    send,
+    register,
+    registerLocal,
+    unregister,
+}

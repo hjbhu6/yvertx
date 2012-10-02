@@ -1,0 +1,103 @@
+module yvertx.https;
+
+import java.util.Map;
+                 
+import org.vertx.java.core: Handler, Vertx;
+
+import org.vertx.java.core.http:HttpServer,
+                                HttpServerRequest,
+                                WebSocket,
+                                ServerWebSocket,
+                                RouteMatcher;
+
+yvertx = load yvertx;
+
+toRequestHandler fn is (~HttpServerRequest -> 'a) -> ~Handler =
+        yvertx.toHandler fn;
+
+requestHandler handler server =
+   (server is ~HttpServer)#requestHandler(toRequestHandler handler);
+        
+
+dataHandler handler request =
+   (request is ~HttpServerRequest)#dataHandler(yvertx.toBufferHandler handler);
+
+endHandler handler request =
+   (request is ~HttpServerRequest)#endHandler(yvertx.toHandler handler);
+
+exceptionHandler handler request =
+   (request is ~HttpServerRequest)#exceptionHandler(
+        yvertx.toExceptionHandler handler);
+   
+bodyHandler handler request =
+   (request is ~HttpServerRequest)#bodyHandler(
+        yvertx.toBufferHandler handler);
+
+   
+create vertx = 
+    (vertx is ~Vertx)#createHttpServer();
+
+createWithHandler handler vertx = 
+    (vertx is ~Vertx)#createHttpServer()#requestHandler(toRequestHandler handler);
+    
+_routeMatcher () =
+   (routeMatcher = new RouteMatcher();
+     toHa h = yvertx.toHandler (h is ~HttpServerRequest -> 'a);
+     
+    {
+        all route h = routeMatcher#all(route,toHa h), 
+        allWithRegex route h = routeMatcher#allWithRegEx(route,toHa h), 
+        connect route h = routeMatcher#connect(route,toHa h),
+        connectWithRegEx route h = routeMatcher#connectWithRegEx(route,toHa h),
+        delete route h = routeMatcher#delete(route,toHa h), 
+        deleteWithRegEx route h = routeMatcher#deleteWithRegEx(route,toHa h), 
+        _get route h = routeMatcher#get(route,toHa h),
+        getWithRegEx route h = routeMatcher#getWithRegEx(route,toHa h), 
+        head route h = routeMatcher#head(route,toHa h), 
+        headWithRegEx route h = routeMatcher#headWithRegEx(route,toHa h), 
+        options route h = routeMatcher#options(route,toHa h), 
+        optionsWithRegEx route h = routeMatcher#optionsWithRegEx(route,toHa h), 
+        patch route h = routeMatcher#patch(route,toHa h), 
+        patchWithRegEx route h = routeMatcher#patchWithRegEx(route,toHa h), 
+        post route h = routeMatcher#post(route,toHa h), 
+        postWithRegEx route h = routeMatcher#postWithRegEx(route,toHa h), 
+        put route h = routeMatcher#put(route,toHa h), 
+        putWithRegEx route h = routeMatcher#putWithRegEx(route,toHa h), 
+        trace route h = routeMatcher#trace(route,toHa h), 
+        traceWithRegEx route h = routeMatcher#traceWithRegEx(route,toHa h), 
+        noMatch h = routeMatcher#noMatch(toHa h),
+        routeMatcher,
+        handle req = routeMatcher#handle(req),
+        createServer vertx = 
+            (vertx is ~Vertx)#createHttpServer()#requestHandler(routeMatcher)
+    });        
+        
+ 
+putHeaders headers request =
+   ((request is ~HttpServerRequest)#response#headers()#putAll(
+        (headers is hash<string,string>) as ~Map);
+    request);
+    
+{
+    toRequestHandler,
+    requestHandler,
+    dataHandler,
+    endHandler,
+    exceptionHandler,
+    bodyHandler,
+    createWithHandler,
+    create,
+    putHeaders,
+    routeMatcher = _routeMatcher,
+    
+    
+    params req =
+       (ret = [:];
+        forJavaMap (req is ~HttpServerRequest)#params() do key value:
+            ret.[string key] := string value;
+        done;
+        ret),
+        
+    
+}
+ 

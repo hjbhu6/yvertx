@@ -1,0 +1,55 @@
+module yvertx.sockjs;
+
+import org.vertx.java.core: Handler, Vertx;
+import org.vertx.java.core.sockjs:SockJSSocket,
+                                  SockJSServer;
+
+yvertx = load yvertx;
+
+toHandler handler =
+    yvertx.toHandler (handler is (~SockJSSocket) -> 'a);
+
+dataHandler handler socket =
+    (socket is ~SockJSSocket)#dataHandler(
+        yvertx.toBufferHandler handler);
+
+exceptionHandler handler socket =
+    (socket is ~SockJSSocket)#exceptionHandler(
+        yvertx.toExceptionHandler handler);
+
+drainHandler handler socket =
+    (socket is ~SockJSSocket)#drainHandler(yvertx.toHandler handler);
+        
+endHandler handler socket =
+    (socket is ~SockJSSocket)#endHandler(yvertx.toHandler handler);
+    
+    
+installApp config handler server =
+    (server is ~SockJSServer)#installApp(yvertx.toJS config, 
+                 toHandler handler);  
+
+bridge opts sjsConfig inboundPermitted outboundPermitted server =
+   (var authTimeout = 5 * 60 * 1000;
+    var authAddress = "vertx.basicauthmanager.athorise";
+    for opts do opt:
+        case opt of
+        AuthTimeout n : authTimeout := n;
+        AuthAddress a : authAddress := a;
+        esac
+    done;
+    (server is ~SockJSServer)#bridge(yvertx.toJS sjsConfig, 
+             yvertx.toJSArray inboundPermitted, 
+             yvertx.toJSArray outboundPermitted,
+             authTimeout,
+             authAddress));
+{
+    toHandler,
+    dataHandler,
+    drainHandler,
+    endHandler,
+    exceptionHandler,
+    installApp,
+    bridge,
+    create server vertx =
+        (vertx is ~Vertx)#createSockJSServer(server),
+}

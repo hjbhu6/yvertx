@@ -1,0 +1,79 @@
+////////////////////////////////////////////////////////////////////////////////
+// The ybuilder project build file
+//
+// This file is a normal yeti program, which gets executed through ybuilder.jar.
+//
+
+////////////////////////////////////////////////////////////////////////////////
+// Build dependencies
+//
+//@buildDependency "org.apache.ant" "ant-junit" "1.8.1" 
+//    [exclusion "junit" "junit", exclusion "org.apache.ant" "ant"];
+//
+
+load ybuilder.core.base;
+
+
+
+project.name := "yvertx";
+project.groupId :="yvertx";
+project.artifactId := "yvertx";
+project.version := "0.1-alpha";
+project.description := "Yeti support for vert.x";
+
+//check for vert.x
+
+import java.lang.System;
+vertxHome = System#getenv("VERTX_HOME");
+if not defined? vertxHome then
+    failWith "VERTX_HOME enviroment variable must be defined and point to the root of the vert.x installation"
+fi;
+
+//add all the vert.x dependencies
+push pathSet.lib (Fileset ["\(vertxHome)/lib":[Include "**/*.jar"]]);
+
+//yeti dependency
+dependency "org.yeti" "yeti" "0.9.6+-SNAPSHOT" [];
+
+
+////////////////////////////////////////////////////////////////////////////////
+//---custom targets --
+
+load ybuilder.core.build;
+_ = target "compileSamples" [Before livecycleTargets.testCompile] 
+    do project:
+        dirSet = (createAntDirSet "samples" [])#getDirectoryScanner();
+        dirSet#scan();
+        
+        dirs = dirSet#getIncludedDirectories()
+            |> wrapArray
+            |> map string
+            |> filter (!= "");
+        
+        println "Sample dirs \(dirs)";
+        
+        outDir = "target/sampleclasses";
+        
+        for dirs do sDir:
+                srcDir = "samples/\(sDir)";
+                println "compiling dir \(srcDir)";
+                antTask "delete" ["dir":outDir] [] project;
+                antTask "mkdir" ["dir":outDir] [] project;
+                yeticTask
+                    outDir
+                    srcDir
+                    taskProps.yetic.includes
+                    taskProps.yetic.sourceReaderCode
+                    pathes.compile
+                    project;
+                
+        done;
+    done;
+
+
+////////////////////////////////////////////////////////////////////////////////
+//---End--
+
+// leave the final load! 
+// runs the targets entered at the command line
+load ybuilder.core.run;

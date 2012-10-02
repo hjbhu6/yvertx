@@ -1,0 +1,42 @@
+module yvertx.websocket;
+
+                 
+import org.vertx.java.core: Handler, Vertx;
+
+import org.vertx.java.core.http:HttpServer,
+                                HttpServerRequest,
+                                WebSocket,
+                                ServerWebSocket,
+                                RouteMatcher;
+
+yvertx = load yvertx;
+
+toWebsocketHandler fn is (~ServerWebSocket -> 'a) -> ~Handler =
+        yvertx.toHandler fn;
+
+        
+websocketHandler fn server is (~ServerWebSocket -> 'a) -> ~HttpServer -> 'b =
+    server#websocketHandler(toWebsocketHandler fn);
+
+dataHandler handler socket =
+   (socket is ~ServerWebSocket)#dataHandler(yvertx.toBufferHandler handler);
+
+endHandler handler socket =
+   (socket is ~ServerWebSocket)#endHandler(yvertx.toHandler handler);
+
+exceptionHandler handler socket =
+   (socket is ~ServerWebSocket)#exceptionHandler(
+        yvertx.toExceptionHandler handler);
+   
+drainHandler handler socket =
+   (socket is ~ServerWebSocket)#drainHandler(yvertx.toHandler handler);
+    
+{
+    toWebsocketHandler,
+    websocketHandler,
+    dataHandler,
+    endHandler,
+    exceptionHandler,
+    
+}
+ 

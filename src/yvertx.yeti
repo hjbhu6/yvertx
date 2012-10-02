@@ -1,0 +1,323 @@
+module yvertx;
+
+import java.lang:Exception,
+                 Runnable;
+
+import org.vertx.java.core:Handler,
+                           AsyncResult,
+                           AsyncResultHandler,
+                           Vertx;
+import org.vertx.java.core.buffer:Buffer;
+import org.vertx.java.core.streams:Pump;                           
+import org.vertx.java.core.json:JsonObject,
+                           JsonArray;
+import org.vertx.java.core.impl:Context;
+import org.vertx.java.deploy:Verticle,
+                             Container;
+
+
+_toJS object = 
+   (import yeti.lang:Num, FloatNum, RatNum,AList, ByKey, Struct, Tag;
+    import java.util:ArrayList,Map, HashMap;
+   
+    o = object as ~Object;
+    if nullptr? o then
+        o
+    elif (o instanceof FloatNum) 
+         or (o instanceof RatNum) then
+        (o unsafely_as ~Num)#toBigDecimal();
+    elif (o instanceof Num) then
+        (o unsafely_as ~Num)#toBigInteger();
+    elif o instanceof AList then
+        jl = new JsonArray();
+        for (o unsafely_as list<'a>) do v:
+            _ = jl#add(_toJS v);
+        done;
+        jl as ~Object;
+    elif o instanceof ByKey then
+        dbo = new HashMap();
+        i = (o unsafely_as ~Map)#entrySet()#iterator();
+        i#hasNext() loop
+            (e = i#next() unsafely_as ~java.util.Map$Entry;
+             key = string (e#getKey());
+             _ = dbo#put(key, _toJS (e#getValue() unsafely_as 'a)));
+        new JsonObject(dbo);
+    elif o instanceof Struct then
+        st = o unsafely_as ~Struct;
+        dbo = new HashMap();
+        for [0 .. st#count() - 1] do i:
+            name = st#name(i);
+            value = _toJS (st#get(i) unsafely_as 'a);
+            _ = dbo#put(name, value);
+        done;
+        new JsonObject(dbo);
+    elif o instanceof Tag then
+        t = o unsafely_as ~Tag;
+        if t#name == "Some" then
+            _toJS (t#value unsafely_as 'a);
+        elif t#name == "None" then
+            () as ~Object;
+        else
+            failWith "Can not serialize \(o)"
+        fi
+    else
+        o
+    fi);
+    
+toJS stru is 'a -> ~JsonObject =
+    _toJS stru unsafely_as ~JsonObject;
+
+toJSArray ls is list<'a> -> ~JsonArray =
+   (ar = new JsonArray();
+    for ls do e:
+        _ = ar#add(toJS e)
+    done;
+    ar);
+    
+_fromJS object = 
+   (import java.util:List,HashMap,Map;
+    import java.lang:Number;
+    import org.vertx.yeti.core.impl:HashStruct;
+    
+    o = object as ~Object;
+    
+    if nullptr? o then
+         o;
+    elif o instanceof Number then
+       (import java.lang: Double, Float,Number;
+        import java.math: BigInteger, BigDecimal;
+        import yeti.lang:Num,BigNum,IntNum,FloatNum;
+        if (o instanceof Double) or
+             (o instanceof Float) or
+             (o instanceof BigDecimal)
+             then
+                nu = o unsafely_as ~Number;
+                new FloatNum(nu#doubleValue());
+        elif o instanceof BigInteger then
+            nu = o unsafely_as ~BigInteger;
+            new BigNum(nu);
+        elif o instanceof Num then
+            o unsafely_as ~Num;
+        else
+            nu = o unsafely_as ~Number;
+            new IntNum(nu#longValue());
+        fi)
+    elif o instanceof JsonArray then
+        it = (o unsafely_as ~JsonArray)#iterator();
+        ar = array [];
+        (it#hasNext()) loop push ar (_fromJS it#next());
+        (list ar) as ~Object;
+    elif o instanceof JsonObject then
+        ma = new HashMap();
+        i = (o unsafely_as ~JsonObject)#toMap()#entrySet()#iterator();
+        i#hasNext() loop
+           (e = i#next() unsafely_as ~java.util.Map$Entry;
+            value = _fromJS (e#getValue() unsafely_as 'a);
+            if not nullptr? value then
+                ma#put(string e#getKey(), value);
+            fi);
+        new HashStruct(ma);
+    else
+        o
+    fi);
+
+    
+fromJS object is ~JsonObject -> 'a =
+    (_fromJS object) unsafely_as 'a;
+
+fromJSArray ar is ~JsonArray -> list<'a> =
+    (_fromJS ar) unsafely_as list<'a>;    
+
+
+toRunnable fn is (()->'a) -> ~Runnable =
+   (class YVertxRunnable extends java.lang.Runnable
+        void run ()
+            _ = fn (),
+    end;
+    new YVertxRunnable());
+
+toHandler fn is ('a -> 'b) -> ~Handler = 
+   (class IYetiHandler extends Handler
+        void handle(Object ob)
+            _ = fn (ob unsafely_as 'a),
+    end;
+    new IYetiHandler());
+
+toSimpleHandler fn is (() -> 'a) -> ~Handler =
+    toHandler fn;
+
+toWebsocketHandler fn is (~WebSocket -> 'a) -> ~Handler =
+        toHandler fn;
+
+toAsyncResultHandler fn is ((Some 'a | None ~Exception ) -> 'b) -> ~AsyncResultHandler =
+       (class IYetiAsyncResultHandler extends AsyncResultHandler
+            void handle(Object o)
+                r = o unsafely_as ~AsyncResult;
+                if (r is ~AsyncResult)#succeeded() then
+                    _ = fn (Some r#result)
+                else
+                    _ = fn (None r#exception);
+                fi,
+        end;
+        new IYetiAsyncResultHandler());
+
+toTypedAsyncResultHandler tfn fn is (~Object -> 'a) -> ((Some 'a | None ~Exception ) -> 'b) -> ~AsyncResultHandler =
+       (class IYetiAsyncResultHandler extends AsyncResultHandler
+            void handle(Object o)
+                r = o unsafely_as ~AsyncResult;
+                if (r is ~AsyncResult)#succeeded() then
+                    _ = fn (Some (tfn r#result))
+                else
+                    _ = fn (None r#exception);
+                fi,
+        end;
+        new IYetiAsyncResultHandler());
+        
+toBufferHandler fn is (~Buffer -> 'a) -> ~Handler =
+        toHandler fn;
+
+    
+toExceptionHandler fn is (~Exception -> 'a) -> ~Handler =
+        toHandler fn;
+        
+toStringHandler fn is (string ->'a) -> ~Handler =
+        toHandler fn;
+        
+
+
+runOnLoop handler vertx = 
+    (vertx is ~Vertx)#runOnLoop(toHandler (handler is () -> ()));
+
+setPeriodic delay handler vertx = 
+    (vertx is ~Vertx)#setPeriodic(delay, toHandler (handler is number -> ()));
+
+setTimer delay handler vertx =
+    (vertx is ~Vertx)#setTimer(delay, toHandler (handler is number -> ()));
+
+
+
+    
+
+    
+    
+verticle runFn is ({vertx is ~Vertx, container is ~Container} -> ({vertx is ~Vertx, container is ~Container} -> 'a)) -> ( () -> ~Verticle) =
+   (class IYetiVerticle extends Verticle 
+        var stopFn = \(failWith "No stopfuntion assigned yet"),
+        
+        void start()
+            stopFn := 
+                runFn {vertx = this#getVertx(), container = this#getContainer()},
+        void stop()
+            _ = stopFn {vertx = this#getVertx(), container = this#getContainer()},
+    end;
+    \(new IYetiVerticle() as ~Verticle));
+
+ 
+deployModule name config instances handler container = 
+    (container is ~Container)#deployModule(name is string, 
+                                            toJS config, 
+                                            instances is number, 
+                                            toStringHandler handler);
+
+deployVerticle name config instances handler container= 
+    (container is ~Container)#deployVerticle(name is string, 
+                                                toJS config, 
+                                                instances is number, 
+                                                toStringHandler handler);
+    
+config container = fromJS ((container is ~Container)#getConfig());
+
+
+enviroment container = 
+   (ret = [:];
+    forJavaMap ((container is ~Container)#getEnv()) do key value: 
+        ret.[string key] := string value;
+    done;
+    ret);
+
+
+undeployModule deploymentID handler container=
+    (container is ~Container)#undeployModule(deploymentID, 
+                                    toHandler (handler is () -> ()));
+    
+undeployVerticle deploymentID handler container =
+    (container is ~Container)#undeployVerticle(deploymentID, 
+                                    toHandler (handler is () -> ()));
+
+ 
+{
+    get context () =  Context#getContext(),
+    addCloseHook key fn = 
+        Context#getContext()#putCloseHook(key is string, toRunnable fn),
+    executeOnWorker fn = 
+        Context#getContext()#executeOnWorker(toRunnable fn),
+    
+
+    toRunnable, 
+    toHandler, 
+    toSimpleHandler,
+    toWebsocketHandler, 
+    toAsyncResultHandler, 
+    toExceptionHandler,
+    toBufferHandler,
+    
+    toJS, 
+    toJSArray,
+    fromJS, 
+    fromJSArray,
+    emptyJS = new JsonObject(),
+
+    maybeDefined defaultFn valueFn x =
+        if defined? x then valueFn x else defaultFn () fi,
+    
+    onDefined fn v = if defined? v then Some (fn v) else none fi,
+    isString x = x ^ "",
+    isNumber x = x + 0,
+    isBoolean x = if x then x else x fi,
+    isVertx vertx = (vertx is ~Vertx),
+    
+    verticle,
+    newBuffer size = new Buffer(size is number),
+    newStringBuffer str = new Buffer(str is string),
+    newEncodedBuffer str encoding = 
+        new Buffer(str is string, encoding is string),
+    
+    createPump readStream writeStream = 
+        Pump#createPump(readStream, writeStream), 
+
+    runOnLoop, 
+    setPeriodic, 
+    setTimer, 
+    logger container = (container is ~Container)#getLogger(),
+    
+    sharedData vertx = 
+        (vertx is ~Vertx)#sharedData(),
+    
+    
+    onil = ([] as ~Object) unsafely_as list<~Object>,
+    (%%) a b is 'a -> list<~Object> -> list<~Object> = 
+        (a unsafely_as ~Object) :: b,
+
+    deployModule, 
+    deployVerticle, 
+    config, 
+    enviroment,
+    undeployModule, 
+    undeployVerticle,
+
+    helper = {
+        hostAndPort hostPort =
+           (i = strIndexOf hostPort ":" 0;
+            if i < 0 then 
+                {port = 80, host = hostPort}
+            else
+               {host = strLeft hostPort i,
+                port = int (number (strRight hostPort (i+1)))}
+            fi),
+        toTypedAsyncResultHandler
+    },  
+    
+    
+    
+}     
+    

@@ -1,0 +1,60 @@
+module yvertx.net;
+
+import org.vertx.java.core: Handler, Vertx;
+import org.vertx.java.core.net:NetSocket,
+                               WebSocket,
+                               NetServer;
+
+
+yvertx = load yvertx;
+
+toSocketHandler fn is (~NetSocket -> 'a) -> ~Handler =
+        yvertx.toHandler fn;
+
+dataHandler handler socket = 
+    (socket is ~NetSocket)#dataHandler(
+        yvertx.toBufferHandler handler);
+    
+endHandler handler socket =
+    (socket is ~NetSocket)#endHandler(yvertx.toSimpleHandler handler);
+
+closedHandler handler socket =
+    (socket is ~NetSocket)#closedHandler(yvertx.toSimpleHandler handler);
+    
+drainHandler handler socket =
+    (socket is ~NetSocket)#drainHandler(yvertx.toSimpleHandler handler);
+
+exceptionHandler handler socket =
+    (socket is ~NetSocket)#exceptionHandler(
+        yvertx.toExceptionHandler handler);
+
+connectClient hostPort settings exceptionHandler handler vertx=
+   ({host,port} = yvertx.helper.hostAndPort hostPort;
+    cl = (vertx is ~Vertx)#createNetClient();
+     _ = settings cl; 
+     cl#exceptionHandler(yvertx.toExceptionHandler exceptionHandler);
+     cl#connect(port is number, host is string,
+                toSocketHandler handler);
+     cl);
+    
+createServer vertx =
+    (vertx is ~Vertx)#createNetServer();
+
+connectHandler handler server =
+    (server is ~NetServer)#connectHandler(toSocketHandler handler);
+
+createServerWithHandler handler vertx =
+    createServer vertx |> connectHandler handler;
+{
+    toSocketHandler,
+    dataHandler,
+    endHandler,
+    drainHandler,
+    closedHandler,
+    exceptionHandler,
+    connectClient,
+    createServer,
+    createServerWithHandler,
+    connectHandler,
+}
+    

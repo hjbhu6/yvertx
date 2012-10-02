@@ -1,0 +1,21 @@
+module yvertx.recordparser;
+
+yvertx = load yvertx;
+
+import org.vertx.java.core.buffer:Buffer;
+import org.vertx.java.core.parsetools:RecordParser;
+
+fixed size handler = 
+   (parser = RecordParser#newFixed(size is number, 
+                                   yvertx.toBufferHandler handler);
+    do buffer: parser#handle(buffer) done);
+    
+delimited delimiter handler = 
+   (parser = RecordParser#newDelimited(delimiter is string, 
+                                   yvertx.toBufferHandler handler);
+    do buffer: parser#handle(buffer) done);    
+
+{
+    fixed,
+    delimited
+}
