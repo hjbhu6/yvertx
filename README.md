@@ -6,7 +6,7 @@ yvertx
 building and installing
 =====
 
-You need JDK7 installed.
+You need JDK7 installed and the VERTX_HOME enviroment variable set to your vertx dir.
 
 in the root of the project dir call:
 
