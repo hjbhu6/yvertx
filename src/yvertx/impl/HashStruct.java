@@ -3,7 +3,7 @@
  * and open the template in the editor.
  */
 
-package org.vertx.yeti.core.impl;
+package yvertx.impl;
 
 import java.util.Arrays;
 import java.util.Map;

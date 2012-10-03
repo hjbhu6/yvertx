@@ -70,7 +70,37 @@ _ = target "compileSamples" [Before livecycleTargets.testCompile]
         done;
     done;
 
+    
+//compile the deploy-src    
+deploySrc = "src-deploy";
+deployTargetClasses = "target/deploy-classes";
+    
+_ = target "compileDeploy" [Before livecycleTargets.compile]
+    do p:
+        //mktargetdir
+        antTask "mkdir" ["dir":deployTargetClasses] [] p;
+    
+        //compile java (only )
+        antTask "javac" ["srcdir": deploySrc,
+                         "destdir": deployTargetClasses,
+                         "includes": "**/*.java",
+                         "includeAntRuntime": "false",
+                         "fork":"true"]
+            [el "classpath" [:] (antPathElements pathes.compile)] 
+            p;
+        //copy resources    
+        antTask "copy" ["todir":deployTargetClasses]
+                       [antFileset deploySrc [Include "**/*.*", Exclude "**/*.java"]] p;
+    done;
 
+_ = target "jarDeploy" [Before baseTargets.jar]
+    do p:
+        destfl = "target/vertx-lang-yeti-deploy.jar";
+        antTask "jar" ["destfile" : destfl]
+                [antFileset deployTargetClasses []] 
+                p;
+        
+    done;
 ////////////////////////////////////////////////////////////////////////////////
 //---End--
 

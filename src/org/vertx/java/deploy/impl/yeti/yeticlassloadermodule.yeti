@@ -14,7 +14,7 @@
  * and limitations under the License.
  */
 
-module org.vertx.yeti.deploy.impl.yeti.yeticlassloadermodule;
+module org.vertx.java.deploy.impl.yeti.yeticlassloadermodule;
 
 import java.lang:ClassLoader,
                  ClassNotFoundException,
@@ -250,7 +250,7 @@ end;
 
 new YetiClassLoader(() as ~ClassLoader ,() as ~String[],false);
 
-class YetiVerticleFactory extends VerticleFactory
+class YetiInternalVerticleFactory extends VerticleFactory
     var manager = () as ~VerticleManager,
     
     void init(VerticleManager mgr)

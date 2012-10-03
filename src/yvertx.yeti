@@ -77,7 +77,7 @@ toJSArray ls is list<'a> -> ~JsonArray =
 _fromJS object = 
    (import java.util:List,HashMap,Map;
     import java.lang:Number;
-    import org.vertx.yeti.core.impl:HashStruct;
+    import yvertx.impl:HashStruct;
     
     o = object as ~Object;
     

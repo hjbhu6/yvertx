@@ -1,1 +1,1 @@
-org.vertx.yeti.deploy.impl.yeti.YetiVerticleFactory
+org.vertx.java.deploy.impl.yeti.YetiInternalVerticleFactory
