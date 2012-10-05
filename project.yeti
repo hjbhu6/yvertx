@@ -17,11 +17,11 @@ load ybuilder.core.base;
 
 project.name := "yvertx";
 project.groupId :="org.yvertx";
-project.artifactId := "yeti-lang-impl";
+project.artifactId := "yvertx-yeti-lang-impl";
 project.version := "0.9.6a";
 project.description := "Yeti support for vert.x";
 
-moduleName = "\(project.groupdId).\(project.artifact.Id)-v\(project.version)"; 
+moduleName = "\(project.groupId).\(project.artifactId)-v\(project.version)"; 
 
 //check for vert.x
 
@@ -106,8 +106,16 @@ _ = target "jarDeploy" [Before baseTargets.jar]
     
 _ = target "vertx-module" [Depends baseTargets.jar]
     do p:
-        moduleTargetDir = "target/
-        antTask "mkdir" ["dir":
+        targetDir = "target/"^moduleName^"/";
+        antTask "mkdir" ["dir":targetDir] [] p;
+        antTask "copy" ["todir":targetDir]
+                       [antFileset "src-module" [Include "**/*.*"]] p;
+        antTask "copy" ["todir":targetDir^"lib"]
+                       [antFileset "target" [Include "\(project.artifactId).jar"]] p;
+        antTask "copy" ["todir":targetDir^"lib"]
+                       [antFileset "lib/managed/compile" [Include "*.jar"]] p;
+    done;    
+        
 ////////////////////////////////////////////////////////////////////////////////
 //---End--
 
