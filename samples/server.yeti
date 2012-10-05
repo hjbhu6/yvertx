@@ -2,15 +2,15 @@ module server;
 
 load yvertx;
 
-verticle do vertx container:
-    (createHttpServerWithHandler do req:
+https = load yvertx.https;
+
+verticle do {vertx, container}:
+    (https.createWithHandler do req:
         req#response#end("Hello World Yeti!");
-        1
     done vertx)#listen(8080, "localhost");
      
-    (createHttpServerWithHandler do req:
+    (https.createWithHandler do req:
         req#response#end("Hello World Yeti!");
-        "hier"
      done vertx)#listen(8090, "localhost");
      
      \()
