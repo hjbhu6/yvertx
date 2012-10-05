@@ -37,12 +37,10 @@ public class YetiVerticleFactory implements VerticleFactory {
 	  this.mgr = mgr;
   }
 
-  @Override
   public String getLanguage() {
 	  return "yeti";
   }
   
-  @Override
   public boolean isFactoryFor(String main) {
     return main.endsWith(".yeti"); 
   }

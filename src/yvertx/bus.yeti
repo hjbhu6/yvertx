@@ -29,30 +29,18 @@ send address msg handler vertx =
     
     
 register address handler resultHandler vertx =
-   (vert = (vertx is ~Vertx);
-    case address of
-    None _: 
-        string vert#eventBus()#registerHandler(toJsonMessageHandler handler,
-                                        toAsyncResultHandler resultHandler);
-    Some address:
-        string vert#eventBus()#registerHandler(address is string,
+    (vertx is ~Vertx)#eventBus()#registerHandler(address is string,
                                         toJsonMessageHandler handler,
                                         toAsyncResultHandler resultHandler);
-    esac);
     
 registerLocal address handler vertx =
-   (vert = (vertx is ~Vertx);
-    case address of
-    None _ :
-        string vert#eventBus()#registerLocalHandler(toJsonMessageHandler handler);
-    Some address:
-        string vert#eventBus()#registerLocalHandler(address is string,
-                                        toJsonMessageHandler handler);
-    esac);
+    (vertx is ~Vertx)#eventBus()#registerLocalHandler(address is string,
+                                                toJsonMessageHandler handler);
         
 
 unregister id handler vertx =
-    (vertx is ~Vertx)#eventBus()#unregisterHandler(id is string, toAsyncResultHandler handler);
+    (vertx is ~Vertx)#eventBus()#unregisterHandler(id is string, 
+                                                toAsyncResultHandler handler);
         
 {
     toMessageHandler,
