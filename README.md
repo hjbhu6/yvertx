@@ -29,7 +29,8 @@ install for vert.x versions higher than 1.2.3.final (including current master)
     yeti=org.yvertx.deploy.YetiVerticleFactory
 
 2.) copy the `org.yvertx.yvertx-yeti-lang-impl-vXXX` from the `target`
-direcotory to your `mod` directory
+direcotory to your `mods` directory (Please see the vert.x docs for more 
+information on installing modules)
 
 3.) add a dependency to your mod.json file to the yvertx module:
     
