@@ -14,7 +14,7 @@
  * and limitations under the License.
  */
 
-package org.vertx.java.deploy.impl.yeti;
+package org.yvertx.deploy;
  
 
 import org.vertx.java.deploy.Verticle;
@@ -53,7 +53,7 @@ public class YetiProxyVerticleFactory implements VerticleFactory {
     VerticleFactory internal = null;
     try {
         internal = (VerticleFactory) (loader
-            .loadClass("org.vertx.java.deploy.impl.yeti.YetiInternalVerticleFactory")
+            .loadClass("org.yvertx.deploy.YetiVerticleFactory")
             .newInstance());        
     }catch(Exception ex) {
         throw new IllegalStateException("Could not instantiate "

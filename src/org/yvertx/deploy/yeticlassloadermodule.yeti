@@ -14,7 +14,7 @@
  * and limitations under the License.
  */
 
-module org.vertx.java.deploy.impl.yeti.yeticlassloadermodule;
+module org.yvertx.deploy.yeticlassloadermodule;
 
 import java.lang:ClassLoader,
                  ClassNotFoundException,
