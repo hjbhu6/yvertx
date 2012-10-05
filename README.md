@@ -3,6 +3,11 @@ yvertx
 
 [yeti](http://mth.github.com/yeti/) language support for vert.x
 
+Note this are still first steps and the module is in development.
+
+The module is also compile to vert.x to the vert.x version which is in current
+vert.x master (higher than 1.2.3final)
+
 building
 ======
 
@@ -10,32 +15,39 @@ You need JDK7 installed and the VERTX_HOME enviroment variable set to your vertx
 
 in the root of the project dir call:
 
->    >java -jar ybuilder.jar clean, jar
+    java -jar ybuilder.jar clean, vertx-module
 
-This will create the yvertx.jar in the 'target' dir.
+This will create the vertx module `org.yvertx.yvertx-yeti-lang-impl-vXXX` in 
+the `target` directory.
 
 
-install
+install for vert.x versions higher than 1.2.3.final (including current master)
 =======
+
+1.) add following line to your `%VERTX_HOME%/conf/langs.properties` file:
+    
+    yeti=org.yvertx.deploy.YetiVerticleFactory
+
+2.) copy the `org.yvertx.yvertx-yeti-lang-impl-vXXX` from the `target`
+direcotory to your `mod` directory
+
+3.) add a dependency to your mod.json file to the yvertx module:
+    
+    {
+       main: "myapp.yeti",
+       includes: "org.yvertx.yvertx-yeti-lang-impl-vXXX"
+    }    
+
+4.) run your module as described in vertx
+
+install for vert.x 1.2.3.final  
+=======
+
+This should work but is not tested:
 
 Copy the 'target/vertx-lang-yeti-deploy.jar' to your vert.x 'lib' directory.
 
-Put the 'target/yvertx.jar' and 'lib/managed/compile/yeti-xxxx.jar' on your
-vericles classpath (either with the -cp option with vertx run or in you modules
-lib directory)
-
-or
-
-If you just want to take a quick look copy the 'target/yvertx.jar' and 
-the 'lib/managed/compile/yeti-xxxx.jar' to your verx 'lib' directory.
-
-Than you can run the samples 
-
->   vertx run echoClient.yeti       
-
-However this is not recommended because yvertx is in development and from time
-to time there are new yeti versions and if you copy them to the verx/lib directory
-than all modules share the same which might cause compatibility problems.
+Install the module as described in steps 2. to 4. above;
 
 
 Examples
