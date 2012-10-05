@@ -250,7 +250,7 @@ end;
 
 new YetiClassLoader(() as ~ClassLoader ,() as ~String[],false);
 
-class YetiInternalVerticleFactory extends VerticleFactory
+class YetiVerticleFactory extends VerticleFactory
     var manager = () as ~VerticleManager,
     
     void init(VerticleManager mgr)

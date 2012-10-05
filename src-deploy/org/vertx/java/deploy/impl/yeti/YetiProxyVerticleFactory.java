@@ -24,11 +24,11 @@ import org.vertx.java.deploy.impl.VerticleManager;
 /**
  * @author Christian Essl
  */
-public class YetiVerticleFactory implements VerticleFactory {
+public class YetiProxyVerticleFactory implements VerticleFactory {
 
   private VerticleManager mgr;
   
-  public YetiVerticleFactory() {
+  public YetiProxyVerticleFactory() {
 	  super();
   }
 
