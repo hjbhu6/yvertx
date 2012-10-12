@@ -64,8 +64,8 @@ _ = target "compileSamples" [Before livecycleTargets.testCompile]
         dirSet#scan();
         
         dirs = dirSet#getIncludedDirectories()
-            |> wrapArray
-            |> map string
+            |> (as array<string>)
+            |> filter defined?
             |> filter (!= "");
         
         println "Sample dirs \(dirs)";
