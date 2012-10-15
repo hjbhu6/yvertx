@@ -333,7 +333,23 @@ undeployVerticle deploymentID handler container =
         toTypedAsyncResultHandler
     },  
     
-    
+    runTests tests =
+        (var count = 0;
+        failed = array [];
+        forHash tests do name fn :
+            count := count + 1;
+            if fn () then
+                push failed "name";
+            fi;
+        done;
+        
+        if empty? failed then
+            println "\(count) Tests sucessful";
+            Sucess count
+        else
+            println "\(count) Tests run but \(length failed) failed: \(failed)";
+            Failed {count, failed};
+        fi),
     
 }     
     

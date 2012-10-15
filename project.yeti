@@ -52,7 +52,7 @@ push pathSet.lib (Fileset ["\(vertxHome)/lib":[Include "**/*.jar"]]);
 
 //yeti dependency
 dependency "org.yeti" "yeti" "0.9.6+-SNAPSHOT" [];
-
+dependency "junit" "junit" "3.8" [];
 
 ////////////////////////////////////////////////////////////////////////////////
 //---custom targets --
@@ -64,7 +64,8 @@ _ = target "compileSamples" [Before livecycleTargets.testCompile]
         dirSet#scan();
         
         dirs = dirSet#getIncludedDirectories()
-            |> (as array<string>)
+            |> wrapArray
+            |> map string
             |> filter defined?
             |> filter (!= "");
         
