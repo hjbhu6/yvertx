@@ -283,7 +283,11 @@ class YetiVerticleFactory extends VerticleFactory
             fn = moduleCl#getMethod("eval",() as ~Class[])#invoke(() as ~Object,() as ~Object[]);
             (fn unsafely_as ~Fun)#apply(() as ~Object) unsafely_as ~Verticle;
         catch CompileException ex:
-            throw new RuntimeException(ex#getMessage());
+            import java.lang:ClassNotFoundException;
+            println (ex#getMessage());
+            throw new ClassNotFoundException(ex#getMessage());
+            //() as ~Verticle;
+            //throw new RuntimeException(ex#getMessage());
         finally
             Thread#currentThread()#setContextClassLoader(ocl);
         yrt,
