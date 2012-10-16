@@ -44,7 +44,7 @@ send address msg handler vertx =
             toJsonMessageHandler handler);
     
     
-register address handler resultHandler vertx =
+register address resultHandler handler vertx =
     (vertx is ~Vertx)#eventBus()#registerHandler(address is string,
                                         toJsonMessageHandler handler,
                                         toAsyncResultHandler resultHandler);
