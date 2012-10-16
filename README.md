@@ -41,16 +41,6 @@ information on installing modules)
 
 4.) run your module as described in vertx
 
-install for vert.x 1.2.3.final  
-=======
-
-This should work but is not tested:
-
-Copy the 'target/vertx-lang-yeti-deploy.jar' to your vert.x 'lib' directory.
-
-Install the module as described in steps 2. to 4. above;
-
-
 Examples
 ========
 
