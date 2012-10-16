@@ -1,0 +1,234 @@
+/*
+ * Copyright 2011 Christian Essl
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions
+ * and limitations under the License.
+ */
+
+module org.yeb.httpclient;
+
+
+load org.yeb.std;
+
+
+
+oauthHandlers provider apiKey apiSecret callbackUrl opts =
+   (import org.scribe.model:Verfifier;
+    import org.scribe.oauth:OAuthService;
+    import org.scribe.exceptions: OAuthException;
+    import org.scribe.model:Verifier,Token; 
+    import org.scribe.builder:ServiceBuilder;
+
+    webutils = load org.yeb.mvc.webutils;
+    mvc = load org.yeb.mvc.handler;
+
+    var serviceBuilderOpt = none;
+    for opts do opt:
+        case opt of
+        ServiceBuilder fn: serviceBuilderOpt := Some fn;
+        esac;
+    done;
+    
+    providerCl = case provider of
+        Twitter () : classOf org.scribe.builder.api.TwitterApi;
+        Google () : classOf org.scribe.builder.api.GoogleApi;
+        Facebook () : classOf org.scribe.builder.api.FacebookApi;
+        Yahoo () : classOf org.scribe.builder.api.YahooApi;
+        Other cl : (cl is ~java.lang.Class);
+        esac;
+    
+    builder = (new ServiceBuilder())
+        #provider(providerCl)
+        #callback(callbackUrl)
+        #apiKey(apiKey)
+        #apiSecret(apiSecret);
+    
+    
+    service is ~OAuthService = case serviceBuilderOpt of
+        None _ : builder#build();
+        Some fn : fn builder;
+        esac;
+    
+    
+    initHandler exceptionHandler ctxt = 
+        try
+            confirmURL = 
+               (token = service#getRequestToken();
+                ctxt.session.put "oauth.request_token" token;
+                service#getAuthorizationUrl(token));
+            Handled (webutils.redirectView confirmURL);
+        catch OAuthException ex:
+            exceptionHandler ex ctxt
+        yrt;
+    
+    handleCallback session ctxt =
+        try
+            oauth_token = webutils.param "oauth_token" ctxt;
+            oauth_verifier = webutils.param "oauth_verifier" ctxt;
+            
+            verifier = new Verifier(oauth_verifier);
+            requestToken = 
+                ((ctxt.session.read "oauth.request_token") as ~Object)
+                    unsafely_as ~Token;
+            
+            accessToken = 
+                service#getAccessToken(requestToken, verifier);
+            
+            user_key = string accessToken#getToken();
+            user_secret = string accessToken#getSecret();
+        
+            OAuth {user_key, 
+                  user_secret, 
+                  api_key = apiKey, 
+                  api_secret = apiSecret} 
+                          
+        catch Exception ex:
+            Exception ex;
+        yrt;
+
+    {initHandler, handleCallback, service, apiKey, apiSecret});
+    
+
+    
+
+client opts =
+   (import com.ning.http.client:AsyncHttpClient,
+                Realm, Realm$RealmBuilder,
+                Realm$AuthScheme,
+                AsyncHttpClientConfig$Builder,
+                SignatureCalculator;
+    import com.ning.http.client.oauth:ConsumerKey, RequestToken,
+                                      OAuthSignatureCalculator;
+    
+    
+    var config  = none;
+    applyConfig fn = 
+        case config of
+        None () : 
+            (b = new AsyncHttpClientConfig$Builder();
+             config := Some b;
+             _ = fn b;
+             ());
+        Some b : (_ = fn b; ());
+        esac;
+    
+    var signature = none; 
+    
+    for opts do opt:
+        case opt of
+        Config fn: applyConfig fn;
+        Realm fn:
+           (realm is ~Realm = fn (new Realm$RealmBuilder());
+            applyConfig do b: b#setRealm(realm) done);
+        BasicAuth {principal, password}:
+           (realm = (new Realm$RealmBuilder())
+                #setPrincipal(principal is string)
+                #setPassword(password is string)
+                #setUsePreemptiveAuth(true)
+                #setScheme(Realm$AuthScheme#BASIC)#build();
+            applyConfig do b: b#setRealm(realm) done);
+        OAuth {api_key, api_secret, user_key, user_secret} :
+           (consumer = new ConsumerKey(api_key is string, api_secret is string);
+            user = new RequestToken(user_key is string, user_secret is string);
+            calc = new OAuthSignatureCalculator(consumer,user);
+            
+            signature := Some (calc as ~SignatureCalculator));
+        esac
+    done;
+    
+    client = case config of
+        Some b: new AsyncHttpClient(
+                (b is ~AsyncHttpClientConfig$Builder)#build());
+        None _: new AsyncHttpClient ();
+        esac;
+    
+    case signature of
+    Some s: client#setSignatureCalculator(s as ~SignatureCalculator);
+    None _: client;
+    esac);
+
+
+asyncRequest httpClient opts url handler =
+   (import com.ning.http.client:AsyncHttpClient, 
+                AsyncCompletionHandler,
+                Response,
+                AsnycHandler,
+                AsyncCompletionHandler, SignatureCalculator,
+                PerRequestConfig,
+                AsyncHttpClient$BoundRequestBuilder;
+    import com.ning.http.client.oauth:ConsumerKey, RequestToken,
+                                      OAuthSignatureCalculator;
+    import java.util.concurrent:TimeUnit;
+    import java.lang.Throwable;   
+    
+    builder = case url of
+    Get us: (httpClient is ~AsyncHttpClient)#prepareGet(us);
+    Post us: httpClient#preparePost(us);
+    Put us: httpClient#preparePut(us);
+    Delete us: httpClient#prepareDelete(us);
+    Options us: httpClient#prepareOptions(us);
+    Head us: httpClient#prepareHead(us);
+    Connect us: httpClient#prepareConnect(us);
+    Request us: httpClient#prepareRequest(us);
+    esac;
+    
+    for opts do opt:
+        _ = case opt of
+        Config fn : fn builder;
+        OAuth {api_key, api_secret, user_key, user_secret} :
+           (consumer = new ConsumerKey(api_key is string, api_secret is string);
+            user = new RequestToken(user_key is string, user_secret is string);
+            calc = new OAuthSignatureCalculator(consumer,user);
+            builder#setSignatureCalculator(calc));
+        
+        BodyBytes by: builder#setBody(by is ~byte[]);
+        BodyString bod: builder#setBody(bod is string);
+        Headers hs: 
+            forHash hs do k v: 
+                _ = builder#addHeader(k is string, v is string);
+            done;
+        Parameters hs:
+            forHash hs do k v:
+                _ = builder#addParameter(k is string, v is string);
+            done;
+        FollowRedirects bo:
+            builder#setFollowRedirects(bo is boolean);
+        Timeout ms:
+           (cf = new PerRequestConfig();
+            cf#setRequestTimeoutInMs(ms is number);
+            builder#setPerRequestConfig(cf));
+        esac
+            
+    done;
+    
+	future = case handler of
+        AsyncHandler h: builder#execute(h is ~AsyncCompletionHandler);
+        Some cb: 
+           (class MyAsyncCompletionHandler extends AsyncCompletionHandler 
+                    Object onCompleted(Response resp)
+                        cb (Value resp);
+                        resp,
+                    void onThrowable(Throwable ta)
+                        cb (Exception ta),
+            end;
+            builder#execute(new MyAsyncCompletionHandler()));
+        None _: builder#execute();
+    esac;
+	
+    future);
+	
+
+{    
+    oauthHandlers,
+    client,
+    asyncRequest
+}    

@@ -1,0 +1,172 @@
+/*
+ * Copyright 2011 Christian Essl
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions
+ * and limitations under the License.
+ */
+
+module org.yeb.json;
+
+import net.minidev.json: JSONValue, JSONStyle;
+import com.jayway.jsonpath:JsonPath;
+import java.lang: StringBuilder,Number,Double,Float;
+import java.math: BigDecimal,BigInteger;
+import java.util: Iterator, Map;
+import yeti.lang: Num,FloatNum,IntNum,BigNum,TagCon,Fun;
+import org.apache.commons.jxpath:JXPathContext;
+
+
+
+//++++++++++++++++++++++++JSON Things +++++++++++++++++++++++++++++++++
+
+jsonFactory = new org.codehaus.jackson.JsonFactory();
+(import org.codehaus.jackson: JsonParser, JsonParser$Feature;
+    jsonFactory#configure(JsonParser$Feature#ALLOW_SINGLE_QUOTES, true);
+    jsonFactory#configure(JsonParser$Feature#ALLOW_UNQUOTED_FIELD_NAMES, true);
+    jsonFactory#configure(JsonParser$Feature#ALLOW_COMMENTS, true);
+    jsonFactory#configure(JsonParser$Feature#ALLOW_NON_NUMERIC_NUMBERS, true);
+    jsonFactory#configure(JsonParser$Feature#ALLOW_NUMERIC_LEADING_ZEROS, true);
+    jsonFactory#configure(JsonParser$Feature#ALLOW_BACKSLASH_ESCAPING_ANY_CHARACTER, true));
+    
+
+parse opts jsonStr = 
+   (import org.codehaus.jackson: JsonParser, JsonToken, JsonFactory, JsonGenerator,JsonEncoding;
+
+   var jp = jsonFactory#createJsonParser((jsonStr) is string);
+    
+    for opts do opt:
+        case opt of
+        Parser parser: jp := parser;
+        esac
+    done;
+    
+    readToken token =
+        if nullptr? (token is ~JsonToken) then
+            failWith "no json token either input is empty or not properyl formed";
+        elif token == JsonToken#VALUE_TRUE then
+            Boolean#TRUE unsafely_as ~Object;
+        elif token == JsonToken#VALUE_FALSE then
+            Boolean#FALSE unsafely_as ~Object;
+        elif token ==  JsonToken#VALUE_NUMBER_FLOAT then
+            (jp#getDoubleValue()) unsafely_as ~Object;
+        elif token == JsonToken#VALUE_NUMBER_INT then
+            (jp#getLongValue()) unsafely_as ~Object;
+        elif token == JsonToken#VALUE_STRING then
+            (jp#getText()) unsafely_as ~Object;
+        elif token == JsonToken#VALUE_NULL then
+            () unsafely_as ~Object;
+        elif token == JsonToken#START_ARRAY then
+            ar = array [];
+            var nextToken = jp#nextToken();
+            ((not nullptr? nextToken) 
+              and (nextToken != JsonToken#END_ARRAY)) loop
+               (push ar (readToken nextToken);
+                nextToken := jp#nextToken());
+            (list ar) unsafely_as ~Object;
+        elif token == JsonToken#START_OBJECT then
+            ma = new java.util.HashMap();
+            var nextToken = jp#nextToken();
+            ((not nullptr? nextToken) 
+              and (nextToken != JsonToken#END_OBJECT)) loop
+               (name = strUncapitalize (string jp#getCurrentName());
+                t = jp#nextToken();
+                ma#put(name, readToken t);
+                nextToken := jp#nextToken());
+            new HashStruct(ma);
+            /*
+            curN = jp#getCurrentName();
+            if (not nullptr? curN)
+               and (contains? (string curN) hashes) then
+                new yeti.lang.Hash(ma);
+            else
+                new yeti.lang.GenericStruct(ma);
+            fi*/
+        else 
+            failWith "no allowed token";
+        fi;
+    r = readToken (jp#nextToken());    
+    r unsafely_as 'a);
+
+write opts stru = 
+   (import java.io:StringWriter;
+    import org.codehaus.jackson.util:DefaultPrettyPrinter;
+
+    writer = new StringWriter();
+    gen = jsonFactory#createJsonGenerator(writer);
+   
+    for opts do opt:
+        case opt of
+        Pretty bo: 
+            if bo then 
+                _ = gen#setPrettyPrinter(new DefaultPrettyPrinter());
+            fi;
+        esac;
+    done;
+    
+    peekedWrite p = 
+        if not defined? p then
+            gen#writeNull();
+        //elif (p unsafely_as ~Object)#getClass() == (new byte[])#getClass() then
+        //    gen#writeBinary(p unsafely_as byte[]);
+        else
+            case p of
+            Number num: 
+                gen#writeRawValue(string num); 
+            String str : gen#writeString(string str);
+            Boolean bo: gen#writeBoolean(bo);
+                    
+            List l: 
+               (gen#writeStartArray();
+                for l peekedWrite;
+                gen#writeEndArray());
+            Hash o:
+               (gen#writeStartObject();
+                forHash o do k v:
+                    field = case k of
+                    Number n: string n;
+                    String s: s;
+                    Boolean b: string b;
+                    _ : failWith "Only number, string or boolean types are supported as keys in hash";
+                    esac;
+                    gen#writeFieldName(string field);
+                    peekedWrite v;
+                done;
+                gen#writeEndObject());
+                
+            Struct {fields, value}: 
+               (gen#writeStartObject();
+                for fields do field:
+                    gen#writeFieldName(string field);
+                    peekedWrite (value field);
+                done;
+                gen#writeEndObject());
+                
+            Variant {tag="None"}:
+                gen#writeNull();
+            Variant {tag="Some", value}:
+                peekedWrite value;
+            o : failWith "Can not write \(o)";
+            esac
+        fi;
+        
+    peekedWrite (peekObject stru);
+    gen#close();
+    string writer#toString());
+
+
+
+
+
+{
+    write,
+    parse,
+}

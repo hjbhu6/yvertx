@@ -1,0 +1,151 @@
+/*
+ * Copyright 2011 Christian Essl
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions
+ * and limitations under the License.
+ */
+
+module org.yeb.vertx.webmodule;
+
+import org.vertx.java.core: Handler, 
+                            Vertx;
+import org.vertx.java.core.eventbus: Message;
+import org.vertx.java.core.json: JsonObject, JsonArray;  
+import org.vertx.java.core.buffer: Buffer;                          
+import org.vertx.java.core.http: HttpServerRequest;
+
+load org.yeb.mvc.webutils;
+
+toHandler fn is ('a -> 'b) -> ~Handler =
+   (class MyHandler extends Handler 
+        void handle(Object ob)
+            _ = fn (ob unsafely_as 'a),
+    end;
+    new MyHandler());
+
+    
+    
+httpHandler serverPort scheme busId vertx =
+   (eventBus = (vertx is ~Vertx)#eventBus();
+    
+                
+    toHandler do req:
+            js = new JsonObject();
+            _ = js#putNumber("serverPort",serverPort is number);
+            _ = js#putString("method",(req is ~HttpServerRequest)#method);
+            _ = js#putString("scheme",scheme);
+            _ = js#putString("uri",req#uri);
+            _ = js#putObject("headers",new JsonObject(req#headers()));
+
+            (req is ~HttpServerRequest)#bodyHandler(toHandler do buffer:
+                _ = js#putBinary("body", (buffer is ~Buffer)#getBytes());
+                _ = eventBus#send((busId is string),js, toHandler do msg:
+                    retJs = ((msg is ~Message)#body unsafely_as ~JsonObject);
+                    resp = req#response;
+                    
+                    //statuscode
+                    resp#statusCode := retJs#getNumber("statusCode",200)#intValue();
+                    
+                    
+                    //header content
+                    headersJs = retJs#getObject("headers");
+                    if defined? headersJs then
+                        import java.util.HashMap;
+                        ret = resp#headers();
+                        for (mapJavaList string headersJs#getFieldNames()) do name:
+                            ar = headersJs#getArray(name);
+                            if defined? ar then 
+                                ret#put(name, ar#toArray());
+                            fi;
+                            ()
+                        done;
+                    fi;
+                    //content
+                    if defined? retJs#getString("file") then
+                        resp#sendFile(retJs#getString("file"));
+                    elif defined? retJs#getBinary("content") then
+                        resp#write(new Buffer(retJs#getBinary("content")));
+                    fi;
+                    resp#end();
+                done);
+            
+            done);
+    done);   
+
+    
+workerHandler handler msgId vertx is (requestType -> handlerResult) -> 'a =
+   ((vertx is ~Vertx)#eventBus()#registerHandler(msgId is string, toHandler do msg:
+        js = ((msg is ~Message)#body unsafely_as ~JsonObject);
+
+        port = (js#getInteger("serverPort"))#intValue();
+        method = js#getString("method");
+        scheme = js#getString("scheme");
+        uri = js#getString("uri");
+        headersJs = js#getObject("headers");
+        headers = [:];
+        forJavaMap headersJs#toMap() do k v:
+            headers.[string k] := [string v];
+        done;
+        body = js#getBinary("body");
+        
+        var alreadyAnswered = false;
+        
+        respondContentFn resp = 
+            if not alreadyAnswered then
+                alreadyAnswered := true;
+                {statusCode,headers,body} = (resp is responseContentType);
+                js = new JsonObject();
+                _ = js#putNumber("statusCode",statusCode);
+                hJs = new JsonObject();
+                forHash headers do k v:
+                    ar = new JsonArray();
+                    for v do v1:
+                        _ = ar#add(v1);
+                    done;
+                    _ = hJs#putArray(k,ar); 
+                done;
+                js#putObject("headers", hJs);
+                
+                _ = case resp.body of
+                File name:
+                    js#putString("file",name);
+                String str: 
+                    js#putBinary("content",(str as ~String)#getBytes("UTF-8"));
+                Html str: 
+                   (_ = hJs#putArray("Content-Type", 
+                                (new JsonArray()#addString("text/html; encoding:UTF-8")));
+                    js#putBinary("content", (str as ~String)#getBytes("UTF-8")));
+                Bytes by:
+                    js#putBinary("content", (by is ~byte[]));
+                None _ : js;    
+                esac;
+                
+                msg#reply(js);
+            fi;
+        
+        req = makeRequest port method scheme uri headers body respondContentFn;
+        
+        _ = case (handler is requestType -> handlerResult) req of
+        NotHandled _ : respondContentFn {statusCode = 400, headers = [:], body = none};
+        Handling _ : ();
+        Completed c : respondContentFn c;
+        esac;
+    done));
+
+{
+    httpHandler,
+    workerHandler,
+}
+
+
+
+
