@@ -37,18 +37,8 @@ project.artifactId := "yvertx-yeti-lang-impl";
 project.version := "0.9.6a";
 project.description := "Yeti support for vert.x";
 
-moduleName = "\(project.groupId).\(project.artifactId)-v\(project.version)"; 
-
-//check for vert.x
-
-import java.lang.System;
-vertxHome = System#getenv("VERTX_HOME");
-if not defined? vertxHome then
-    failWith "VERTX_HOME enviroment variable must be defined and point to the root of the vert.x installation"
-fi;
-
-//add all the vert.x dependencies
-push pathSet.lib (Fileset ["\(vertxHome)/lib":[Include "**/*.jar"]]);
+//load projectBase now
+vb = load ybuilder.core.vertxBase;
 
 //repositories
 remoteRepository "sonatype-nexus-releases" 
@@ -121,49 +111,6 @@ _ = target "compileSamples" [Before livecycleTargets.testCompile]
         done;
     done;
 
-    
-//compile the deploy-src    
-deploySrc = "src-deploy";
-deployTargetClasses = "target/deploy-classes";
-    
-_ = target "compileDeploy" [Before livecycleTargets.compile]
-    do p:
-        //mktargetdir
-        antTask "mkdir" ["dir":deployTargetClasses] [] p;
-    
-        //compile java (only )
-        antTask "javac" ["srcdir": deploySrc,
-                         "destdir": deployTargetClasses,
-                         "includes": "**/*.java",
-                         "includeAntRuntime": "false",
-                         "fork":"true"]
-            [el "classpath" [:] (antPathElements pathes.compile)] 
-            p;
-        //copy resources    
-        antTask "copy" ["todir":deployTargetClasses]
-                       [antFileset deploySrc [Include "**/*.*", Exclude "**/*.java"]] p;
-    done;
-
-_ = target "jarDeploy" [Before baseTargets.jar]
-    do p:
-        destfl = "target/vertx-lang-yeti-deploy.jar";
-        antTask "jar" ["destfile" : destfl]
-                [antFileset deployTargetClasses []] 
-                p;
-        
-    done;
-    
-_ = target "vertx-module" [Depends baseTargets.jar]
-    do p:
-        targetDir = "target/"^moduleName^"/";
-        antTask "mkdir" ["dir":targetDir] [] p;
-        antTask "copy" ["todir":targetDir]
-                       [antFileset "src-module" [Include "**/*.*"]] p;
-        antTask "copy" ["todir":targetDir^"lib"]
-                       [antFileset "target" [Include "\(project.artifactId).jar"]] p;
-        antTask "copy" ["todir":targetDir^"lib"]
-                       [antFileset "lib/managed/compile" [Include "*.jar"]] p;
-    done;    
         
 ////////////////////////////////////////////////////////////////////////////////
 //---End--
