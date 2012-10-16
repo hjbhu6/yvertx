@@ -16,6 +16,8 @@
 
 module perfClient;
 
+import org.vertx.java.core:Vertx;
+
 load yvertx;
 net = load yvertx.net;
 
@@ -45,7 +47,7 @@ verticle do {vertx, container}:
                (socket#write(buff);
                 handler = toHandler sendData;
                 if not socket#writeQueueFull() then
-                    (isVertx vertx)#runOnLoop(handler)
+                    (vertx is ~Vertx)#runOnLoop(handler)
                 else
                     socket#drainHandler(handler);
                 fi);

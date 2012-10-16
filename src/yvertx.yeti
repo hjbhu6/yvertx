@@ -282,15 +282,6 @@ undeployVerticle deploymentID handler container =
     fromJS, 
     fromJSArray,
     emptyJS = new JsonObject(),
-
-    maybeDefined defaultFn valueFn x =
-        if defined? x then valueFn x else defaultFn () fi,
-    
-    onDefined fn v = if defined? v then Some (fn v) else none fi,
-    isString x = x ^ "",
-    isNumber x = x + 0,
-    isBoolean x = if x then x else x fi,
-    isVertx vertx = (vertx is ~Vertx),
     
     verticle,
     newBuffer size = new Buffer(size is number),

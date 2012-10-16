@@ -16,12 +16,14 @@
 
 module fanoutServer;
 
+import org.vertx.java.core:Vertx;
+
 load yvertx; 
 net = load yvertx.net;
 bus = load yvertx.bus;
 
 verticle do {vertx, container}:
-    connections = (isVertx vertx)#sharedData()#getSet("conns");
+    connections = (vertx is ~Vertx)#sharedData()#getSet("conns");
     (vertx |> net.createServerWithHandler do socket:
         _ = connections#add(socket#writeHandlerID);
         _ = socket |> net.dataHandler do buffer:
