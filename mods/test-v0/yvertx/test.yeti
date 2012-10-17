@@ -4,10 +4,52 @@ import org.vertx.java.deploy:Container;
 
 load yvertx;
 load org.yeb.std;
+bus = load yvertx.bus;
+
 
 verticle do {container, vertx}:
-    println "my first test";
-    (container is ~Container)#exit();
+    println "running tests";
+    runTests vertx container [
+
+"common load": do rs:
+   // rs.assert "" ("foo" == load yvertx.common.module1);
+   rs.assert "" true;
+done,
+
+"deploy" : do rs:
+    rs.setTimeout(2000);
+    vertx |> bus.register "test-handler"
+        \(_ = container|> deployVerticle "yvertx.deploy.child.yeti" emptyJS 1 
+            \())
+        do {body,handler}:
+        println "in body \(body.started)";
+        if body.started then
+            println "in body";
+            rs.assert "in body" true;
+            vertx |> bus.unregister "test-handler" handler \();
+        else
+            println "wrong message"
+        fi
+        done;
+done,
+
+"undeploy" : do rs:
+    rs.setTimeout(2000);
+    _ = container |> deployVerticle "yvertx.deploy.child.yeti" emptyJS 1
+        do did:
+            vertx |> bus.register "test-handler" \() do {body,handler}:
+                if body.stopped then
+                    rs.assert "body-stopped" true;
+                    vertx |> bus.unregister "test-handler" handler \();
+                fi
+            done;
+            container |> undeployVerticle did \();
+        done;
+done,
+
+
+];
+    //(container is ~Container)#exit();
     \()
 done;
 
