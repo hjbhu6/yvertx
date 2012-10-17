@@ -260,6 +260,104 @@ undeployVerticle deploymentID handler container =
     (container is ~Container)#undeployVerticle(deploymentID, 
                                     toHandler (handler is () -> ()));
 
+
+_runTestsImpl tests resultO allResults vertx container =
+    if empty? tests then
+        f = allResults |> map do {name,result}:
+            case result of
+            Failure msg: Some {name, msg};
+            _ : none;
+            esac
+            done
+            |> catSome;
+        ok = allResults |> map do {name,result}:
+            case result of
+            Success msg : Some {name, msg};
+            _ : none;
+            esac
+            done
+            |> catSome;
+        println "=========\nResults of runTest\n----------";               
+        if length ok == 0 then
+            println "\nno succesful results\n";
+        else
+            println "\nSuccesful results: \n";
+            for ok do {name, msg}: println "\(name) : \(msg)"done;
+        fi;
+
+        if length f == 0 then
+            println "\n---\nno failures\n";
+        else
+            println "\n---\nFailed results: \n"; 
+            for f do {name, msg}: println "\(name) : \(msg)"done;
+        fi;
+
+        println "---\ntotal:\n";
+        if length f > 0 then
+            println "Failures : \(length f) failed out of \(length allResults)";
+        else
+            println "Ok tests run: \(length allResults)";
+        fi;
+        
+        (container is ~Container)#exit();
+    else
+        case resultO of
+        None _ : 
+            ({name,test} = head tests;
+            res= {
+                name is string,
+                var result = Success "no assert called",
+                var stopTime = 0,
+                setTimeout tm =
+                    (result := none;
+                    stopTime := System#currentTimeMillis() + tm),
+
+                assert msg suc=
+                    if suc then
+                        case result of
+                        Failure msg: ();
+                        _ : result := Success (msg is string);
+                        esac
+                    else
+                        result := Failure msg;
+                    fi,
+            };
+            println "running test \(name)";
+            test res;
+            _runTestsImpl tests (Some res) allResults vertx container);
+        Some res:
+            case res.result of
+            None _ :
+                if System#currentTimeMillis() > res.stopTime then
+                    _runTestsImpl (tail tests) 
+                                  none 
+                                  ({name = res.name, 
+                                    result = Failure "timeout over"} 
+                                    :: allResults)
+                                  vertx
+                                  container;
+                else
+                    vertx |> runOnLoop 
+                        \(_runTestsImpl tests resultO allResults vertx container)
+                fi;
+            Success msg : _runTestsImpl (tail tests)
+                              none
+                              ({name = res.name, result = res.result} 
+                                :: allResults)
+                              vertx
+                              container;
+            Failure msg : 
+                (println "failure in \(res.name): \(msg)";
+                _runTestsImpl (tail tests)
+                              none
+                              ({name = res.name, result = res.result} 
+                                :: allResults)
+                              vertx
+                              container);
+            esac;
+        esac;
+    fi;
+
  
 {
     get context () =  Context#getContext(),
@@ -323,24 +421,10 @@ undeployVerticle deploymentID handler container =
             fi),
         toTypedAsyncResultHandler
     },  
-    
-    runTests tests =
-        (var count = 0;
-        failed = array [];
-        forHash tests do name fn :
-            count := count + 1;
-            if fn () then
-                push failed "name";
-            fi;
-        done;
-        
-        if empty? failed then
-            println "\(count) Tests sucessful";
-            Sucess count
-        else
-            println "\(count) Tests run but \(length failed) failed: \(failed)";
-            Failed {count, failed};
-        fi),
+    runTests vertx container tests =
+        (ts = mapHash do name test: {name,test} done tests;
+        println "start testing: tests \(ts |> map (.name))";
+        _runTestsImpl ts none [] vertx container);
     
 }     
     
