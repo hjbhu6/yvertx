@@ -306,7 +306,7 @@ _runTestsImpl tests resultO allResults vertx container =
             ({name,test} = head tests;
             res= {
                 name is string,
-                var result = Success "no assert called",
+                var result = none,
                 var stopTime = 0,
                 setTimeout tm =
                     (result := none;
@@ -322,7 +322,7 @@ _runTestsImpl tests resultO allResults vertx container =
                         result := Failure msg;
                     fi,
             };
-            println "running test \(name)";
+            res.setTimeout 1000;
             test res;
             _runTestsImpl tests (Some res) allResults vertx container);
         Some res:
