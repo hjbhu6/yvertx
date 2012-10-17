@@ -31,6 +31,7 @@ import org.vertx.java.core.impl:Context;
 import org.vertx.java.deploy:Verticle,
                              Container;
 
+emptyJS =(load org.yeb.std).emptyStruct;
 
 _toJS object = 
    (import yeti.lang:Num, FloatNum, RatNum,AList, ByKey, Struct, Tag;
@@ -39,6 +40,8 @@ _toJS object =
     o = object as ~Object;
     if nullptr? o then
         o
+    elif same? o (emptyJS as ~Object) then
+        new JsonObject() 
     elif (o instanceof FloatNum) 
          or (o instanceof RatNum) then
         (o unsafely_as ~Num)#toBigDecimal();
@@ -132,7 +135,11 @@ _fromJS object =
             if not nullptr? value then
                 ma#put(string e#getKey(), value);
             fi);
-        new HashStruct(ma);
+        if ma#size() == 0 then
+            emptyJS as ~Object;
+        else
+            new HashStruct(ma);
+        fi
     else
         o
     fi);
@@ -309,8 +316,7 @@ _runTestsImpl tests resultO allResults vertx container =
                 var result = none,
                 var stopTime = 0,
                 setTimeout tm =
-                    (result := none;
-                    stopTime := System#currentTimeMillis() + tm),
+                    stopTime := System#currentTimeMillis() + tm,
 
                 assert msg suc=
                     if suc then
@@ -320,41 +326,46 @@ _runTestsImpl tests resultO allResults vertx container =
                         esac
                     else
                         result := Failure msg;
+                        stopTime := 0;
                     fi,
+                assure msg suc =
+                    (assert msg suc;
+                    stopTime := 0);
             };
             res.setTimeout 1000;
             test res;
             _runTestsImpl tests (Some res) allResults vertx container);
         Some res:
-            case res.result of
-            None _ :
-                if System#currentTimeMillis() > res.stopTime then
-                    _runTestsImpl (tail tests) 
-                                  none 
-                                  ({name = res.name, 
-                                    result = Failure "timeout over"} 
+            if System#currentTimeMillis() < res.stopTime then
+                vertx |> runOnLoop 
+                    \(_runTestsImpl tests resultO allResults vertx container)
+            else
+                case res.result of
+                Success msg : _runTestsImpl (tail tests)
+                                  none
+                                  ({name = res.name, result = res.result} 
                                     :: allResults)
                                   vertx
                                   container;
-                else
-                    vertx |> runOnLoop 
-                        \(_runTestsImpl tests resultO allResults vertx container)
-                fi;
-            Success msg : _runTestsImpl (tail tests)
-                              none
-                              ({name = res.name, result = res.result} 
-                                :: allResults)
-                              vertx
-                              container;
-            Failure msg : 
-                (println "failure in \(res.name): \(msg)";
-                _runTestsImpl (tail tests)
-                              none
-                              ({name = res.name, result = res.result} 
-                                :: allResults)
-                              vertx
-                              container);
-            esac;
+                None _ :
+                    (msg = "timed out";
+                    println "failure in \(res.name): \(msg)";
+                    _runTestsImpl (tail tests)
+                                  none
+                                  ({name = res.name, result = Failure msg} 
+                                    :: allResults)
+                                  vertx
+                                  container);
+                Failure msg : 
+                    (println "failure in \(res.name): \(msg)";
+                    _runTestsImpl (tail tests)
+                                  none
+                                  ({name = res.name, result = res.result} 
+                                    :: allResults)
+                                  vertx
+                                  container);
+                esac
+            fi
         esac;
     fi;
 
@@ -379,7 +390,7 @@ _runTestsImpl tests resultO allResults vertx container =
     toJSArray,
     fromJS, 
     fromJSArray,
-    emptyJS = new JsonObject(),
+    emptyJS, 
     
     verticle,
     newBuffer size = new Buffer(size is number),
