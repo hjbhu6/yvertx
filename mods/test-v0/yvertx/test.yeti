@@ -12,12 +12,11 @@ verticle do {container, vertx}:
     runTests vertx container [
 
 "common load": do rs:
-   // rs.assert "" ("foo" == load yvertx.common.module1);
-   rs.assert "" true;
+   // rs.assure "" ("foo" == load yvertx.common.module1);
+   rs.assure "" true;
 done,
 
 "deploy" : do rs:
-    rs.setTimeout(2000);
     vertx |> bus.register "test-handler"
         \(_ = container|> deployVerticle "yvertx.deploy.child.yeti" emptyJS 1 
             \())
@@ -25,7 +24,7 @@ done,
         println "in body \(body.started)";
         if body.started then
             println "in body";
-            rs.assert "in body" true;
+            rs.assure "in body" true;
             vertx |> bus.unregister "test-handler" handler \();
         else
             println "wrong message"
@@ -34,12 +33,11 @@ done,
 done,
 
 "undeploy" : do rs:
-    rs.setTimeout(2000);
     _ = container |> deployVerticle "yvertx.deploy.child.yeti" emptyJS 1
         do did:
             vertx |> bus.register "test-handler" \() do {body,handler}:
                 if body.stopped then
-                    rs.assert "body-stopped" true;
+                    rs.assure "body-stopped" true;
                     vertx |> bus.unregister "test-handler" handler \();
                 fi
             done;
@@ -47,9 +45,66 @@ done,
         done;
 done,
 
+"eventbus:simple" : do rs:
+    msg = {address = "foo-address", price=23.45};
+    rs.setTimeout(2000);
+    address = "foo-some";
+    var handled = false;
+    vertx |> bus.register address \() do {body, handler}:
+        vertx |> bus.unregister address handler \();
+        rs.assure "\(body)" (body == msg and not handled);
+        handled := true;
+    done;
+    vertx |> bus.send address msg \();
+done,
 
+"eventbus:emptyMessage" : do rs:
+    var handled = false;
+    adr = "foo";
+    msg = emptyJS;
+    vertx |> bus.register adr \() do {body,handler}:
+        vertx |> bus.unregister adr handler \();
+        rs.assure "\(body)" (body == msg and not handled);
+        handled := true;
+    done;
+    vertx |> bus.send adr msg \();
+done,
+
+"eventbus:unregister" : do rs:
+    var handled = false;
+    msg = {count = 1, foo = "foo"};
+    var assertion = true;
+    vertx |> bus.register "foo" \() do {body,handler}:
+        assertion := assertion and (body == msg and not handled);
+        vertx |> bus.unregister "foo" handler \();
+        //should do nothing
+        vertx |> bus.unregister "foo" handler \();
+        handled := true;
+        vertx |> setTimer 100 do:
+            //complete the test
+            rs.assure "" assertion;
+        done;
+    done;
+    for [1..3] \(vertx |> bus.send "foo" msg \());
+done,
+
+"eventbus:withReply" : do rs:
+    var handled = false;
+    msg = {count=1, foo = "foo2"};
+    repl = {reply = true};
+    var asserts = true;
+    vertx |> bus.register "foo" \() do {body,handler, reply}:
+        asserts := asserts and (not handled and msg == body);
+        vertx |> bus.unregister "foo" handler \();
+        handled := true;
+        reply repl;
+    done;
+
+    vertx |> bus.send "foo" msg do {body}:
+        rs.assure "\(body)" (asserts and (body == repl));
+    done;
+done,
 ];
-    //(container is ~Container)#exit();
     \()
 done;
 
