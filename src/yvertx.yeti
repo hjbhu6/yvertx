@@ -282,14 +282,14 @@ _runTestsImpl tests resultO allResults vertx container =
             println "\nno succesful results\n";
         else
             println "\nSuccesful results: \n";
-            for ok do {name, msg}: println "\(name) : \(msg)"done;
+            for ok do {name, msg}: println "[\(name)] : \(msg)"done;
         fi;
 
         if length f == 0 then
             println "\n---\nno failures\n";
         else
             println "\n---\nFailed results: \n"; 
-            for f do {name, msg}: println "\(name) : \(msg)"done;
+            for f do {name, msg}: println "[\(name)] : \(msg)"done;
         fi;
 
         println "---\ntotal:\n";
