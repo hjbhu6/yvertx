@@ -26,15 +26,19 @@ toMessageHandler fn is (~Message -> 'a) -> ~Handler =
         toHandler fn;
 
 toJsonMessageHandler fn =
-        toMessageHandler do msg:
-            fn {message = msg,
+    (class YvertxMessageHandler extends Handler
+        void handle(Object ob)
+            msg = ob unsafely_as ~Message;
+            _ = fn {message = msg,
+                handler = this as ~Handler,
                 get body () = fromJS (msg#body unsafely_as ~JsonObject),
                 get replyAddress () = string msg#replyAddress,
                 reply v = msg#reply(toJS v),
                 replyWithHandler v handler = 
                     msg#reply(toJS v, toJsonMessageHandler handler)
                }
-        done;
+    end;
+    new YvertxMessageHandler() as ~Handler);
 
 publish address msg vertx = 
     (vertx is ~Vertx)#eventBus()#publish(address is string, toJS msg);
@@ -54,9 +58,9 @@ registerLocal address handler vertx =
                                                 toJsonMessageHandler handler);
         
 
-unregister id handler vertx =
-    (vertx is ~Vertx)#eventBus()#unregisterHandler(id is string, 
-                                                toAsyncResultHandler handler);
+unregister id handler resultHandler vertx =
+    (vertx is ~Vertx)#eventBus()#unregisterHandler(id is string, handler, 
+                                        toAsyncResultHandler resultHandler);
         
 {
     toMessageHandler,
