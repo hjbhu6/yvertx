@@ -4,7 +4,7 @@ load yvertx;
 
 verticle do {vertx, container}:
     println "Deploying module";
-    container |> deployModule "org.foo.MyMod-v1.0" 
+    deployModule container "org.foo.MyMod-v1.0" 
                     {``some-var`` = "hello"} 
                     1 
                     do deploymentId:

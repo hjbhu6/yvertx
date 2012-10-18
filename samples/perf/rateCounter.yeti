@@ -37,7 +37,7 @@ verticle do {vertx, container}:
         totCount := totCount +mn;
     done;
     _ = (vertx is ~Vertx)#eventBus()#registerHandler("rate-counter",handler);
-    _ = vertx |> setPeriodic 3000 do :
+    _ = setPeriodic vertx 3000 do :
         if last != 0 then
             now = System#currentTimeMillis();
             rate = 1000 * count / (now - last);

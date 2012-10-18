@@ -28,18 +28,21 @@ import org.vertx.java.core.http.ServerWebSocket;
 import org.vertx.java.deploy.Verticle;
 
 verticle do {vertx,container}:
-    (vertx |> https.create |> ws.websocketHandler do webs:
+    (server = https.create vertx;
+    _ = ws.websocketHandler 
+        server
+        do webs:
         _ = if webs#path == "/myapp" then
-            webs |> ws.dataHandler do data:
-                webs#writeTextFrame(string data); //Echo it back
+            ws.dataHandler webs do data:
+                _ = webs#writeTextFrame(string data); //Echo it back
             done;
         else
             webs#reject();
         fi;
-    done
-    |> https.requestHandler do req:
+    done;
+    https.requestHandler server do req:
         if req#path == "/" then
-            req#response#sendFile("websockets/ws.html");
+            _ = req#response#sendFile("websockets/ws.html");
         fi
     done)#listen(8080);
     \()

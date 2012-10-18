@@ -31,20 +31,20 @@ toWebsocketHandler fn is (~ServerWebSocket -> 'a) -> ~Handler =
         yvertx.toHandler fn;
 
         
-websocketHandler fn server is (~ServerWebSocket -> 'a) -> ~HttpServer -> 'b =
+websocketHandler server fn is ~HttpServer -> (~ServerWebSocket -> 'a) -> 'b =
     server#websocketHandler(toWebsocketHandler fn);
 
-dataHandler handler socket =
+dataHandler socket handler =
    (socket is ~ServerWebSocket)#dataHandler(yvertx.toBufferHandler handler);
 
-endHandler handler socket =
+endHandler socket handler =
    (socket is ~ServerWebSocket)#endHandler(yvertx.toHandler handler);
 
-exceptionHandler handler socket =
+exceptionHandler socket handler =
    (socket is ~ServerWebSocket)#exceptionHandler(
         yvertx.toExceptionHandler handler);
    
-drainHandler handler socket =
+drainHandler socket handler =
    (socket is ~ServerWebSocket)#drainHandler(yvertx.toHandler handler);
     
 {

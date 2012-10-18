@@ -26,9 +26,9 @@ verticle do {vertx,container}:
     done;
     
     rm.getWithRegEx ".*" do req:
-        req#response#sendFile("route_match/index.html");
+        _ = req#response#sendFile("route_match/index.html");
     done;
     
-    _ = (vertx |> https.createWithHandler rm.handle)#listen(8080);
+    _ = (https.createWithHandler vertx rm.handle)#listen(8080);
     \()
 done;

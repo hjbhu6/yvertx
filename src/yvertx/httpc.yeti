@@ -30,39 +30,39 @@ yvertx = load yvertx;
 toResponseHandler fn is (~HttpClientResponse -> 'a) -> ~Handler =
         yvertx.toHandler fn;
 
-responseHandler fn response = 
+responseHandler response fn = 
         fn (response is ~HttpClientResponse);
 
-dataHandler handler response =
+dataHandler response handler =
    (response is ~HttpClientResponse)#dataHandler(
         yvertx.toBufferHandler handler);
 
-endHandler handler response =   
+endHandler response handler =   
     (response is ~HttpClientResponse)#endHandler(
             yvertx.toHandler handler);
 
-bodyHandler handler response =
+bodyHandler response handler =
    (response is ~HttpClientResponse)#bodyHandler(
         yvertx.toBufferHandler handler);
 
-exceptionHandler handler response =
+exceptionHandler response handler =
    (response is ~HttpClientResponse)#exceptionHandler(
         yvertx.toExceptionHandler handler);
 
    
    
-create hostPort vertx = 
+create vertx hostPort = 
    ({port,host} = yvertx.helper.hostAndPort hostPort; 
     (vertx is ~Vertx)#createHttpClient()#setPort(port)#setHost(host));
 
 
     
-putHeaders headers request =
+putHeaders request headers =
    ((request is ~HttpClientRequest)#headers()#putAll(
         (headers is hash<string,string>) as ~Map);
     request);
     
-request muri headers handler client =
+request client muri headers handler =
    (h = toResponseHandler handler;
     req = case muri of
     Connect uri: 
@@ -86,30 +86,30 @@ request muri headers handler client =
     Request {method, uri}:
         client#request(method is string, uri is string,h); 
     esac;
-    _ = putHeaders headers req;
+    _ = putHeaders req headers;
     req);
 
-generalRequest method uri headers handler client =
+generalRequest client method uri headers handler =
    (h = toResponseHandler handler;
     req = (client is ~HttpClient)#request(method is string, uri is string, h);
-    _ = putHeaders headers req;
+    _ = putHeaders req headers;
     req);
         
     
-getNow uri headers handler client =
+getNow client uri headers handler =
    (client is ~HttpClient)#getNow(uri is string, 
                                    headers is hash<string,string>,
                                    toResponseHandler handler);
                                    
-getBodyNow uri headers handler client =
-   client |> getNow uri headers 
+getBodyNow client uri headers handler =
+   getNow client uri headers 
                 do resp:
-                    resp |> bodyHandler do buffer:
+                    bodyHandler resp do buffer:
                         handler {buffer, resp}
                     done
                 done;
 
-connectWebsocket uri handler client =
+connectWebsocket client uri handler =
     (client is ~HttpClient)#connectWebsocket(uri is string,
                             yvertx.toHandler (handler is ~WebSocket -> 'a));
 {

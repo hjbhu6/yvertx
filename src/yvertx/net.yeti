@@ -27,24 +27,23 @@ yvertx = load yvertx;
 toSocketHandler fn is (~NetSocket -> 'a) -> ~Handler =
         yvertx.toHandler fn;
 
-dataHandler handler socket = 
-    (socket is ~NetSocket)#dataHandler(
-        yvertx.toBufferHandler handler);
+dataHandler socket handler = 
+    (socket is ~NetSocket)#dataHandler(yvertx.toBufferHandler handler);
     
-endHandler handler socket =
+endHandler socket handler =
     (socket is ~NetSocket)#endHandler(yvertx.toSimpleHandler handler);
 
-closedHandler handler socket =
+closedHandler socket handler =
     (socket is ~NetSocket)#closedHandler(yvertx.toSimpleHandler handler);
     
-drainHandler handler socket =
+drainHandler socket handler =
     (socket is ~NetSocket)#drainHandler(yvertx.toSimpleHandler handler);
 
-exceptionHandler handler socket =
+exceptionHandler socket handler =
     (socket is ~NetSocket)#exceptionHandler(
         yvertx.toExceptionHandler handler);
 
-connectClient hostPort settings exceptionHandler handler vertx=
+connectClient vertx hostPort settings exceptionHandler handler=
    ({host,port} = yvertx.helper.hostAndPort hostPort;
     cl = (vertx is ~Vertx)#createNetClient();
      _ = settings cl; 
@@ -56,11 +55,11 @@ connectClient hostPort settings exceptionHandler handler vertx=
 createServer vertx =
     (vertx is ~Vertx)#createNetServer();
 
-connectHandler handler server =
+connectHandler server handler =
     (server is ~NetServer)#connectHandler(toSocketHandler handler);
 
-createServerWithHandler handler vertx =
-    createServer vertx |> connectHandler handler;
+createServerWithHandler vertx handler =
+    connectHandler (createServer vertx) handler;
 {
     toSocketHandler,
     dataHandler,

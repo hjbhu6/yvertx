@@ -21,17 +21,17 @@ load yvertx;
 https = load yvertx.https;
 
 verticle do {vertx, container}:
-    (vertx |> https.createWithHandler do req:
+    (https.createWithHandler vertx do req:
         println "Got request: \(req#uri)";
         println "Headers are: ";
         forJavaMap req#headers() do k v:
             println "\(k) : \(v)";
         done;
         
-        req |> https.dataHandler do buffer:
+        https.dataHandler req do buffer:
             println "Got data: \(buffer)"
         done;
-        req |> https.endHandler do:
+        https.endHandler req do:
             req#response#setChunked(true);
             for [0 .. 9] do i:
                 _ = req#response#write("server-data-chunk-\(i)");

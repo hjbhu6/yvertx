@@ -152,17 +152,10 @@ fromJSArray ar is ~JsonArray -> list<'a> =
     (_fromJS ar) unsafely_as list<'a>;    
 
 
-toRunnable fn is (()->'a) -> ~Runnable =
-   (class YVertxRunnable extends java.lang.Runnable
-        void run ()
-            _ = fn (),
-    end;
-    new YVertxRunnable());
-
 toHandler fn is ('a -> 'b) -> ~Handler = 
    (class IYetiHandler extends Handler
         void handle(Object ob)
-            _ = fn (ob unsafely_as 'a),
+            fn (ob unsafely_as 'a),
     end;
     new IYetiHandler());
 
@@ -177,9 +170,9 @@ toAsyncResultHandler fn is ((Some 'a | None ~Exception ) -> 'b) -> ~AsyncResultH
             void handle(Object o)
                 r = o unsafely_as ~AsyncResult;
                 if (r is ~AsyncResult)#succeeded() then
-                    _ = fn (Some r#result)
+                    fn (Some r#result)
                 else
-                    _ = fn (None r#exception);
+                    fn (None r#exception);
                 fi,
         end;
         new IYetiAsyncResultHandler());
@@ -189,9 +182,9 @@ toTypedAsyncResultHandler tfn fn is (~Object -> 'a) -> ((Some 'a | None ~Excepti
             void handle(Object o)
                 r = o unsafely_as ~AsyncResult;
                 if (r is ~AsyncResult)#succeeded() then
-                    _ = fn (Some (tfn r#result))
+                   fn (Some (tfn r#result))
                 else
-                    _ = fn (None r#exception);
+                   fn (None r#exception);
                 fi,
         end;
         new IYetiAsyncResultHandler());
@@ -208,13 +201,13 @@ toStringHandler fn is (string ->'a) -> ~Handler =
         
 
 
-runOnLoop handler vertx = 
+runOnLoop vertx handler = 
     (vertx is ~Vertx)#runOnLoop(toHandler (handler is () -> ()));
 
-setPeriodic delay handler vertx = 
+setPeriodic vertx delay handler = 
     (vertx is ~Vertx)#setPeriodic(delay, toHandler (handler is number -> ()));
 
-setTimer delay handler vertx =
+setTimer vertx delay handler =
     (vertx is ~Vertx)#setTimer(delay, toHandler (handler is number -> ()));
 
 
@@ -231,18 +224,18 @@ verticle runFn is ({vertx is ~Vertx, container is ~Container} -> ({vertx is ~Ver
             stopFn := 
                 runFn {vertx = this#getVertx(), container = this#getContainer()},
         void stop()
-            _ = stopFn {vertx = this#getVertx(), container = this#getContainer()},
+            stopFn {vertx = this#getVertx(), container = this#getContainer()},
     end;
     \(new IYetiVerticle() as ~Verticle));
 
  
-deployModule name config instances handler container = 
+deployModule container name config instances handler = 
     (container is ~Container)#deployModule(name is string, 
                                             toJS config, 
                                             instances is number, 
                                             toStringHandler handler);
 
-deployVerticle name config instances handler container= 
+deployVerticle container name config instances handler= 
     (container is ~Container)#deployVerticle(name is string, 
                                                 toJS config, 
                                                 instances is number, 
@@ -337,7 +330,7 @@ _runTestsImpl tests resultO allResults vertx container =
             _runTestsImpl tests (Some res) allResults vertx container);
         Some res:
             if System#currentTimeMillis() < res.stopTime then
-                vertx |> runOnLoop 
+                runOnLoop vertx 
                     \(_runTestsImpl tests resultO allResults vertx container)
             else
                 case res.result of
@@ -373,12 +366,11 @@ _runTestsImpl tests resultO allResults vertx container =
 {
     get context () =  Context#getContext(),
     addCloseHook key fn = 
-        Context#getContext()#putCloseHook(key is string, toRunnable fn),
+        Context#getContext()#putCloseHook(key is string, runnable fn),
     executeOnWorker fn = 
-        Context#getContext()#executeOnWorker(toRunnable fn),
+        Context#getContext()#executeOnWorker(runnable fn),
     
 
-    toRunnable, 
     toHandler, 
     toSimpleHandler,
     toWebsocketHandler, 

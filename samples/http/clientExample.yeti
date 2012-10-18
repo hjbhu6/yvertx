@@ -25,13 +25,13 @@ import org.vertx.java.core.http.HttpClientResponse;
 import org.vertx.java.deploy.Verticle;
 
 verticle do {vertx, container}:
-    client = vertx |> httpc.create "localhost:8080";
-    httpc.getBodyNow 
+    client = httpc.create vertx "localhost:8080";
+    httpc.getBodyNow
+        client
         "/" 
         [:] 
         do {resp, buffer}:
             _ = println (string buffer)
-        done
-        client;
+        done;
     \()
 done;

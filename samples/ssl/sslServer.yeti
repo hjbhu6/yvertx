@@ -19,9 +19,9 @@ load yvertx;
 net = load yvertx.net;
 
 verticle do {vertx, container}:
-    _ = (vertx |> net.createServerWithHandler do socket:
-        socket |> net.dataHandler do buffer:
-            socket#write(buffer);
+    _ = (net.createServerWithHandler vertx do socket:
+        net.dataHandler socket do buffer:
+            _ = socket#write(buffer);
         done;
     done)#setSSL(true)
          #setKeyStorePath("server-keystore.jks")

@@ -24,15 +24,16 @@ bus = load yvertx.bus;
 
 verticle do {vertx, container}:
     connections = (vertx is ~Vertx)#sharedData()#getSet("conns");
-    (vertx |> net.createServerWithHandler do socket:
+    (net.createServerWithHandler vertx do socket:
         _ = connections#add(socket#writeHandlerID);
-        _ = socket |> net.dataHandler do buffer:
+        net.dataHandler socket do buffer:
             it = connections#iterator();
             it#hasNext() loop
                 vertx |> bus.publish (string it#next()) buffer;
         done;
-        _ = socket |> net.closedHandler \(connections#remove(socket#writeHandlerID));
-        
+        net.closedHandler socket do:
+            _ = connections#remove(socket#writeHandlerID)
+        done;
     done)#listen(1234);
     \()
 done;

@@ -25,26 +25,26 @@ yvertx = load yvertx;
 toHandler handler =
     yvertx.toHandler (handler is (~SockJSSocket) -> 'a);
 
-dataHandler handler socket =
+dataHandler socket handler =
     (socket is ~SockJSSocket)#dataHandler(
         yvertx.toBufferHandler handler);
 
-exceptionHandler handler socket =
+exceptionHandler socket handler =
     (socket is ~SockJSSocket)#exceptionHandler(
         yvertx.toExceptionHandler handler);
 
-drainHandler handler socket =
+drainHandler socket handler =
     (socket is ~SockJSSocket)#drainHandler(yvertx.toHandler handler);
         
-endHandler handler socket =
+endHandler socket handler =
     (socket is ~SockJSSocket)#endHandler(yvertx.toHandler handler);
     
     
-installApp config handler server =
+installApp server config handler =
     (server is ~SockJSServer)#installApp(yvertx.toJS config, 
                  toHandler handler);  
 
-bridge opts sjsConfig inboundPermitted outboundPermitted server =
+bridge server opts sjsConfig inboundPermitted outboundPermitted =
    (var authTimeout = 5 * 60 * 1000;
     var authAddress = "vertx.basicauthmanager.athorise";
     for opts do opt:
@@ -66,6 +66,6 @@ bridge opts sjsConfig inboundPermitted outboundPermitted server =
     exceptionHandler,
     installApp,
     bridge,
-    create server vertx =
+    create vertx server =
         (vertx is ~Vertx)#createSockJSServer(server),
 }

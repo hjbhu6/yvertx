@@ -23,8 +23,11 @@ httpc = load yvertx.httpc;
 
 
 verticle do {vertx, container}:
-    (vertx |> httpc.create "localhost:4443")#setSSL(true)#setTrustAll(true) 
-        |> httpc.getBodyNow "/" [:] do {buffer, resp}:
+    client = (httpc.create vertx "localhost:4443")
+             #setSSL(true)
+             #setTrustAll(true);
+             
+    httpc.getBodyNow client "/" [:] do {buffer, resp}:
             println "length: \((buffer is ~Buffer)#length())";
             println (string buffer);
           done;

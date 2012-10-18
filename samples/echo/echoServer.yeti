@@ -23,9 +23,8 @@ import org.vertx.java.core.streams:Pump,
                                    WriteStream;
 
 verticle do {vertx,container}:
-    (vertx |> net.createServerWithHandler do sock:
-        socket = sock as ~Object;
-        Pump#createPump(socket unsafely_as ~ReadStream, socket unsafely_as ~WriteStream)#start();
+    (net.createServerWithHandler vertx do sock:
+        (createPump sock sock)#start();
     done)#listen(1234);
     \();
 done;

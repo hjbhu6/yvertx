@@ -20,19 +20,19 @@ sockjs = load yvertx.sockjs;
 https = load yvertx.https;
 
 verticle do {vertx, container}:
-    server = vertx |> https.createWithHandler do req:
+    server = https.createWithHandler vertx do req:
         if req#path == "/" then
-            req#response#sendFile("sockjs/index.html");
+            _ = req#response#sendFile("sockjs/index.html");
         fi;
     done;
-    
-    vertx 
-    |> sockjs.create server
-    |> sockjs.installApp {prefix = "/testapp"} do sock:
-        sock |> sockjs.dataHandler do buffer:
-            sock#writeBuffer(buffer); //Echo it back
+    sockjs.installApp 
+        (sockjs.create vertx server)
+        {prefix = "/testapp"} 
+        do sock:
+            sockjs.dataHandler sock do buffer:
+                _ = sock#writeBuffer(buffer); //Echo it back
+            done;
         done;
-    done;
     
     _ = server#listen(8080);
     

@@ -31,21 +31,21 @@ yvertx = load yvertx;
 toRequestHandler fn is (~HttpServerRequest -> 'a) -> ~Handler =
         yvertx.toHandler fn;
 
-requestHandler handler server =
+requestHandler server handler =
    (server is ~HttpServer)#requestHandler(toRequestHandler handler);
         
 
-dataHandler handler request =
+dataHandler request handler =
    (request is ~HttpServerRequest)#dataHandler(yvertx.toBufferHandler handler);
 
-endHandler handler request =
+endHandler request handler =
    (request is ~HttpServerRequest)#endHandler(yvertx.toHandler handler);
 
-exceptionHandler handler request =
+exceptionHandler request handler =
    (request is ~HttpServerRequest)#exceptionHandler(
         yvertx.toExceptionHandler handler);
    
-bodyHandler handler request =
+bodyHandler request handler =
    (request is ~HttpServerRequest)#bodyHandler(
         yvertx.toBufferHandler handler);
 
@@ -53,7 +53,7 @@ bodyHandler handler request =
 create vertx = 
     (vertx is ~Vertx)#createHttpServer();
 
-createWithHandler handler vertx = 
+createWithHandler vertx handler = 
     (vertx is ~Vertx)#createHttpServer()#requestHandler(toRequestHandler handler);
     
 _routeMatcher () =
@@ -89,7 +89,7 @@ _routeMatcher () =
     });        
         
  
-putHeaders headers request =
+putHeaders request headers =
    ((request is ~HttpServerRequest)#response#headers()#putAll(
         (headers is hash<string,string>) as ~Map);
     request);

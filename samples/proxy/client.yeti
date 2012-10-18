@@ -19,11 +19,15 @@ load yvertx;
 httpc = load yvertx.httpc;
 
 verticle do {vertx, container}:
-    req = vertx 
-          |> httpc.create "localhost:8080"
-          |> httpc.request (Put "/some-url") [:] (httpc.dataHandler do buffer:
-               println "Got response data: \(buffer)"; 
-          done);
+    req = httpc.request 
+            (httpc.create vertx "localhost:8080")
+            (Put "/some-url") 
+            [:]
+            do resp:
+                httpc.dataHandler resp do buffer:
+                     println "Got response data: \(buffer)"; 
+                done
+            done;
     req#setChunked(true);
     for [0 .. 9] do i:
         _ = req#write("client-data-cunk-\(i)");

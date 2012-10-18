@@ -24,11 +24,12 @@ https = load yvertx.https;
 webroot = "sendfile/";
 
 verticle do {vertx, container}:
-    (vertx |> https.createWithHandler do req:
-        if req#path == "/" then
+    (https.createWithHandler vertx do req:
+        _ = if req#path == "/" then
             req#response#sendFile(webroot ^ "index.html")
         else
-            //Clearly in a real server you would check the path for better security
+            //Clearly in a real server you would check 
+            //the path for better security
             req#response#sendFile(webroot ^ req#path);
         fi;
     done)#listen(8080);

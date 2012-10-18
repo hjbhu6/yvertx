@@ -7,10 +7,12 @@ fs = load yvertx.fs;
 https = load yvertx.https;
 
 verticle do {container, vertx}:
-    (vertx |> https.createWithHandler do req:
-        vertx |> fs.readFile "foo.html" \case of
+    fs = (load yvertx.fs) vertx;
+    (https.createWithHandler vertx do req:
+        fs.readFile "foo.html" \case of
             Some buffer:
-               (req |> https.putHeaders ["Content-Length": string (buffer is ~Buffer)#length(),
+               (https.putHeaders req 
+                ["Content-Length": string (buffer is ~Buffer)#length(),
                                          "Content-Type": "text/html"])
                     #response#end(buffer);
             None ex :

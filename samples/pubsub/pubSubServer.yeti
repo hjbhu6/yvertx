@@ -28,8 +28,8 @@ import org.vertx.java.deploy.Verticle;
 import java.util.Set;
 
 verticle do {vertx, container}:
-    (vertx |> net.createServerWithHandler do socket:
-        socket |> net.dataHandler (rb.delimited "\n" do frame:
+    (net.createServerWithHandler vertx do socket:
+        net.dataHandler socket (rb.delimited "\n" do frame:
             line = strTrim (string frame);
             println "Line is \(line)";
             case list (strSplit '\\' line) of
