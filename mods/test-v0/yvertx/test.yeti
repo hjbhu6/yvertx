@@ -104,6 +104,32 @@ done,
         rs.assure "\(body)" (asserts and (body == repl));
     done;
 done,
+
+"eventbus:replyOfReplyOfReply" : do rs:
+    adr = "foo";
+    msg = {msg = "message"};
+    repl = {msg = "repl"};
+    repl2 = {msg = "repl2"};
+    repl3 = {msg = "repl3"};
+    vertx |> bus.register adr \() do {body, handler, replyWithHandler}:
+        rs.assert "" (msg == body);
+        replyWithHandler repl do {body, reply}:
+            rs.assert "" (repl2 == body);
+            reply repl3;
+            vertx |> bus.unregister adr handler \();
+        done
+    done;
+
+    vertx |> bus.send adr msg do {body, replyWithHandler}:
+        rs.assert "" (body == repl);
+        replyWithHandler repl2 do {body}:
+            rs.assure "" (body == repl3);
+        done
+    done;
+done,
+
+"eventbus:emptyReply" : do rs:
+done,
 ];
     \()
 done;
