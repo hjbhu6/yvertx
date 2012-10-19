@@ -103,7 +103,7 @@ toJSArray ls is list<'a> -> ~JsonArray =
 _fromJS object = 
    (import java.util:List,HashMap,Map;
     import java.lang:Number;
-    import yvertx.impl:HashStruct;
+    import org.yeb:HashStruct;
     
     o = object as ~Object;
     
