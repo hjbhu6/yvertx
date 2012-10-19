@@ -135,157 +135,6 @@ withThreadLocal threadLocal newValue ac =
         threadLocal.value := oldV;
     yrt);
 
-
-{exec = defaultExecutor, sexec = _defaultScheduledExecutor} = 
-   (import java.util.concurrent:Executors, ThreadFactory, TimeUnit;
-    import java.lang: Thread, Runnable, Runtime,InterruptedException;
-
-    class MyThF extends ThreadFactory
-        Thread newThread(Runnable r)
-            th = Executors#defaultThreadFactory()#newThread(r);
-            th#setDaemon(true);
-            th,
-    end;
-   
-    thF = new MyThF();
-    
-    exec = Executors#newCachedThreadPool(thF);
-    sexec = Executors#newSingleThreadScheduledExecutor(thF);
-    
-    class ShutDR extends Runnable
-        void run()
-            try
-                exec#shutdown();
-                _ = sexec#awaitTermination(1, TimeUnit#SECONDS);
-                _ = exec#awaitTermination(1, TimeUnit#SECONDS);
-                ()
-            catch InterruptedException ex:
-                ()
-            yrt,
-    end;
-    Runtime#getRuntime()#addShutdownHook(new Thread(new ShutDR()));
-    {exec, sexec});
-
-    
-typedef shared monitorType = 'a;
-    
-newMonitor () is () -> monitorType = 
-   (listeners = [:];
-    var fired = false;
-    
-    register ls = 
-       (fire = synchronized listeners \(
-            if fired then
-                true
-            else
-                listeners.[ls] := ();
-                false
-            fi);
-        if fire then
-            ls ();
-        fi);
-    unregister ls = 
-        synchronized listeners \(delete listeners ls);
-    fire () = 
-       (fire = synchronized listeners \(
-            if fired then
-                false
-            else
-                fired := true;
-                true
-            fi);
-        if fire then
-            forHash listeners do k v:
-                k ();
-            done;
-            clearHash listeners;
-        fi);
-    fired? = synchronized listeners \(fired);
-    {
-        unregister,
-        register,
-        fire,
-        fired?
-    });
-                
-nilMonitor is monitorType = {
-    unregister fn is (() -> ()) -> ()= (),
-    register fn is (() -> ()) -> () = (),
-    fire () = (),
-    fired? = false
-};
-
-
-_monitorTH = threadLocal nilMonitor;
-
-_currentMonitor () = _monitorTH.value;
-
-withMonitor moni fn = 
-   (oldMoni = _currentMonitor ();
-    _monitorTH.value := moni;
-    try 
-        fn ();
-    finally
-        _monitorTH.value := oldMoni;
-    yrt);    
-
-toRunnable fn =
-   (import java.lang.Runnable;
-    moni = _currentMonitor();
-    class StdRunnable extends Runnable
-        void run () 
-            _ = withMonitor moni fn,
-    end;
-    new StdRunnable() as ~Runnable);
-    
-
-async opts fn   =
-   (import java.util.concurrent:TimeUnit, Callable, ExecutorService,Future;
-    var executor = defaultExecutor as ~ExecutorService;
-    for opts do opt:
-        case opt of
-        Executor ex: executor := ex;
-        esac
-    done;
-    
-    runnable = toRunnable fn;  
-    future = executor#submit(runnable);
-    (_currentMonitor ()).register \(_ = future#cancel(true));
-    future);
-
-schedule opts initialDelay fn =
-   (import java.util.concurrent:TimeUnit, Callable, ExecutorService;
-    executorOpts = array []; 
-    var timeunit = TimeUnit#MILLISECONDS;
-    var schedular = _defaultScheduledExecutor;
-    var period = 0;
-    var delay = 0;
-    for opts do opt:
-        case opt of
-        Executor ex: push executorOpts (Executor ex);
-        Schedular sex: schedular := sex;
-        FixedRate p : period := p;
-        FixedDelay d: delay := d;
-        Timeunit tu : timeunit := tu;
-        esac
-    done;
-    
-    runnable = toRunnable \(_ = async executorOpts fn);
-    
-    future = if delay > 0 then
-        schedular#scheduleWithFixedDelay(runnable, initialDelay
-                ,delay,timeunit);
-    elif period > 0 then
-        schedular#scheduleAtFixedRate(runnable, initialDelay 
-                    ,period,timeunit);
-    else
-        schedular#schedule(runnable, initialDelay,timeunit);
-    fi;
-
-    (_currentMonitor ()).register \( _ = future#cancel(true));
-    future);
-	
-    
 getLogger name is string -> ~Logger = LoggerFactory#getLogger(name);
 
 
@@ -325,12 +174,6 @@ getSome opt =
     None () : failWith "expects Some but was None";
     Some v : v;
     esac;
-
-some v is 'a -> (Some 'a | None () )= Some v;
-
-loadClass name =
-    Thread#currentThread()#getContextClassLoader()#loadClass(name);
-
 
 require cond msg =
   if not cond then
@@ -455,12 +298,12 @@ create hash is hash<'k, 'v> -> tableType<'k,'v> =
     
     
 
-    ($) x y = x y,
     (|>>) fn1 fn2 = composeToRight fn1 fn2,
     
-    (:!) x is 'a -> 'b = x as ~Object,
-    (:!!) x is ~Object -> 'a = x unsafely_as 'a,
-    (:!!!) x is 'a -> 'b = x unsafely_as 'b,
+
+    onil = ([] as ~Object) unsafely_as list<~Object>,
+    (%%) a b is 'a -> list<~Object> -> list<~Object> = 
+        (a unsafely_as ~Object) :: b,
 
     message,
     plainMessage,
@@ -474,15 +317,6 @@ create hash is hash<'k, 'v> -> tableType<'k,'v> =
     maybeDefined,
     maybe',
     getSome,
-    some,
-    
-    defaultExecutor,
-    async,
-    schedule,
-    newMonitor,
-    nilMonitor,
-    get currentMonitor () = _currentMonitor (),
-    withMonitor,
     
     onDefined fn v = if defined? v then Some (fn v) else none fi,
     isString x = x ^ "",
@@ -491,9 +325,7 @@ create hash is hash<'k, 'v> -> tableType<'k,'v> =
     
     
     withThreadLocal,
-    toRunnable,
 
-    loadClass,
 
     require,
     ensure,
@@ -505,6 +337,7 @@ create hash is hash<'k, 'v> -> tableType<'k,'v> =
     boolean,
     nan?,
     obj a = a as ~Object,
+    cast x is 'a -> 'b = x unsafely_as 'b,
     simpleTest,
 
     stringWriter,

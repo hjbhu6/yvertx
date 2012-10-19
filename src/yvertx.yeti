@@ -618,9 +618,6 @@ _runTestsImpl tests resultO allResults vertx container =
         (vertx is ~Vertx)#sharedData(),
     
     
-    onil = ([] as ~Object) unsafely_as list<~Object>,
-    (%%) a b is 'a -> list<~Object> -> list<~Object> = 
-        (a unsafely_as ~Object) :: b,
 
     deployModule, 
     deployVerticle, 

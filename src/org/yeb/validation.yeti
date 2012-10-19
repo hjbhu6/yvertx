@@ -90,9 +90,9 @@ valiListLength min max listIn is number -> number -> list<'a> -> list<'a>= (
 
 valiNum min max num =
     if num > max then
-        failWithValidation (message "numtoohigh" "number must be max %1$s but is %2$s" [max:!, min:!]) num;
+        failWithValidation (message "numtoohigh" "number must be max %1$s but is %2$s" [obj max, obj min]) num;
     elif num < min then
-        failWithValidation(message "numtoolow" "number must be min %1$s but is %2$s" [min:!, min:!]) num;
+        failWithValidation(message "numtoolow" "number must be min %1$s but is %2$s" [obj min, obj max]) num;
     else
         num
     fi;
@@ -130,7 +130,7 @@ valiString min max str =
         if (strLength ret) < min then
             failWithValidation
                 (message "stringtooschort" "string %1$s is only %2$n long but should be at leas %3$n long"
-                        [str:!,(strLength ret):!,min:!])
+                        [obj str,obj (strLength ret),obj min])
                 ret;
         else
             ret
