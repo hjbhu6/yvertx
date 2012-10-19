@@ -93,15 +93,17 @@ _ = target "compileSamples" [Before livecycleTargets.testCompile]
         
         println "Sample dirs \(dirs)";
         
-        outDir = "target/sampleclasses";
+        outDir = "target/sampleclasses/";
         
+        antTask "delete" ["dir":outDir] [] project;
+
         for dirs do sDir:
                 srcDir = "samples/\(sDir)";
+                cOutDir =  outDir^sDir;
                 println "compiling dir \(srcDir)";
-                antTask "delete" ["dir":outDir] [] project;
-                antTask "mkdir" ["dir":outDir] [] project;
+                antTask "mkdir" ["dir":cOutDir] [] project;
                 yeticTask
-                    outDir
+                    cOutDir
                     srcDir
                     taskProps.yetic.includes
                     taskProps.yetic.sourceReaderCode
