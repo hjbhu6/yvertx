@@ -21,53 +21,46 @@ import org.vertx.java.core.json:JsonObject;
 import org.vertx.java.core.eventbus:Message;
 
 load yvertx;
-
-toMessageHandler fn is (~Message -> 'a) -> ~Handler =
-        toHandler fn;
-
-toJsonMessageHandler fn =
-    (class YvertxMessageHandler extends Handler
-        void handle(Object ob)
-            msg = ob unsafely_as ~Message;
-            _ = fn {message = msg,
-                handler = this as ~Handler,
-                get body () = fromJS (msg#body unsafely_as ~JsonObject),
-                get replyAddress () = string msg#replyAddress,
-                reply v = msg#reply(toJS v),
-                replyWithHandler v handler = 
-                    msg#reply(toJS v, toJsonMessageHandler handler)
-               }
-    end;
-    new YvertxMessageHandler() as ~Handler);
-
-publish address msg vertx = 
-    (vertx is ~Vertx)#eventBus()#publish(address is string, toJS msg);
-
-send address msg handler vertx =
-    (vertx is ~Vertx)#eventBus()#send(address is string, toJS msg, 
-            toJsonMessageHandler handler);
+do vertx: {
     
-    
-register address resultHandler handler vertx =
-    (vertx is ~Vertx)#eventBus()#registerHandler(address is string,
-                                        toJsonMessageHandler handler,
-                                        toAsyncResultHandler resultHandler);
-    
-registerLocal address handler vertx =
-    (vertx is ~Vertx)#eventBus()#registerLocalHandler(address is string,
-                                                toJsonMessageHandler handler);
+    toMessageHandler fn is (~Message -> 'a) -> ~Handler =
+            toHandler fn,
+
+    toJsonMessageHandler fn =
+        (class YvertxMessageHandler extends Handler
+            void handle(Object ob)
+                msg = ob unsafely_as ~Message;
+                _ = fn {message = msg,
+                    handler = this as ~Handler,
+                    get body () = fromJS (msg#body unsafely_as ~JsonObject),
+                    get replyAddress () = string msg#replyAddress,
+                    reply v = msg#reply(toJS v),
+                    replyWithHandler v handler = 
+                        msg#reply(toJS v, toJsonMessageHandler handler)
+                   }
+        end;
+        new YvertxMessageHandler() as ~Handler),
+
+    publish address msg = 
+        (vertx is ~Vertx)#eventBus()#publish(address is string, toJS msg),
+
+    send address msg handler =
+        (vertx is ~Vertx)#eventBus()#send(address is string, toJS msg, 
+                toJsonMessageHandler handler),
         
-
-unregister id handler resultHandler vertx =
-    (vertx is ~Vertx)#eventBus()#unregisterHandler(id is string, handler, 
-                                        toAsyncResultHandler resultHandler);
         
-{
-    toMessageHandler,
-    toJsonMessageHandler,
-    publish,
-    send,
-    register,
-    registerLocal,
-    unregister,
+    register address resultHandler handler =
+        (vertx is ~Vertx)#eventBus()#registerHandler(address is string,
+                                         toJsonMessageHandler handler,
+                                         toAsyncResultHandler resultHandler),
+        
+    registerLocal address handler =
+        (vertx is ~Vertx)#eventBus()#registerLocalHandler(address is string,
+                                                 toJsonMessageHandler handler),
+            
+
+    unregister id handler resultHandler =
+        (vertx is ~Vertx)#eventBus()#unregisterHandler(id is string, handler, 
+                                           toAsyncResultHandler resultHandler),
 }
+done;

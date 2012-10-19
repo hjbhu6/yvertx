@@ -19,9 +19,10 @@ import java.lang.System;
 import org.vertx.java.core.Vertx;
 
 load yvertx;
-bus = load yvertx.bus;
 
 verticle do {vertx, container}:
+
+    bus = (load yvertx.bus) vertx;
     var count = 0;
     var last = 0;
     var start = 0;
