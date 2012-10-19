@@ -259,14 +259,15 @@ enviroment container =
     ret);
 
 
-undeployModule deploymentID handler container=
+undeployModule container deploymentID handler =
     (container is ~Container)#undeployModule(deploymentID, 
                                     toHandler (handler is () -> ()));
     
-undeployVerticle deploymentID handler container =
+undeployVerticle container deploymentID handler =
     (container is ~Container)#undeployVerticle(deploymentID, 
                                     toHandler (handler is () -> ()));
-eventbusHelper = {
+
+bus = {
     toMessageHandler fn is (~Message -> 'a) -> ~Handler =
             toHandler fn,
 
@@ -284,33 +285,29 @@ eventbusHelper = {
                    }
         end;
         new YvertxMessageHandler() as ~Handler),
-};
 
-eventbus vertx = {
-    
-
-    publish address msg = 
+    publish vertx address msg = 
         (vertx is ~Vertx)#eventBus()#publish(address is string, toJS msg),
 
-    send address msg handler =
+    send vertx address msg handler =
         (vertx is ~Vertx)#eventBus()#send(address is string, toJS msg, 
-                eventbusHelper.toJsonMessageHandler handler),
+                toJsonMessageHandler handler),
         
         
-    register address resultHandler handler =
+    register vertx address resultHandler handler =
         (vertx is ~Vertx)#eventBus()#registerHandler(address is string,
-                                eventbusHelper.toJsonMessageHandler handler,
+                                toJsonMessageHandler handler,
                                 toAsyncResultHandler resultHandler),
         
-    registerLocal address handler =
+    registerLocal vertx address handler =
         (vertx is ~Vertx)#eventBus()#registerLocalHandler(address is string,
-                       eventbusHelper.toJsonMessageHandler handler),
+                       toJsonMessageHandler handler),
             
 
-    unregister id handler resultHandler =
+    unregister vertx id handler resultHandler =
         (vertx is ~Vertx)#eventBus()#unregisterHandler(id is string, handler, 
                               toAsyncResultHandler resultHandler),
-} with eventbusHelper;
+};
 
 fsHelper = {
     closeAFile file handler =
@@ -616,10 +613,9 @@ _runTestsImpl tests resultO allResults vertx container =
                 port = int (number (strRight hostPort (i+1)))}
             fi),
         toTypedAsyncResultHandler
-    } with eventbusHelper
-      with fsHelper,
+    } with fsHelper,
     
-    eventbus,
+    bus,
     fileSystem,
 
     runTests vertx container tests =

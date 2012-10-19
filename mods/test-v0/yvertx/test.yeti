@@ -4,7 +4,6 @@ import org.vertx.java.deploy:Container;
 
 load yvertx;
 load org.yeb.std;
-bus = load yvertx.bus;
 
 
 verticle do {container, vertx}:
@@ -17,15 +16,15 @@ verticle do {container, vertx}:
 done,
 
 "deploy" : do rs:
-    vertx |> bus.register "test-handler"
-        \(_ = container|> deployVerticle "yvertx.deploy.child.yeti" emptyJS 1 
+    bus.register vertx "test-handler"
+        \(_ = deployVerticle container "yvertx.deploy.child.yeti" emptyJS 1 
             \())
         do {body,handler}:
         println "in body \(body.started)";
         if body.started then
             println "in body";
             rs.assure "in body" true;
-            vertx |> bus.unregister "test-handler" handler \();
+            bus.unregister vertx "test-handler" handler \();
         else
             println "wrong message"
         fi
@@ -33,15 +32,15 @@ done,
 done,
 
 "undeploy" : do rs:
-    _ = container |> deployVerticle "yvertx.deploy.child.yeti" emptyJS 1
+    _ = deployVerticle container "yvertx.deploy.child.yeti" emptyJS 1
         do did:
-            vertx |> bus.register "test-handler" \() do {body,handler}:
+            bus.register vertx "test-handler" \() do {body,handler}:
                 if body.stopped then
                     rs.assure "body-stopped" true;
-                    vertx |> bus.unregister "test-handler" handler \();
+                    bus.unregister vertx "test-handler" handler \();
                 fi
             done;
-            container |> undeployVerticle did \();
+            undeployVerticle container did \();
         done;
 done,
 
@@ -50,42 +49,42 @@ done,
     rs.setTimeout(2000);
     address = "foo-some";
     var handled = false;
-    vertx |> bus.register address \() do {body, handler}:
-        vertx |> bus.unregister address handler \();
+    bus.register vertx address \() do {body, handler}:
+        bus.unregister vertx address handler \();
         rs.assure "\(body)" (body == msg and not handled);
         handled := true;
     done;
-    vertx |> bus.send address msg \();
+    bus.send vertx address msg \();
 done,
 
 "eventbus:emptyMessage" : do rs:
     var handled = false;
     adr = "foo";
     msg = emptyJS;
-    vertx |> bus.register adr \() do {body,handler}:
-        vertx |> bus.unregister adr handler \();
+    bus.register vertx adr \() do {body,handler}:
+        bus.unregister vertx adr handler \();
         rs.assure "\(body)" (body == msg and not handled);
         handled := true;
     done;
-    vertx |> bus.send adr msg \();
+    bus.send vertx adr msg \();
 done,
 
 "eventbus:unregister" : do rs:
     var handled = false;
     msg = {count = 1, foo = "foo"};
     var assertion = true;
-    vertx |> bus.register "foo" \() do {body,handler}:
+    bus.register vertx "foo" \() do {body,handler}:
         assertion := assertion and (body == msg and not handled);
-        vertx |> bus.unregister "foo" handler \();
+        bus.unregister vertx "foo" handler \();
         //should do nothing
-        vertx |> bus.unregister "foo" handler \();
+        bus.unregister vertx "foo" handler \();
         handled := true;
-        vertx |> setTimer 100 do:
+        setTimer vertx 100 do:
             //complete the test
             rs.assure "" assertion;
         done;
     done;
-    for [1..3] \(vertx |> bus.send "foo" msg \());
+    for [1..3] \(bus.send vertx "foo" msg \());
 done,
 
 "eventbus:withReply" : do rs:
@@ -93,14 +92,14 @@ done,
     msg = {count=1, foo = "foo2"};
     repl = {reply = true};
     var asserts = true;
-    vertx |> bus.register "foo" \() do {body,handler, reply}:
+    bus.register vertx "foo" \() do {body,handler, reply}:
         asserts := asserts and (not handled and msg == body);
-        vertx |> bus.unregister "foo" handler \();
+        bus.unregister vertx "foo" handler \();
         handled := true;
         reply repl;
     done;
 
-    vertx |> bus.send "foo" msg do {body}:
+    bus.send vertx "foo" msg do {body}:
         rs.assure "\(body)" (asserts and (body == repl));
     done;
 done,
@@ -111,16 +110,16 @@ done,
     repl = {msg = "repl"};
     repl2 = {msg = "repl2"};
     repl3 = {msg = "repl3"};
-    vertx |> bus.register adr \() do {body, handler, replyWithHandler}:
+    bus.register vertx adr \() do {body, handler, replyWithHandler}:
         rs.assert "" (msg == body);
         replyWithHandler repl do {body, reply}:
             rs.assert "" (repl2 == body);
             reply repl3;
-            vertx |> bus.unregister adr handler \();
+            bus.unregister vertx adr handler \();
         done
     done;
 
-    vertx |> bus.send adr msg do {body, replyWithHandler}:
+    bus.send vertx adr msg do {body, replyWithHandler}:
         rs.assert "" (body == repl);
         replyWithHandler repl2 do {body}:
             rs.assure "" (body == repl3);

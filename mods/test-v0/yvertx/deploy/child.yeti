@@ -1,13 +1,12 @@
 module yvertx.deploy.child;
 
 load yvertx;
-bus = load yvertx.bus;
 
 verticle do {vertx}:
-   vertx |> bus.send "test-handler" {started=true} \(); 
+   bus.send vertx "test-handler" {started=true} \(); 
    println "child started";
    \(
-   		vertx |> bus.send "test-handler" {stopped = true} \();
+   		bus.send vertx "test-handler" {stopped = true} \();
    	);
 done;
 

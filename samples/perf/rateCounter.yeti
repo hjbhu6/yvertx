@@ -22,7 +22,6 @@ load yvertx;
 
 verticle do {vertx, container}:
 
-    bus = eventbus vertx;
     var count = 0;
     var last = 0;
     var start = 0;

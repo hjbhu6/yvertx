@@ -38,7 +38,7 @@ project.version := "0.9.6a";
 project.description := "Yeti support for vert.x";
 
 //load projectBase now
-vb = load ybuilder.core.vertxBase;
+_ = load ybuilder.core.vertxBase;
 
 //repositories
 remoteRepository "sonatype-nexus-releases" 
