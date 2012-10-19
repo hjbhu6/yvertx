@@ -1,0 +1,78 @@
+/*
+ * Copyright 2011 Christian Essl
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions
+ * and limitations under the License.
+ */
+
+module org.yvertx.deploy.yetiverticlefactorymodule;
+
+import java.lang:ClassLoader,
+                 Throwable,
+                 Thread;
+
+import org.yeb:YetiClassLoader;
+
+import org.vertx.java.core.impl:VertxInternal;
+import org.vertx.java.deploy: Verticle,
+                              VerticleFactory;
+import org.vertx.java.deploy.impl: VerticleManager,
+                                   VertxLocator;
+
+class YetiVerticleFactory extends VerticleFactory
+    var manager = () as ~VerticleManager,
+    
+    void init(VerticleManager mgr)
+        manager := mgr,
+    
+    String getLanguage() "yeti",
+    
+    boolean isFactoryFor(String main)
+        (strEnds? main ".yeti") 
+        or (strEnds? main ".teti")
+        or ((strEnds? main "YetiVerticle.class") and (strLength main > 18)),
+    
+    Verticle createVerticle(String className1, ClassLoader loader)
+        import yeti.lang.compiler:CompileException;
+        import java.lang.RuntimeException;
+        
+        className  = if strEnds? className1 ".yeti" 
+                        or strEnds? className1 ".teti" then
+                        strLeft className1 (strLength className1 - 5)
+                     else
+                        className1
+                     fi;
+        cl = new YetiClassLoader(loader,[],true);
+        ocl = Thread#currentThread()#getContextClassLoader();
+        try
+            import yeti.lang.Fun;
+            Thread#currentThread()#setContextClassLoader(cl);
+            moduleCl = cl#loadClass(className);
+
+            fn = moduleCl#getMethod("eval",() as ~Class[])#invoke(() as ~Object,() as ~Object[]);
+            (fn unsafely_as ~Fun)#apply(() as ~Object) unsafely_as ~Verticle;
+        catch CompileException ex:
+            import java.lang:ClassNotFoundException;
+            println (ex#getMessage());
+            throw new ClassNotFoundException(ex#getMessage());
+            //() as ~Verticle;
+            //throw new RuntimeException(ex#getMessage());
+        finally
+            Thread#currentThread()#setContextClassLoader(ocl);
+        yrt,
+    void reportException(Throwable t)
+        manager#getLogger()#error("Exception in Yeti verticle script", t),
+
+end;
+
+
+none;
