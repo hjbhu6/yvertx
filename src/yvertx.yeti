@@ -493,7 +493,7 @@ _runTestsImpl tests resultO allResults vertx container =
             println "\n---\nno exceptions\n";
         else
             println "\n---\nException results: \n"; 
-            for f do {name, msg}: println "[\(name)] : \n\(msg)"done;
+            for exs do {name, msg}: println "[\(name)] : \n\(msg)"done;
         fi;
 
         println "---\ntotal:\n";
