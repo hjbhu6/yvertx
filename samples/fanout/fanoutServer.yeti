@@ -22,7 +22,7 @@ load yvertx;
 net = load yvertx.net;
 
 verticle do {vertx, container}:
-   bus = (load yvertx.bus) vertx;
+   bus =  eventbus vertx;
    connections = (vertx is ~Vertx)#sharedData()#getSet("conns");
     (net.createServerWithHandler vertx do socket:
         _ = connections#add(socket#writeHandlerID);

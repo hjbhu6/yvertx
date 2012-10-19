@@ -28,6 +28,7 @@ import org.vertx.java.core.streams:Pump;
 import org.vertx.java.core.json:JsonObject,
                            JsonArray;
 import org.vertx.java.core.impl:Context;
+import org.vertx.java.core.eventbus:Message;
 import org.vertx.java.deploy:Verticle,
                              Container;
 
@@ -259,7 +260,51 @@ undeployModule deploymentID handler container=
 undeployVerticle deploymentID handler container =
     (container is ~Container)#undeployVerticle(deploymentID, 
                                     toHandler (handler is () -> ()));
+eventbusHelper = {
+    toMessageHandler fn is (~Message -> 'a) -> ~Handler =
+            toHandler fn,
 
+    toJsonMessageHandler fn =
+        (class YvertxMessageHandler extends Handler
+            void handle(Object ob)
+                msg = ob unsafely_as ~Message;
+                _ = fn {message = msg,
+                    handler = this as ~Handler,
+                    get body () = fromJS (msg#body unsafely_as ~JsonObject),
+                    get replyAddress () = string msg#replyAddress,
+                    reply v = msg#reply(toJS v),
+                    replyWithHandler v handler = 
+                        msg#reply(toJS v, toJsonMessageHandler handler)
+                   }
+        end;
+        new YvertxMessageHandler() as ~Handler),
+};
+
+eventbus vertx = {
+    
+
+    publish address msg = 
+        (vertx is ~Vertx)#eventBus()#publish(address is string, toJS msg),
+
+    send address msg handler =
+        (vertx is ~Vertx)#eventBus()#send(address is string, toJS msg, 
+                eventbusHelper.toJsonMessageHandler handler),
+        
+        
+    register address resultHandler handler =
+        (vertx is ~Vertx)#eventBus()#registerHandler(address is string,
+                                eventbusHelper.toJsonMessageHandler handler,
+                                toAsyncResultHandler resultHandler),
+        
+    registerLocal address handler =
+        (vertx is ~Vertx)#eventBus()#registerLocalHandler(address is string,
+                       eventbusHelper.toJsonMessageHandler handler),
+            
+
+    unregister id handler resultHandler =
+        (vertx is ~Vertx)#eventBus()#unregisterHandler(id is string, handler, 
+                              toAsyncResultHandler resultHandler),
+} with eventbusHelper;
 
 _runTestsImpl tests resultO allResults vertx container =
     if empty? tests then
@@ -423,7 +468,10 @@ _runTestsImpl tests resultO allResults vertx container =
                 port = int (number (strRight hostPort (i+1)))}
             fi),
         toTypedAsyncResultHandler
-    },  
+    } with eventbusHelper,
+    
+    eventbus,
+
     runTests vertx container tests =
         (ts = mapHash do name test: {name,test} done tests;
         println "start testing: tests \(ts |> map (.name))";

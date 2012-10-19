@@ -22,7 +22,7 @@ load yvertx;
 
 verticle do {vertx, container}:
 
-    bus = (load yvertx.bus) vertx;
+    bus = eventbus vertx;
     var count = 0;
     var last = 0;
     var start = 0;
