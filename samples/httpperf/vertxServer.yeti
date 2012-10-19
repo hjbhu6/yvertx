@@ -3,11 +3,10 @@ module vertxServer;
 import org.vertx.java.core.buffer.Buffer;
 
 load yvertx;
-fs = load yvertx.fs;
 https = load yvertx.https;
 
 verticle do {container, vertx}:
-    fs = (load yvertx.fs) vertx;
+    fs = fileSystem vertx;
     (https.createWithHandler vertx do req:
         fs.readFile "foo.html" \case of
             Some buffer:

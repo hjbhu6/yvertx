@@ -35,7 +35,7 @@ import java.nio.file:Files,
 
 verticle do {vertx,container}:
 
-    fs = (load yvertx.fs) vertx;
+    fs = fileSystem vertx;
 
     client = httpc.create vertx "localhost:8080";
     req =httpc.request client (Put "/some-url") [:] do resp:

@@ -24,7 +24,7 @@ import java.util.UUID;
 
 
 verticle do {vertx,container}:
-    fs = (load yvertx.fs) vertx;
+    fs = fileSystem vertx;
     (https.createWithHandler vertx do req:
         req#pause();
         filename = "upload/file-\(UUID#randomUUID()).upload";
