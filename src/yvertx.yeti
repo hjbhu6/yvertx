@@ -467,6 +467,13 @@ _runTestsImpl tests resultO allResults vertx container =
             esac
             done
             |> catSome;
+        exs = allResults |> map do {name,result}:
+            case result of
+            Exception ex: Some {name, msg = string ex};
+            _ : none;
+            esac
+            done
+            |> catSome;
         println "=========\nResults of runTest\n----------";               
         if length ok == 0 then
             println "\nno succesful results\n";
@@ -482,12 +489,20 @@ _runTestsImpl tests resultO allResults vertx container =
             for f do {name, msg}: println "[\(name)] : \(msg)"done;
         fi;
 
-        println "---\ntotal:\n";
-        if length f > 0 then
-            println "Failures : \(length f) failed out of \(length allResults)";
+        if length exs == 0 then
+            println "\n---\nno exceptions\n";
         else
-            println "Ok tests run: \(length allResults)";
+            println "\n---\nException results: \n"; 
+            for f do {name, msg}: println "[\(name)] : \n\(msg)"done;
         fi;
+
+        println "---\ntotal:\n";
+        if length f > 0 or length exs > 0 then
+            print "Failure :";
+        else
+            print "Ok :";
+        fi;
+        println "total runs: \(length allResults); ok: \(length ok); failures: \(length f); exceptions: \(length exs)";
         
         (container is ~Container)#exit();
     else
@@ -516,8 +531,19 @@ _runTestsImpl tests resultO allResults vertx container =
                     stopTime := 0);
             };
             res.setTimeout 1000;
-            test res;
-            _runTestsImpl tests (Some res) allResults vertx container);
+            try
+                test res;
+                _runTestsImpl tests (Some res) allResults vertx container;
+            catch Exception ex:
+               container#getLogger()#error("test: [\(name)]",ex);
+               //run next tests but with bad result
+               _runTestsImpl (tail tests)
+                             none
+                             ({name, result = Exception ex} 
+                                :: allResults)
+                             vertx
+                             container;
+            yrt);
         Some res:
             if System#currentTimeMillis() < res.stopTime then
                 runOnLoop vertx 
@@ -526,13 +552,13 @@ _runTestsImpl tests resultO allResults vertx container =
                 case res.result of
                 Success msg : _runTestsImpl (tail tests)
                                   none
-                                  ({name = res.name, result = res.result} 
+                                  ({name = res.name, result = Success msg} 
                                     :: allResults)
                                   vertx
                                   container;
                 None _ :
                     (msg = "timed out";
-                    println "failure in \(res.name): \(msg)";
+                    container#getLogger()#error("failure in \(res.name): \(msg)");
                     _runTestsImpl (tail tests)
                                   none
                                   ({name = res.name, result = Failure msg} 
@@ -540,10 +566,10 @@ _runTestsImpl tests resultO allResults vertx container =
                                   vertx
                                   container);
                 Failure msg : 
-                    (println "failure in \(res.name): \(msg)";
+                    (container#getLogger()#error("failure in \(res.name): \(msg)");
                     _runTestsImpl (tail tests)
                                   none
-                                  ({name = res.name, result = res.result} 
+                                  ({name = res.name, result = Failure msg} 
                                     :: allResults)
                                   vertx
                                   container);

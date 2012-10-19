@@ -128,6 +128,7 @@ done,
 done,
 
 "eventbus:emptyReply" : do rs:
+    failWith "not implemented";
 done,
 ];
     \()
