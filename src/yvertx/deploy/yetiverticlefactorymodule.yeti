@@ -14,7 +14,7 @@
  * and limitations under the License.
  */
 
-module org.yvertx.deploy.yetiverticlefactorymodule;
+module yvertx.deploy.yetiverticlefactorymodule;
 
 import java.lang:ClassLoader,
                  Throwable,
