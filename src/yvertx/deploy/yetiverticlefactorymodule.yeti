@@ -61,7 +61,7 @@ class YetiVerticleFactory extends VerticleFactory
             (fn unsafely_as ~Fun)#apply(() as ~Object) unsafely_as ~Verticle;
         catch CompileException ex:
             import java.lang:ClassNotFoundException;
-            println (ex#getMessage());
+            println "Yeti Compilation Error: \(ex#getMessage())";
             throw new ClassNotFoundException(ex#getMessage());
             //() as ~Verticle;
             //throw new RuntimeException(ex#getMessage());
