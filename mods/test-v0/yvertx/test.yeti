@@ -8,6 +8,8 @@ load org.yeb.std;
 
 verticle do {container, vertx}:
     println "running tests";
+    fs = fileSystem vertx;
+    fileDir = "yeti-test-ouput";
     runTests vertx container [
 
 "common load": do rs:
@@ -128,8 +130,22 @@ done,
 done,
 
 "eventbus:emptyReply" : do rs:
-    failWith "not implemented";
+    var handled = false;
+    adr = "foo";
+    msg = emptyJS;
+    bus.register vertx adr \() do {reply, body, handler}:
+        rs.assert "" (not handled);
+        rs.assert "" (msg == body);
+        bus.unregister vertx adr handler \();
+        handled := true;
+        reply emptyJS;
+    done;
+
+    bus.send vertx adr msg do {body, reply}:
+        rs.assure "" true;
+    done;
 done,
+
 ];
     \()
 done;
