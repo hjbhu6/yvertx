@@ -38,7 +38,7 @@ import org.vertx.java.core.file:FileSystem,
                                 FileProps,
                                 AsyncFile;
 
-emptyJS =(load org.yeb.std).emptyStruct;
+emptyJS = {´_´ = ()};
 
 _toJS object = 
    (import yeti.lang:Num, FloatNum, RatNum,AList, ByKey, Struct, Tag;
@@ -103,7 +103,7 @@ toJSArray ls is list<'a> -> ~JsonArray =
 _fromJS object = 
    (import java.util:List,HashMap,Map;
     import java.lang:Number;
-    import org.yeb:HashStruct;
+    import yvertx:HashStruct;
     
     o = object as ~Object;
     
