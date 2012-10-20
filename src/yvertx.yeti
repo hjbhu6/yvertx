@@ -643,6 +643,8 @@ _runTestsImpl tests resultO allResults vertx container =
 
     publish = bus.publish,
     send = bus.send,
+    
+    obj x = x unsafely_as ~Object,
 
     runTests vertx container tests =
         (ts = mapHash do name test: {name,test} done tests;

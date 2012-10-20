@@ -20,7 +20,7 @@ verticle do {vertx, container}:
     done;
     
     //Let everything trough
-    permitted = emptyJS %% onil;
+    permitted = [emptyJS];
     sockjs.bridge 
          (sockjs.create vertx server)
          [] 

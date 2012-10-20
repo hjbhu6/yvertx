@@ -3,7 +3,6 @@ module yvertx.test;
 import org.vertx.java.deploy:Container;
 
 load yvertx;
-load org.yeb.std;
 
 
 verticle do {container, vertx}:
