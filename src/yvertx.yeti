@@ -399,8 +399,6 @@ cbRun exfn =\case of
     Some (): ();
     esac;
 
-(->) cbfn fn =  cbMap fn cbfn;
-(->>) cbfn fn = cbBind fn cbfn;
 
 bus = {
     toMessageHandler fn is (~Message -> 'a) -> ~Handler =
@@ -797,6 +795,7 @@ _runTestsImpl tests resultO allResults vertx container =
     cbLift,
     cbSeq,
     cbSet,
-    cbStru,
+    (->) cbfn fn =  cbMap fn cbfn,
+    (->>) cbfn fn = cbBind fn cbfn,
 }     
     
