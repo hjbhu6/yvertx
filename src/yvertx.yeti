@@ -267,6 +267,27 @@ undeployVerticle container deploymentID handler =
     (container is ~Container)#undeployVerticle(deploymentID, 
                                     toHandler (handler is () -> ()));
 
+class YVertxTimeoutException(long time) extends RuntimeException("timeout \(time)")
+end;
+
+timeout vertx time fn = 
+    (var handled = false;
+
+    _ = setTimer vertx time do:
+        if not handled then
+            handled := true;
+            fn (None (new YVertxTimeoutException(time)))
+        fi
+    done;
+    
+    do arg:
+        if not handled then
+            handled := true;
+            fn (Some arg);
+        fi
+    done);
+
+
 bus = {
     toMessageHandler fn is (~Message -> 'a) -> ~Handler =
             toHandler fn,
@@ -280,7 +301,7 @@ bus = {
                     get body () = fromJS (msg#body unsafely_as ~JsonObject),
                     get replyAddress () = string msg#replyAddress,
                     reply v = msg#reply(toJS v),
-                    replyWithHandler v handler = 
+                    request v handler = 
                         msg#reply(toJS v, toJsonMessageHandler handler)
                    }
         end;
@@ -289,10 +310,11 @@ bus = {
     publish vertx address msg = 
         (vertx is ~Vertx)#eventBus()#publish(address is string, toJS msg),
 
-    send vertx address msg handler =
+    send vertx address msg =
+        (vertx is ~Vertx)#eventBus()#send(address is string, toJS msg),
+    request vertx address msg handler =   
         (vertx is ~Vertx)#eventBus()#send(address is string, toJS msg, 
                 toJsonMessageHandler handler),
-        
         
     register vertx address resultHandler handler =
         (vertx is ~Vertx)#eventBus()#registerHandler(address is string,
@@ -645,6 +667,8 @@ _runTestsImpl tests resultO allResults vertx container =
     send = bus.send,
     
     obj x = x unsafely_as ~Object,
+
+    timeout,
 
     runTests vertx container tests =
         (ts = mapHash do name test: {name,test} done tests;

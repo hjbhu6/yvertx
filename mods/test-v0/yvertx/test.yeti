@@ -55,7 +55,7 @@ done,
         rs.assure "\(body)" (body == msg and not handled);
         handled := true;
     done;
-    bus.send vertx address msg \();
+    bus.send vertx address msg;
 done,
 
 "eventbus:emptyMessage" : do rs:
@@ -67,7 +67,7 @@ done,
         rs.assure "\(body)" (body == msg and not handled);
         handled := true;
     done;
-    bus.send vertx adr msg \();
+    bus.send vertx adr msg;
 done,
 
 "eventbus:unregister" : do rs:
@@ -85,7 +85,7 @@ done,
             rs.assure "" assertion;
         done;
     done;
-    for [1..3] \(bus.send vertx "foo" msg \());
+    for [1..3] \(bus.send vertx "foo" msg);
 done,
 
 "eventbus:withReply" : do rs:
@@ -100,7 +100,7 @@ done,
         reply repl;
     done;
 
-    bus.send vertx "foo" msg do {body}:
+    bus.request vertx "foo" msg do {body}:
         rs.assure "\(body)" (asserts and (body == repl));
     done;
 done,
@@ -111,18 +111,18 @@ done,
     repl = {msg = "repl"};
     repl2 = {msg = "repl2"};
     repl3 = {msg = "repl3"};
-    bus.register vertx adr \() do {body, handler, replyWithHandler}:
+    bus.register vertx adr \() do {body, handler, request}:
         rs.assert "" (msg == body);
-        replyWithHandler repl do {body, reply}:
+        request repl do {body, reply}:
             rs.assert "" (repl2 == body);
             reply repl3;
             bus.unregister vertx adr handler \();
         done
     done;
 
-    bus.send vertx adr msg do {body, replyWithHandler}:
+    bus.request vertx adr msg do {body,request}:
         rs.assert "" (body == repl);
-        replyWithHandler repl2 do {body}:
+        request repl2 do {body}:
             rs.assure "" (body == repl3);
         done
     done;
@@ -139,8 +139,7 @@ done,
         handled := true;
         reply emptyJS;
     done;
-
-    bus.send vertx adr msg do {body, reply}:
+    bus.request vertx adr msg do {body, reply}:
         rs.assure "" true;
     done;
 done,
