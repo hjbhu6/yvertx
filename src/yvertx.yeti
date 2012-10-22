@@ -787,7 +787,16 @@ _runTestsImpl tests resultO allResults vertx container =
     runTests vertx container tests =
         (ts = mapHash do name test: {name,test} done tests;
         println "start testing: tests \(ts |> map (.name))";
-        _runTestsImpl ts none [] vertx container);
-    
+        _runTestsImpl ts none [] vertx container),
+
+        
+    cbId,
+    cbBind,
+    cbFlatten,
+    cbMap,
+    cbLift,
+    cbSeq,
+    cbSet,
+    cbStru,
 }     
     
