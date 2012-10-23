@@ -294,6 +294,15 @@ done,
     );
 done,
 
+"filesystem:pumpFile" : do rs:
+    dir = fileDir^"/pumpfile";
+    fshelper.clean dir \(
+        from = dir^"/foo.tmp";
+        to = dir^"/bar.tmp";
+        content = 
+    )
+done,
+
 ];
     \()
 done;
