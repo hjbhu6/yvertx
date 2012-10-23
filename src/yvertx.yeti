@@ -173,26 +173,26 @@ toSimpleHandler fn is (() -> 'a) -> ~Handler =
 toWebsocketHandler fn is (~WebSocket -> 'a) -> ~Handler =
         toHandler fn;
 
-toAsyncResultHandler fn is ((Some 'a | None ~Exception ) -> 'b) -> ~AsyncResultHandler =
+toAsyncResultHandler fn is ((Some 'a | Exception ~Exception ) -> 'b) -> ~AsyncResultHandler =
        (class IYetiAsyncResultHandler extends AsyncResultHandler
             void handle(Object o)
                 r = o unsafely_as ~AsyncResult;
                 if (r is ~AsyncResult)#succeeded() then
                     fn (Some r#result)
                 else
-                    fn (None r#exception);
+                    fn (Exception r#exception);
                 fi,
         end;
         new IYetiAsyncResultHandler());
 
-toTypedAsyncResultHandler tfn fn is (~Object -> 'a) -> ((Some 'a | None ~Exception ) -> 'b) -> ~AsyncResultHandler =
+toTypedAsyncResultHandler tfn fn is (~Object -> 'a) -> ((Some 'a | Exception ~Exception ) -> 'b) -> ~AsyncResultHandler =
        (class IYetiAsyncResultHandler extends AsyncResultHandler
             void handle(Object o)
                 r = o unsafely_as ~AsyncResult;
                 if (r is ~AsyncResult)#succeeded() then
                    fn (Some (tfn r#result))
                 else
-                   fn (None r#exception);
+                   fn (Exception r#exception);
                 fi,
         end;
         new IYetiAsyncResultHandler());

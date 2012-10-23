@@ -102,6 +102,13 @@ cbCol inex cb is (() -> 'a) -> cbfnType<'a>=
 
 cbRun exfn = exfn \();
 
+noex fn = do cb:
+    case cb of
+    Exception ex: throw (ex is ~Exception);
+    Some v: fn v;
+    esac;
+done;
+
 {
     cbId,
     cbBind,
@@ -113,6 +120,7 @@ cbRun exfn = exfn \();
     cbCol,
     (->) cbfn fn =  cbMap fn cbfn,
     (->>) cbfn fn = cbBind fn cbfn,
-    ($) a b = a b
+    ($) a b = a b,
+    noex
 
 }
