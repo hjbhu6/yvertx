@@ -2,7 +2,9 @@ module yvertx.cb;
 
 import java.lang:Exception;
 
-typedef cbrType<a> = Some a | Exception ~Exception;
+import org.vertx.java.core:Handler;
+
+typedef cbrType<a> = a; 
 typedef cbType<a> = cbrType<a> -> ();
 typedef cbfnType<a> = cbType<a> -> ();
 
@@ -11,54 +13,34 @@ cbId v = do cb: cb v done;
 
 cbBind fn cbfn is ('a -> cbfnType<'b>) -> cbfnType<'a> -> cbfnType<'b>= 
     do cb:
-        cbfn \case of
-            Exception ex: cb (Exception ex);
-            Some v: (fn v) \case of
-                    Exception ex: cb (Exception ex);
-                    Some v: cb (Some v);
-                    esac;
-            esac;
+        cbfn do a: (fn a) cb done
     done;
 
-cbFlatten cbfn is cbfnType<cbfnType<'a>> -> cbfnType<'a>
-    = cbBind id cbfn;
+cbFlatten cbfn is cbfnType<cbfnType<'a>> -> cbfnType<'a> = 
+    cbBind id cbfn;
 
 cbMap fn cbfn is ('a -> 'b) -> cbfnType<'a> -> cbfnType<'b>=
     do cb:
-        cbfn \case of
-            Exception ex : cb (Exception ex);
-            Some v: cb (Some (fn v));
-            esac;
+        cbfn do a: cb (fn a) done
     done;
 
-cbLift fn cb a is ('a -> 'b) -> ('a -> cbfnType<'b>)=
+cbLift fn a cb is ('a -> 'b) -> ('a -> cbfnType<'b>)=
     cb (fn a);
     
-cbSeq cbfns cb =
-    (var called = false;
-     res = array [];
+cbSeq cbfns cb is list?<cbfnType<'a>> -> cbType<list<'a>> -> ()=
+    (res = array [];
      for cbfns do c:
-        c \case of
-            Exception ex: 
-                if not called then
-                    called := true;
-                    cb (Exception ex);
-                    called := true;
-                fi;
-            Some v:
-                if not called then
-                    push res v;
-                    if length res == length cbfns then
-                        called := true;
-                        cb (Some (list res));
-                    fi
-                fi
-            esac;
+        c do a:
+            push res a;
+            if length res == length cbfns then
+                cb (list res);
+            fi
+        done;
     done);
 
 cbStruTH = threadLocal none;
 
-cbSet cbfn =
+cbSet cbfn is cbfnType<'a> -> (() -> 'a) =
     (ctr = case cbStruTH.value of
             None _ : failWith "not in cbStru function";
             Some v : v;
@@ -66,20 +48,19 @@ cbSet cbfn =
     ctr.starting();
     var hasReceived = false;
     var res = NotSet ();
-    cbfn \case of
-        Exception ex: 
-            (res := Exception (ex is ~Exception);
-             ctr.exception(ex));
-        Some v: 
-            (res := Some v;
-            if not hasReceived then
-                ctr.hasReceived();
-                hasReceived := true
-            fi);
-        esac;
-    \(res));    
+    cbfn do a:
+        res := Some a;
+        if not hasReceived then
+            ctr.hasRecieved();
+            hasReceived := true
+        fi;
+    done;
+    \(case res of
+        NotSet (): failWith "Not set";
+        Some v: v
+      esac));    
 
-cbStru inex cb =
+cbCol inex cb is (() -> 'a) -> cbfnType<'a>=
     (var called = false;
      var requests = 0;
      var received = 0;
@@ -87,11 +68,6 @@ cbStru inex cb =
      ctr = {
         starting () = 
             requests := requests + 1,
-        exception ex =
-            if not called then
-                called := true;
-                cb (Exception (ex is ~Exception));
-            fi,
         hasReceived () =
             received := received + 1;
             if not called then
@@ -117,25 +93,13 @@ cbStru inex cb =
     catch Exception ex:
         if not called then
             called := true;
-            cb (Exception ex);
         fi
     finally
         cbStruTH.value := none;
     yrt;
     ());
 
-cbRun exfn =\case of
-    Exception ex: exfn ex;
-    Some (): ();
-    esac;
-
-ief efn fn = \case of
-    None ex: efn ex;
-    Some v : fn v;
-    esac;
-
-ie fn = ief id;
-
+cbRun exfn = exfn \();
 
 {
     cbId,
@@ -147,6 +111,5 @@ ie fn = ief id;
     cbSet,
     (->) cbfn fn =  cbMap fn cbfn,
     (->>) cbfn fn = cbBind fn cbfn,
-    ie
 
 }

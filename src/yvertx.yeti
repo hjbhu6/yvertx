@@ -159,6 +159,7 @@ fromJSArray ar is ~JsonArray -> list<'a> =
     (_fromJS ar) unsafely_as list<'a>;    
 
 
+
 toHandler fn is ('a -> 'b) -> ~Handler = 
    (class IYetiHandler extends Handler
         void handle(Object ob)
@@ -267,155 +268,43 @@ undeployVerticle container deploymentID handler =
     (container is ~Container)#undeployVerticle(deploymentID, 
                                     toHandler (handler is () -> ()));
 
-timeout vertx time fn = 
+timeout vertx time tofn fn = 
     (var handled = false;
 
     _ = setTimer vertx time do:
         if not handled then
             handled := true;
-            fn (None "timeout")
+            tofn time;
         fi
     done;
     
     do arg:
         if not handled then
             handled := true;
-            fn (Some arg);
+            fn Some;
         fi
     done);
 
-typedef cbrType<a> = Some a | None ~Exception;
-typedef cbfnType<a> = (cbrType<a> -> ()) -> ();
-
-cbId v = do cb: cb v done;
-cbBind fn cbfn cb = 
-    cbfn \case of
-        None ex: cb (None ex);
-        Some v: (fn v) cb;
-        esac;
-cbFlatten cbfn cb = cbBind id;
-
-cbMap fn cbfn cb =
-    cbfn \case of
-        None ex : cb (None ex);
-        Some v : cb (Some (fn v));
-        esac;
-
-cbLift fn cb a=
-    cb (fn a);
-    
-cbSeq cbfns cb =
-    (var called = false;
-     res = array [];
-     for cbfns do c:
-        c \case of
-            None ex: 
-                if not called then
-                    called := true;
-                    cb (None ex);
-                    called := true;
-                fi;
-            Some v:
-                if not called then
-                    push res v;
-                    if length res == length cbfns then
-                        called := true;
-                        cb (Some (list res));
-                    fi
-                fi
-            esac;
-    done);
-
-cbStruTH = threadLocal none;
-
-cbSet cbfn =
-    (ctr = case cbStruTH.value of
-            None _ : failWith "not in cbStru function";
-            Some v : v;
-           esac;
-    ctr.starting();
-    var hasReceived = false;
-    var res = NotSet ();
-    cbfn \case of
-        None ex: 
-            (res := None (ex is ~Exception);
-             ctr.exception(ex));
-        Some v: 
-            (res := Some v;
-            if not hasReceived then
-                ctr.hasReceived();
-                hasReceived := true
-            fi);
-        esac;
-    \(res));    
-
-cbStru inex cb =
-    (var called = false;
-     var requests = 0;
-     var received = 0;
-     var result = none;
-     ctr = {
-        starting () = 
-            requests := requests + 1,
-        exception ex =
-            if not called then
-                called := true;
-                cb (None (ex is ~Exception));
-            fi,
-        hasReceived () =
-            received := received + 1;
-            if not called then
-                case result of
-                None _ : ();
-                Some v: 
-                    if received == requests then
-                        called := true;
-                        cb v;
-                    fi;
-                esac;
-            fi,
-    };
-    try 
-        cbStruTH.value := Some ctr;
-        r = inex ();
-        result := Some r;
-        if not called and received == requests then
-            called := true;
-            cb r
-        fi;
-            
-    catch Exception ex:
-        if not called then
-            called := true;
-            cb (None ex);
-        fi
-    finally
-        cbStruTH.value := none;
-    yrt;
-    ());
-
-cbRun exfn =\case of
-    None ex: exfn ex;
-    Some (): ();
-    esac;
-
+        
 
 bus = {
-    toMessageHandler fn is (~Message -> 'a) -> ~Handler =
-            toHandler fn,
+    toMessageHandler fn =
+            toHandler (fn is ~Message -> ()),
 
     toJsonMessageHandler fn =
         (class YvertxMessageHandler extends Handler
             void handle(Object ob)
                 msg = ob unsafely_as ~Message;
-                _ = fn {message = msg,
+                _ = fn  
+                    {message = msg,
                     handler = this as ~Handler,
-                    get body () = fromJS (msg#body unsafely_as ~JsonObject),
+                    get body () = 
+                        fromJS (msg#body unsafely_as ~JsonObject),
                     get replyAddress () = string msg#replyAddress,
                     reply v = msg#reply(toJS v),
                     request v handler = 
                         msg#reply(toJS v, toJsonMessageHandler handler)
-                   }
+                   },
         end;
         new YvertxMessageHandler() as ~Handler),
 
@@ -713,7 +602,7 @@ _runTestsImpl tests resultO allResults vertx container =
     fi;
 
  
-{
+(load yvertx.cb) with {
     get context () =  Context#getContext(),
     addCloseHook key fn = 
         Context#getContext()#putCloseHook(key is string, runnable fn),
@@ -786,16 +675,4 @@ _runTestsImpl tests resultO allResults vertx container =
         (ts = mapHash do name test: {name,test} done tests;
         println "start testing: tests \(ts |> map (.name))";
         _runTestsImpl ts none [] vertx container),
-
-        
-    cbId,
-    cbBind,
-    cbFlatten,
-    cbMap,
-    cbLift,
-    cbSeq,
-    cbSet,
-    (->) cbfn fn =  cbMap fn cbfn,
-    (->>) cbfn fn = cbBind fn cbfn,
-}     
-    
+}
