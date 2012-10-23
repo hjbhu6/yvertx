@@ -6,10 +6,25 @@ load yvertx;
 
 load yvertx.cb;
 
+fileDir = "../../target/yeti-test-output";
+
+
 verticle do {container, vertx}:
     println "running tests";
     fs = fileSystem vertx;
-    fileDir = "yeti-test-ouput";
+    fshelper = {
+        clean dir after = 
+            fs.exists dir (noex do exi:
+                if exi then
+                    fs.delete dir true (noex \(
+                        fs.mkdir dir none true (noex after)
+                    ))
+                else
+                    fs.mkdir dir none true (noex after)
+                fi
+            done);
+        
+    };
     runTests vertx container [
 
 "common load": do rs:
@@ -214,7 +229,34 @@ done,
     done;
 done,
 
+"filesystem:copy" : do rs:
+    dir = fileDir^"/copy";
+    fshelper.clean dir \(;
+    from = dir ^"foo.tmp";
+    to = dir ^"bar.tmp";
+    content = "some-data";
+    fs.writeFile from (newStringBuffer content) (noex do:
+        fs.copy from to true (noex do:
+            fs.readFile to (noex do res:
+                rs.assure "" ((string res) == content)
+            done);
+        done)
+    done));
+done,
 
+"filesystem:move" : do rs:
+    fshelper.clean fileDir \(;
+    from = fileDir ^"foo.tmp";
+    to = fileDir ^"bar.tmp";
+    content = "some-data";
+    fs.writeFile from (newStringBuffer content) (noex do:
+        fs.move from to (noex do:
+            fs.readFile to (noex do res:
+                rs.assure "" ((string res) == content)
+            done)
+        done)
+    done))
+done,    
 
 ];
     \()
