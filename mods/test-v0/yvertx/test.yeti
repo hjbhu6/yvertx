@@ -1,6 +1,7 @@
 module yvertx.test;
 
 import org.vertx.java.deploy:Container;
+import org.vertx.java.core.file:FileProps;
 
 load yvertx;
 
@@ -272,6 +273,22 @@ done,
                         rs.assert "\(res)" (length res == 3);
                     done)
                 done)
+            done)
+        done)
+    );
+done,
+
+"filesystem:props" : do rs:
+    dir = fileDir ^ "/props";
+    fshelper.clean dir \(
+        content = newStringBuffer "some-data";
+        file = dir ^"/foo.tmp";
+        fs.writeFile file content (noex do:
+            fs.props file (noex do res:
+                rs.assert "" (res is ~FileProps)#isRegularFile;
+                rs.assert "" (res#creationTime#getTime() > 0);
+                rs.assert "" (res#lastAccessTime#getTime() > 0);
+                rs.assure "" (res#lastModifiedTime#getTime() > 0);
             done)
         done)
     );
