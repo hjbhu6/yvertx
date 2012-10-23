@@ -14,7 +14,7 @@
  * and limitations under the License.
  */
 
-module yvertx.testhelper;
+module yvertx.testutils;
 
 import org.vertx.java.core:Vertx;
 import org.vertx.java.deploy:Container;
