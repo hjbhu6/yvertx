@@ -17,7 +17,10 @@
 module yvertx.testutils;
 
 import org.vertx.java.core:Vertx;
+import org.vertx.java.core.buffer:Buffer;
 import org.vertx.java.deploy:Container;
+import org.vertx.java.framework:TestUtils;
+
 
 load yvertx;
 
@@ -150,6 +153,33 @@ _runTestsImpl tests resultO allResults vertx container =
 
 
 {
+    buffersEqual b1 b2 = 
+        TestUtils#buffersEqual(b1 is ~Buffer, b2 is ~Buffer),
+
+    byteArraysEqual ba1 ba2 = 
+        TestUtils#byteArraysEqual(ba1 is ~byte[], ba2 is ~byte[]),
+
+    generateRandomBuffer size = 
+        TestUtils#generateRandomBuffer(size is number),
+
+    generateRandomBufferA size avoid avoidB =
+        TestUtils#generateRandomBuffer(size is number, 
+                                       avoid is boolean, avoidB),
+    
+    generateRandomByteArray size = 
+        TestUtils#generateRandomByteArray(size is number),
+
+    generateRandomByteArrayA size avoid avoidB = 
+        TestUtils#generateRandomByteArray(size is number,
+                                        avoid is boolean,
+                                        avoidB),
+
+    randomAlphaString size = 
+        TestUtils#randomAlphaString(size is number),
+
+    randomUnicodeString size = 
+        TestUtils#randomUnicodeString(size is number),
+
     runTests vertx container tests =
         (ts = tests
             |> mapHash do name test: {name,test} done 
