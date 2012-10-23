@@ -4,6 +4,7 @@ import org.vertx.java.deploy:Container;
 
 load yvertx;
 
+load yvertx.cb;
 
 verticle do {container, vertx}:
     println "running tests";
@@ -18,8 +19,10 @@ done,
 
 "deploy" : do rs:
     bus.register vertx "test-handler"
-        \(_ = deployVerticle container "yvertx.deploy.child.yeti" emptyJS 1 
-            \())
+        \(_ = deployVerticle 
+                container 
+                "yvertx.deploy.child.yeti" emptyJS 1 
+                \())
         do {body,handler}:
         println "in body \(body.started)";
         if body.started then
@@ -44,6 +47,73 @@ done,
             undeployVerticle container did \();
         done;
 done,
+
+"cb:Id" : do rs:
+   (cbId 2) do v: rs.assure "" (2 == v) done;
+done,
+
+"cb:Bind" : do rs:
+    (do cb: cb 1 done) 
+    ->> do x: 
+        rs.assert "" (x == 1);
+        do cb: cb "hier" done;
+        done
+        $do v:
+            rs.assure "" (v == "hier")
+        done
+done,
+
+"cb:flatten" : do rs:
+    (cbFlatten (cbId (cbId 1))) do v: rs.assure "" (v == 1) done;
+done,
+
+"cb:lift" : do rs:
+    ((cbLift do x: string x done) 1) do st:
+        rs.assure "" (st == "1")
+    done;
+done,
+
+"cb:Seq" : do rs:
+    //make services 
+    adresses = [1..10] |> map (("adr"^) . string);
+    for adresses do adr:
+        bus.register vertx adr \() do {reply, handler}:
+            reply {value = 1};
+            bus.unregister vertx adr handler \();
+        done
+    done;
+    handlers = adresses |> map do adr:
+        bus.request vertx adr emptyJS -> 
+            do {body} : body.value done
+    done;
+    cbSeq handlers do res:
+        rs.assure "\(res)" true //(10 == fold (+) 0 res);
+    done
+done,
+
+"cb:Col" : do rs:
+    register adr =
+        bus.register vertx adr \() do {reply, handler} :
+            reply {value = adr ^ "foo"};
+            bus.unregister vertx adr handler \();
+        done;
+    
+    for [1..2] (register . ("adr"^) . string);
+
+    cbCol \{
+         a = cbSet
+            (bus.requestBody vertx "adr1" emptyJS -> (.value)),
+         b = cbSet
+            (bus.requestBody vertx "adr2" emptyJS -> (.value)),
+        }
+        do r :
+            rs.assure "\(r)" (r.a() == "adr1foo" 
+                              and r.b() == "adr2foo");
+        done;
+done,
+
+
+
 
 "eventbus:simple" : do rs:
     msg = {address = "foo-address", price=23.45};
@@ -143,6 +213,8 @@ done,
         rs.assure "" true;
     done;
 done,
+
+
 
 ];
     \()

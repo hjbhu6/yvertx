@@ -9,7 +9,7 @@ typedef cbType<a> = cbrType<a> -> ();
 typedef cbfnType<a> = cbType<a> -> ();
 
 
-cbId v = do cb: cb v done;
+cbId v is 'a -> cbfnType<'a> = do cb: cb v done;
 
 cbBind fn cbfn is ('a -> cbfnType<'b>) -> cbfnType<'a> -> cbfnType<'b>= 
     do cb:
@@ -42,16 +42,16 @@ cbStruTH = threadLocal none;
 
 cbSet cbfn is cbfnType<'a> -> (() -> 'a) =
     (ctr = case cbStruTH.value of
-            None _ : failWith "not in cbStru function";
-            Some v : v;
-           esac;
+        None _ : failWith "cbSet must only be used directly in cbCol";
+        Some r: r;
+        esac;
     ctr.starting();
     var hasReceived = false;
     var res = NotSet ();
     cbfn do a:
         res := Some a;
         if not hasReceived then
-            ctr.hasRecieved();
+            ctr.hasReceived();
             hasReceived := true
         fi;
     done;
@@ -81,9 +81,10 @@ cbCol inex cb is (() -> 'a) -> cbfnType<'a>=
                 esac;
             fi,
     };
+    oCtr = cbStruTH.value;
     try 
         cbStruTH.value := Some ctr;
-        r = inex ();
+        r = inex (); 
         result := Some r;
         if not called and received == requests then
             called := true;
@@ -95,7 +96,7 @@ cbCol inex cb is (() -> 'a) -> cbfnType<'a>=
             called := true;
         fi
     finally
-        cbStruTH.value := none;
+        cbStruTH.value := oCtr;
     yrt;
     ());
 
@@ -109,7 +110,9 @@ cbRun exfn = exfn \();
     cbLift,
     cbSeq,
     cbSet,
+    cbCol,
     (->) cbfn fn =  cbMap fn cbfn,
     (->>) cbfn fn = cbBind fn cbfn,
+    ($) a b = a b
 
 }

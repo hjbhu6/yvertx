@@ -313,9 +313,13 @@ bus = {
 
     send vertx address msg =
         (vertx is ~Vertx)#eventBus()#send(address is string, toJS msg),
+
     request vertx address msg handler =   
         (vertx is ~Vertx)#eventBus()#send(address is string, toJS msg, 
                 toJsonMessageHandler handler),
+    
+    requestBody vertx address msg handler =
+        request vertx address msg do {body}: handler body done,
         
     register vertx address resultHandler handler =
         (vertx is ~Vertx)#eventBus()#registerHandler(address is string,
@@ -672,7 +676,9 @@ _runTestsImpl tests resultO allResults vertx container =
     timeout,
 
     runTests vertx container tests =
-        (ts = mapHash do name test: {name,test} done tests;
+        (ts = tests
+            |> mapHash do name test: {name,test} done 
+            |> sortBy do {name} {name}: name < name done;
         println "start testing: tests \(ts |> map (.name))";
         _runTestsImpl ts none [] vertx container),
 }
