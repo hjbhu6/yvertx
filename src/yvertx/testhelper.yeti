@@ -1,0 +1,161 @@
+/*
+ * Copyright 2011 Christian Essl
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions
+ * and limitations under the License.
+ */
+
+module yvertx.testhelper;
+
+import org.vertx.java.core:Vertx;
+import org.vertx.java.deploy:Container;
+
+load yvertx;
+
+_runTestsImpl tests resultO allResults vertx container =
+    if empty? tests then
+        f = allResults |> map do {name,result}:
+            case result of
+            Failure msg: Some {name, msg};
+            _ : none;
+            esac
+            done
+            |> catSome;
+        ok = allResults |> map do {name,result}:
+            case result of
+            Success msg : Some {name, msg};
+            _ : none;
+            esac
+            done
+            |> catSome;
+        exs = allResults |> map do {name,result}:
+            case result of
+            Exception ex: Some {name, msg = string ex};
+            _ : none;
+            esac
+            done
+            |> catSome;
+        println "=========\nResults of runTest\n----------";               
+        if length ok == 0 then
+            println "\nno succesful results\n";
+        else
+            println "\nSuccesful results: \n";
+            for ok do {name, msg}: println "[\(name)] : \(msg)"done;
+        fi;
+
+        if length f == 0 then
+            println "\n---\nno failures\n";
+        else
+            println "\n---\nFailed results: \n"; 
+            for f do {name, msg}: println "[\(name)] : \(msg)"done;
+        fi;
+
+        if length exs == 0 then
+            println "\n---\nno exceptions\n";
+        else
+            println "\n---\nException results: \n"; 
+            for exs do {name, msg}: println "[\(name)] : \n\(msg)"done;
+        fi;
+
+        println "---\ntotal:\n";
+        if length f > 0 or length exs > 0 then
+            print "Failure :";
+        else
+            print "Ok :";
+        fi;
+        println "total runs: \(length allResults); ok: \(length ok); failures: \(length f); exceptions: \(length exs)";
+        
+        (container is ~Container)#exit();
+    else
+        case resultO of
+        None _ : 
+            ({name,test} = head tests;
+            res= {
+                name is string,
+                var result = none,
+                var stopTime = 0,
+                setTimeout tm =
+                    stopTime := System#currentTimeMillis() + tm,
+
+                assert msg suc=
+                    if suc then
+                        case result of
+                        Failure msg: ();
+                        _ : result := Success (msg is string);
+                        esac
+                    else
+                        result := Failure msg;
+                        stopTime := 0;
+                    fi,
+                assure msg suc =
+                    (assert msg suc;
+                    stopTime := 0);
+            };
+            res.setTimeout 1000;
+            try
+                test res;
+                _runTestsImpl tests (Some res) allResults vertx container;
+            catch Exception ex:
+               container#getLogger()#error("test: [\(name)]",ex);
+               //run next tests but with bad result
+               _runTestsImpl (tail tests)
+                             none
+                             ({name, result = Exception ex} 
+                                :: allResults)
+                             vertx
+                             container;
+            yrt);
+        Some res:
+            if System#currentTimeMillis() < res.stopTime then
+                runOnLoop vertx 
+                    \(_runTestsImpl tests resultO allResults vertx container)
+            else
+                case res.result of
+                Success msg : _runTestsImpl (tail tests)
+                                  none
+                                  ({name = res.name, result = Success msg} 
+                                    :: allResults)
+                                  vertx
+                                  container;
+                None _ :
+                    (msg = "timed out";
+                    container#getLogger()#error("failure in \(res.name): \(msg)");
+                    _runTestsImpl (tail tests)
+                                  none
+                                  ({name = res.name, result = Failure msg} 
+                                    :: allResults)
+                                  vertx
+                                  container);
+                Failure msg : 
+                    (container#getLogger()#error("failure in \(res.name): \(msg)");
+                    _runTestsImpl (tail tests)
+                                  none
+                                  ({name = res.name, result = Failure msg} 
+                                    :: allResults)
+                                  vertx
+                                  container);
+                esac
+            fi
+        esac;
+    fi;
+
+
+{
+    runTests vertx container tests =
+        (ts = tests
+            |> mapHash do name test: {name,test} done 
+            |> sortBy do {name} {name}: name < name done;
+        println "start testing: tests \(ts |> map (.name))";
+        _runTestsImpl ts none [] vertx container),
+
+}
+
