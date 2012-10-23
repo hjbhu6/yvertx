@@ -7,6 +7,8 @@ load yvertx;
 
 load yvertx.cb;
 
+load yvertx.testutils;
+
 fileDir = "../../target/yeti-test-output";
 
 
@@ -294,12 +296,32 @@ done,
     );
 done,
 
-"filesystem:pumpFile" : do rs:
+"filesystem:pumpFile" : do tests:
+    import org.vertx.java.core.file:AsyncFile;
     dir = fileDir^"/pumpfile";
     fshelper.clean dir \(
         from = dir^"/foo.tmp";
         to = dir^"/bar.tmp";
-        content = 
+        content = generateRandomBuffer(10000);
+        fs.writeFile from content (noex do:
+            fs.open [] from (noex do file1:
+                fs.open [] to (noex do file2:
+                    rs = (file1 is ~AsyncFile)#getReadStream();
+                    ws = (file2 is ~AsyncFile)#getWriteStream();
+                    pump = createPump rs ws;
+                    pump#start();
+                    rs#endHandler(toHandler do:
+                        file1#close(toAsyncResultHandler (noex do:
+                            file2#close(toAsyncResultHandler (noex do:
+                                fs.readFile to (noex do res:
+                                    tests.assert "" (buffersEqual content res);
+                                done);
+                            done));
+                        done));
+                    done);
+                done);
+            done);
+        done);
     )
 done,
 
