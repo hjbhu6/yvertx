@@ -121,6 +121,20 @@ connectWebsocket client uri handler =
 
 
     putHeaders,
+    headers resp =
+        (ret = [:];
+        forJavaMap (resp is ~HttpClientResponse)#headers() do k v:
+            ret.[string k] := if defined? v then string v else "" fi;
+        done;
+        ret),
+
+    trailers resp =
+        (ret = [:];
+        forJavaMap (resp is ~HttpClientResponse)#trailers() do k v:
+            ret.[string k] := if defined? v then string v else "" fi;
+        done;
+        ret),
+
     
     create,
 

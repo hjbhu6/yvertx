@@ -56,6 +56,9 @@ create vertx =
 createWithHandler vertx handler = 
     (vertx is ~Vertx)#createHttpServer()#requestHandler(toRequestHandler handler);
     
+close server handler =
+    (server is ~HttpServer)#close(yvertx.toSimpleHandler handler);
+
 _routeMatcher () =
    (routeMatcher = new RouteMatcher();
      toHa h = yvertx.toHandler (h is ~HttpServerRequest -> 'a);
@@ -92,7 +95,12 @@ _routeMatcher () =
 putHeaders request headers =
    ((request is ~HttpServerRequest)#response#headers()#putAll(
         (headers is hash<string,string>) as ~Map);
-    request);
+    ());
+
+putTrailers request trailers =
+    ((request is ~HttpServerRequest)#response#trailers()#putAll(
+        (trailers is hash<string,string>) as ~Map);
+    ());
     
 {
     toRequestHandler,
@@ -103,17 +111,25 @@ putHeaders request headers =
     bodyHandler,
     createWithHandler,
     create,
+    close,
     putHeaders,
+    putTrailers,
     routeMatcher = _routeMatcher,
     
     
     params req =
        (ret = [:];
         forJavaMap (req is ~HttpServerRequest)#params() do key value:
-            ret.[string key] := string value;
+            ret.[string key] := if defined? value then string value else "" fi;
         done;
         ret),
         
+    headers req =
+        (ret = [:];
+        forJavaMap (req is ~HttpServerRequest)#headers() do key value:
+            ret.[string key] := if defined? value then string value else "" fi;
+        done;
+        ret),
     
 }
  
