@@ -232,8 +232,8 @@ done,
 "filesystem:copy" : do rs:
     dir = fileDir^"/copy";
     fshelper.clean dir \(;
-    from = dir ^"foo.tmp";
-    to = dir ^"bar.tmp";
+    from = dir ^"/foo.tmp";
+    to = dir ^"/bar.tmp";
     content = "some-data";
     fs.writeFile from (newStringBuffer content) (noex do:
         fs.copy from to true (noex do:
@@ -246,8 +246,8 @@ done,
 
 "filesystem:move" : do rs:
     fshelper.clean fileDir \(;
-    from = fileDir ^"foo.tmp";
-    to = fileDir ^"bar.tmp";
+    from = fileDir ^"/foo.tmp";
+    to = fileDir ^"/bar.tmp";
     content = "some-data";
     fs.writeFile from (newStringBuffer content) (noex do:
         fs.move from to (noex do:
@@ -257,6 +257,25 @@ done,
         done)
     done))
 done,    
+
+"filesystem:readDir" : do rs:
+    dir = fileDir ^ "/readdir";
+    fshelper.clean dir \(
+        file1 = dir ^"/foo.tmp";
+        file2 = dir ^"/bar.tmp";
+        file3 = dir ^"/baz.tmp";
+        content = newStringBuffer "some-data";
+        fs.writeFile file1 content (noex do:
+            fs.writeFile file2 content (noex do:
+                fs.writeFile file3 content (noex do:
+                    fs.readDir dir none (noex do res:
+                        rs.assert "\(res)" (length res == 3);
+                    done)
+                done)
+            done)
+        done)
+    );
+done,
 
 ];
     \()
