@@ -24,12 +24,12 @@ import org.vertx.java.core.parsetools:RecordParser;
 fixed size handler = 
    (parser = RecordParser#newFixed(size is number, 
                                    yvertx.toBufferHandler handler);
-    do buffer: parser#handle(buffer) done);
+    do buffer: parser#handle(buffer is ~Buffer) done);
     
 delimited delimiter handler = 
    (parser = RecordParser#newDelimited(delimiter is string, 
                                    yvertx.toBufferHandler handler);
-    do buffer: parser#handle(buffer) done);    
+    do buffer: parser#handle(buffer is ~Buffer) done);    
 
 {
     fixed,
