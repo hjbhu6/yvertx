@@ -494,6 +494,30 @@ done,
 
 "http:path" : httpMethod [] "PATCH" Patch,
 
+"net:test1" : do rs:
+    net = load yvertx.net;
+    server = net.createServerWithHandler vertx do sock:
+        net.dataHandler sock do buffer:
+            _ = sock#write(buffer);
+        done;
+    done;
+
+    server#listen(1234,"localhost");
+
+    serverCloseFn _ = net.closeServer server \(rs.assure "closed" true);
+
+    client = net.createClient vertx;
+
+    net.connectClient client "localhost:1234" serverCloseFn
+        do sock:
+            net.dataHandler sock do buffer:
+                net.closeClient client;
+                serverCloseFn();
+            done;
+            _ = sock#write(newStringBuffer "this is a buffer");
+        done;
+done,
+
 ];
     \()
 done;
