@@ -14,7 +14,6 @@ https = load yvertx.https;
 
 
 
-
 fileDir = "../../target/yeti-test-output";
 
 
@@ -518,6 +517,40 @@ done,
         done;
 done,
 
+"parsetools:delimited" : do rs:
+    recordparser = load yvertx.recordparser;
+    var lineCount = 0;
+    
+    parser = recordparser.delimited "\n" do buffer:
+        lineCount := lineCount + 1;
+        if lineCount == 3 then
+            rs.assure "" true;
+        fi
+    done;
+
+    parser (newStringBuffer "asfdasfsafafafa\nauio\nasdfa\n");
+done,
+
+"parsetools:fixed" : do rs:
+    recordparser = load yvertx.recordparser;
+    var chunkCount = 0;
+    chunkSize = 100;
+    numChunks = 3;
+
+    parser = recordparser.fixed chunkSize do buffer:
+        rs.assert "" (chunkSize == buffer#length());
+        chunkCount = chunkCount + 1;
+        if chunkCount == numChunks then
+            rs.assure "" true;
+        fi;
+    done;
+
+    input = newBuffer 0;
+    for [1..numChunks] do:
+        _ = input#appendBuffer(generateRandomBuffer chunkSize);
+    done;
+    parser input;
+done,
 ];
     \()
 done;
