@@ -19,7 +19,6 @@ fileDir = "../../target/yeti-test-output";
 
 
 verticle do {container, vertx}:
-    println "running tests";
     fs = fileSystem vertx;
     fshelper = {
         clean dir after = 
@@ -55,7 +54,6 @@ verticle do {container, vertx}:
                    "rheader2":"vrheader"];
         
         server = https.createWithHandler vertx do req:
-            println "request received";
             rstu.assert "uri \(req#uri)" (uri == req#uri);
             rstu.assert "method" (method == req#method);
             rstu.assert "path" (path == req#path);
@@ -87,7 +85,6 @@ verticle do {container, vertx}:
                     https.putTrailers req ["trailer1" : "vtrailer1",
                                            "trailer2" : "vtrailer2"];
                 fi;
-                println "request in endhandler";
                 req#response#end();
             done;
         done;
@@ -115,8 +112,6 @@ verticle do {container, vertx}:
             //request = client2#request(method, uri, toHandler 
             request = httpc.request client (variant uri) headers
             do resp:
-                    import org.vertx.java.core.http:HttpClientResponse;
-                    println "response \(resp is ~HttpClientResponse)";
 
                 rstu.assert "statusCode" (200 == resp#statusCode);
                 rstu.assert "rHeaders: \(httpc.headers resp) | \(rheaders)" 
@@ -154,7 +149,6 @@ verticle do {container, vertx}:
             fi;
             _ = request#writeBuffer(sentBuff);
             request#end();
-            println "request send";
         done);
             
     runTests vertx container [
@@ -171,13 +165,10 @@ done,
                 "yvertx.deploy.child.yeti" emptyJS 1 
                 \())
         do {body,handler}:
-        println "in body \(body.started)";
         if body.started then
-            println "in body";
             rs.assure "in body" true;
             bus.unregister vertx "test-handler" handler \();
         else
-            println "wrong message"
         fi
         done;
 done,
@@ -463,11 +454,6 @@ done,
     import java.lang:Thread;
     rs.setTimeout(15000);
     server = (https.createWithHandler vertx do req:
-        println "Got request: \(req#uri)";
-        println "Headers are: ";
-        forJavaMap req#headers() do key value:
-            println "\(key) : \(value)";
-        done;
         (https.putHeaders req 
             ["Content-Type": "text/html; charset=UTF-8"]);
         req#response#end(
@@ -482,7 +468,6 @@ done,
             "/" 
             [:] 
             do {resp, buffer}:
-                _ = println (string buffer);
                 https.close server do:
                     rs.assure (string buffer) true;
                 done;
