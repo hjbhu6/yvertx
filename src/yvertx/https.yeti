@@ -28,7 +28,7 @@ import org.vertx.java.core.http:HttpServer,
 
 yvertx = load yvertx;
 
-toRequestHandler fn is (~HttpServerRequest -> 'a) -> ~Handler =
+toRequestHandler fn is (~HttpServerRequest -> ()) -> ~Handler =
         yvertx.toHandler fn;
 
 requestHandler server handler =
@@ -86,7 +86,7 @@ _routeMatcher () =
         traceWithRegEx route h = routeMatcher#traceWithRegEx(route,toHa h), 
         noMatch h = routeMatcher#noMatch(toHa h),
         routeMatcher,
-        handle req = routeMatcher#handle(req),
+        handle req = routeMatcher#handle(req is ~HttpServerRequest),
         createServer vertx = 
             (vertx is ~Vertx)#createHttpServer()#requestHandler(routeMatcher)
     });        
