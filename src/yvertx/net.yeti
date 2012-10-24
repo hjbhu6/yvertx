@@ -19,7 +19,8 @@ module yvertx.net;
 import org.vertx.java.core: Handler, Vertx;
 import org.vertx.java.core.net:NetSocket,
                                WebSocket,
-                               NetServer;
+                               NetServer,
+                               NetClient;
 
 
 yvertx = load yvertx;
@@ -43,14 +44,22 @@ exceptionHandler socket handler =
     (socket is ~NetSocket)#exceptionHandler(
         yvertx.toExceptionHandler handler);
 
-connectClient vertx hostPort settings exceptionHandler handler=
-   ({host,port} = yvertx.helper.hostAndPort hostPort;
-    cl = (vertx is ~Vertx)#createNetClient();
-     _ = settings cl; 
-     cl#exceptionHandler(yvertx.toExceptionHandler exceptionHandler);
-     cl#connect(port is number, host is string,
+createClient vertx = 
+    (vertx is ~Vertx)#createNetClient();
+
+connectClient client hostPort exceptionHandler handler =
+    ({host,port} = yvertx.helper.hostAndPort hostPort;
+     (client is ~NetClient)#exceptionHandler(
+            yvertx.toExceptionHandler exceptionHandler);
+     _ = client#connect(port is number, host is string,
                 toSocketHandler handler);
-     cl);
+     ());
+
+createAndConnectClient vertx hostPort settings exceptionHandler handler=
+    (client = createClient vertx;
+    _ = settings client;
+    connectClient client hostPort exceptionHandler handler;
+    client);
     
 createServer vertx =
     (vertx is ~Vertx)#createNetServer();
@@ -60,6 +69,12 @@ connectHandler server handler =
 
 createServerWithHandler vertx handler =
     connectHandler (createServer vertx) handler;
+
+closeServer server handler =
+    (server is ~NetServer)#close(yvertx.toSimpleHandler handler);
+
+closeClient client =
+    (client is ~NetClient)#close();
 {
     toSocketHandler,
     dataHandler,
@@ -67,9 +82,13 @@ createServerWithHandler vertx handler =
     drainHandler,
     closedHandler,
     exceptionHandler,
+    createClient,
     connectClient,
+    createAndConnectClient,
     createServer,
     createServerWithHandler,
     connectHandler,
+    closeServer,
+    closeClient,
 }
     
