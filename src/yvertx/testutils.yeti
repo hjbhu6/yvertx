@@ -118,8 +118,8 @@ _runTestsImpl tests resultO allResults vertx container =
                              container;
             yrt);
         Some res:
-            if System#currentTimeMillis() < res.stopTime then
-                runOnLoop vertx 
+            (if System#currentTimeMillis() < res.stopTime then
+                _ = setTimer vertx 100 
                     \(_runTestsImpl tests resultO allResults vertx container)
             else
                 case res.result of
@@ -147,7 +147,7 @@ _runTestsImpl tests resultO allResults vertx container =
                                   vertx
                                   container);
                 esac
-            fi
+            fi)
         esac;
     fi;
 
@@ -183,7 +183,7 @@ _runTestsImpl tests resultO allResults vertx container =
     runTests vertx container tests =
         (ts = tests
             |> mapHash do name test: {name,test} done 
-            |> sortBy do {name} {name}: name < name done;
+            |> sortBy do v1 v2: v1.name < v2.name done;
         println "start testing: tests \(ts |> map (.name))";
         _runTestsImpl ts none [] vertx container),
 
