@@ -218,11 +218,8 @@ setPeriodic vertx delay handler =
 setTimer vertx delay handler =
     (vertx is ~Vertx)#setTimer(delay, toHandler (handler is number -> ()));
 
-
-
-    
-
-    
+cancelTimer vertx timerId =
+    (vertx is ~Vertx)#cancelTimer(timerId is number);
     
 verticle runFn is ({vertx is ~Vertx, container is ~Container} -> ({vertx is ~Vertx, container is ~Container} -> 'a)) -> ( () -> ~Verticle) =
    (class IYetiVerticle extends Verticle 
@@ -548,5 +545,6 @@ fileSystem vertx =
     obj x = x unsafely_as ~Object,
 
     timeout,
+    cancelTimer
 
 }
