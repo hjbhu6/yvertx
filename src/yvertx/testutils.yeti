@@ -105,6 +105,7 @@ _runTestsImpl tests resultO allResults vertx container =
             };
             res.setTimeout 1000;
             try
+                print "\n[\(name)] running .";
                 test res;
                 _runTestsImpl tests (Some res) allResults vertx container;
             catch Exception ex:
@@ -119,6 +120,7 @@ _runTestsImpl tests resultO allResults vertx container =
             yrt);
         Some res:
             (if System#currentTimeMillis() < res.stopTime then
+                print ".";
                 _ = setTimer vertx 100 
                     \(_runTestsImpl tests resultO allResults vertx container)
             else
