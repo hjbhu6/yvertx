@@ -35,9 +35,8 @@ verticle do {container, vertx}:
         
     };
 
-    httpMethod opts method rstu =
-        (rstu.setTimeout 5000;
-        server = https.create vertx;
+    httpMethod opts method variant rstu =
+        (rstu.setTimeout 15000;
         var ssl = false;
         var chunked = false;
         for opts \case of
@@ -45,17 +44,9 @@ verticle do {container, vertx}:
             Chunked b: chunked := b;
             esac;
 
-        if ssl then
-            server#setSSL(true)
-                #setKeyStorePassword("wibble")
-                #setKeyStorePath("keystores/server-keystore.jks")
-                #setTrustStorePath("keystores/server-truststore.jks")
-                #setTrustStorePassword("wibble")
-                #setClientAuthRequired(true)
-        fi;
-        
         path = "/someurl/blah.html";
-        query = "param1=vparam1&param2)vparam2";
+        query = "param1=vparam1&param2=vparam2";
+        
         uri = if ssl then "https" else "http" fi
                   ^ "://localhost:8080" ^ path ^"?"^query;
         headers = ["header1":"vheader1",
@@ -63,14 +54,17 @@ verticle do {container, vertx}:
         rheaders = ["rheader1":"vrheader1",
                    "rheader2":"vrheader"];
         
-        _ = https.requestHandler server do req:
-            rstu.assert "" (uri == req#uri);
-            rstu.assert "" (method == req#method);
-            rstu.assert "" (path == req#path);
-            rstu.assert "" (query == req#query);
+        server = https.createWithHandler vertx do req:
+            println "request received";
+            rstu.assert "uri \(req#uri)" (uri == req#uri);
+            rstu.assert "method" (method == req#method);
+            rstu.assert "path" (path == req#path);
+            rstu.assert "query" (query == req#query);
 
-            rstu.assert "" (https.headers req == headers);
-            rstu.assert "" (https.params req == ["param1":"vparam1",
+            rstu.assert "headers" 
+                (fold (flip ((and) . (in (https.headers req))))
+                    true (keys headers));
+            rstu.assert "params" (https.params req == ["param1":"vparam1",
                                                  "param2":"vparam2"]);
                                                 
             https.putHeaders req rheaders; 
@@ -93,51 +87,75 @@ verticle do {container, vertx}:
                     https.putTrailers req ["trailer1" : "vtrailer1",
                                            "trailer2" : "vtrailer2"];
                 fi;
+                println "request in endhandler";
+                req#response#end();
             done;
         done;
-
-        server#listen(8080);
-
-        client = httpc.create vertx "localhost:8080";
 
         if ssl then
-            client#setSSL(true)
-                #setKeyStorePath("keystores/client-keystore.jks")
+            server#setSSL(true)
                 #setKeyStorePassword("wibble")
-                #setTrustStorePath("keystores/client-truststore.jks")
-                #setTrustStorePassword("wibble");
+                #setKeyStorePath("keystores/server-keystore.jks")
+                #setTrustStorePath("keystores/server-truststore.jks")
+                #setTrustStorePassword("wibble")
+                #setClientAuthRequired(true)
         fi;
 
-        sentBuff = generateRandomBuffer(1000);
+        _ = server#listen(8080);
 
-        request = httpc.generalRequest client method uri headers do resp:
-            rstu.assert "" (200 == resp#statusCode);
-            rstu.assert "" (httpc.headers resp == rheaders);
-            body = newBuffer(0);
-            httpc.dataHandler resp do data:
-                _ = body#appendBuffer(data);
-            done;
+        //wait for server to be ready
+        _ = setTimer vertx 1000 do:
 
-            httpc.endHandler resp do:
-                rstu.assert "" (buffersEqual sentBuff body);
-                if chunked then
-                    rstu.assert "" (httpc.trailers resp ==
-                                    ["trailer1":"vtrailer1",
-                                    "trailer2":"vtrailer2"]);
-                fi;
-                https.close server do:
-                    rstu.assure "" true;
+            sentBuff = generateRandomBuffer(1000);
+            
+            
+            //client2 = vertx#createHttpClient()#setHost("localhost")#setPort(8080);
+            client = httpc.create vertx "localhost:8080";
+
+            //request = client2#request(method, uri, toHandler 
+            request = httpc.request client (variant uri) headers
+            do resp:
+                    import org.vertx.java.core.http:HttpClientResponse;
+                    println "response \(resp is ~HttpClientResponse)";
+
+                rstu.assert "statusCode" (200 == resp#statusCode);
+                rstu.assert "rHeaders: \(httpc.headers resp) | \(rheaders)" 
+                        (fold (flip ((and) . (in (httpc.headers resp))))
+                            true (keys rheaders) );
+                body = newBuffer(0);
+                httpc.dataHandler resp do data:
+                    _ = body#appendBuffer(data);
+                done;
+
+                httpc.endHandler resp do:
+                    rstu.assert "sentBuff" (buffersEqual sentBuff body);
+                    if chunked then
+                        rstu.assert "rTrailers" (httpc.trailers resp ==
+                                        ["trailer1":"vtrailer1",
+                                        "trailer2":"vtrailer2"]);
+                    fi;
+                    https.close server do:
+                        rstu.assure "" true;
+                    done;
                 done;
             done;
-        done;
+            if ssl then
+                client#setSSL(true)
+                    #setKeyStorePath("keystores/client-keystore.jks")
+                    #setKeyStorePassword("wibble")
+                    #setTrustStorePath("keystores/client-truststore.jks")
+                    #setTrustStorePassword("wibble");
+            fi;
 
-        _ = request#setChunked(chunked);
-        if not chunked then
-            httpc.putHeaders request 
-                ["Content-Length": string sentBuff#length()];
-        fi;
-        _ = request#writeBuffer(sentBuff);
-        request#end());
+            _ = request#setChunked(chunked);
+            if not chunked then
+                httpc.putHeaders request 
+                    ["Content-Length": string sentBuff#length()];
+            fi;
+            _ = request#writeBuffer(sentBuff);
+            request#end();
+            println "request send";
+        done);
             
     runTests vertx container [
 
@@ -279,7 +297,7 @@ done,
         //should do nothing
         bus.unregister vertx "foo" handler \();
         handled := true;
-        setTimer vertx 100 do:
+        _ = setTimer vertx 100 do:
             //complete the test
             rs.assure "" assertion;
         done;
@@ -436,24 +454,60 @@ done,
     )
 done,
 
-"http:get" : httpMethod [] "GET",
+"http:hostport" : do rs:
+    {host,port} = helper.hostAndPort "localhost:8080";
+    rs.assure "" (host == "localhost" and port == 8080);
+done,
 
-"http:put" : httpMethod [] "PUT",
+"http:clientserver" : do rs:
+    import java.lang:Thread;
+    rs.setTimeout(15000);
+    server = (https.createWithHandler vertx do req:
+        println "Got request: \(req#uri)";
+        println "Headers are: ";
+        forJavaMap req#headers() do key value:
+            println "\(key) : \(value)";
+        done;
+        (https.putHeaders req 
+            ["Content-Type": "text/html; charset=UTF-8"]);
+        req#response#end(
+            "<html><body><h1>Hello from vert.x!</h1></body></html>");
+    done);
+    server#listen(8080);
 
-"http:post" : httpMethod [] "POST",
+    _ = setTimer vertx 1000 do:
+        client = httpc.create vertx "localhost:8080";
+        httpc.getBodyNow
+            client
+            "/" 
+            [:] 
+            do {resp, buffer}:
+                _ = println (string buffer);
+                https.close server do:
+                    rs.assure (string buffer) true;
+                done;
+            done;
+    done;
+done,
+    
 
-"http:head" : httpMethod [] "HEAD",
+"http:get" : httpMethod [] "GET" Get,
 
-"http:options" : httpMethod [] "OPTIONS",
+"http:put" : httpMethod [] "PUT" Put,
 
-"http:delete" : httpMethod [] "DELETE",
+"http:post" : httpMethod [] "POST" Post,
 
-"http:trace" : httpMethod [] "TRACE",
+"http:head" : httpMethod [] "HEAD" Head,
 
-"http:connect" : httpMethod [] "CONNECT",
+"http:options" : httpMethod [] "OPTIONS" Options,
 
-"http:path" : httpMethod [] "PATCH",
+"http:delete" : httpMethod [] "DELETE" Delete,
 
+"http:trace" : httpMethod [] "TRACE" Trace,
+
+"http:connect" : httpMethod [] "CONNECT" Connect,
+
+"http:path" : httpMethod [] "PATCH" Patch,
 
 ];
     \()
