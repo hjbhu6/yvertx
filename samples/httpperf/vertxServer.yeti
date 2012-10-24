@@ -10,11 +10,11 @@ verticle do {container, vertx}:
     (https.createWithHandler vertx do req:
         fs.readFile "foo.html" \case of
             Some buffer:
-               (https.putHeaders req 
-                ["Content-Length": string (buffer is ~Buffer)#length(),
-                                         "Content-Type": "text/html"])
-                    #response#end(buffer);
-            None ex :
+                https.putHeaders req 
+                    ["Content-Length": string (buffer is ~Buffer)#length(),
+                     "Content-Type": "text/html"];
+                _ = req#response#end(buffer);
+            Exception ex :
                 println "Error reading file: \(ex)";
         esac;
     done) #listen(8080, 'localhost');

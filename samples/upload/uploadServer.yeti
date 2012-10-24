@@ -38,13 +38,13 @@ verticle do {vertx,container}:
                             (req#response#end();
                              end = System#currentTimeMillis();
                              println "Uploaded \(pump#getBytesPumped()) bytes to \(filename) in \(end - start) ms");
-                        None ex: 
+                        Exception ex: 
                             (ex is ~Exception)#printStackTrace(System#err);
                     esac;
                 done;
                 pump#start();
                 req#resume());
-            None ex: 
+            Exception ex: 
                (_ = req#resume();
                 _ = req#response#end();
                 println ex);

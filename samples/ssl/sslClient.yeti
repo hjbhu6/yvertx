@@ -20,7 +20,7 @@ load yvertx;
 net = load yvertx.net;
 
 verticle do {vertx, container}:
-    _ = net.connectClient vertx "localhost:1234" 
+    _ = net.createAndConnectClient vertx "localhost:1234" 
         do cl: 
             cl#setSSL(true)#setTrustAll(true)
         done
