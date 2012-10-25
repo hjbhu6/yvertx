@@ -40,31 +40,54 @@ class YetiVerticleFactory extends VerticleFactory
         or (strEnds? main ".teti")
         or ((strEnds? main "YetiVerticle.class") and (strLength main > 18)),
     
-    Verticle createVerticle(String className1, ClassLoader loader)
+    Verticle createVerticle(String verticleName, ClassLoader loader)
         import yeti.lang.compiler:CompileException;
         import java.lang.RuntimeException;
+        import yeti.lang:Fun,
+                         Struct;
         
-        className  = if strEnds? className1 ".yeti" 
-                        or strEnds? className1 ".teti" then
-                        strLeft className1 (strLength className1 - 5)
-                     else
-                        className1
-                     fi;
         cl = new YetiClassLoader(loader,[],true);
         ocl = Thread#currentThread()#getContextClassLoader();
+        Thread#currentThread()#setContextClassLoader(cl);
         try
-            import yeti.lang.Fun;
-            Thread#currentThread()#setContextClassLoader(cl);
+        
+            {className,functionName}  = 
+                (pa = if strEnds? verticleName ".yeti" 
+                    or strEnds? verticleName ".teti" then
+                    strLeft verticleName (strLength verticleName - 5)
+                 else
+                    verticleName
+                 fi;
+                 cut = strIndexOf pa ":" 0;
+                 if cut < 0 then
+                    {className = pa, functionName = none}
+                 else 
+                    className = strLeft pa cut;
+                    fn = strRight pa (cut + 1);
+                    if strLength fn > 0 then
+                        {className, functionName = Some fn}
+                    else
+                        {className, functionName = none}
+                    fi
+                 fi);
             moduleCl = cl#loadClass(className);
+            rs = moduleCl#getMethod("eval",() as ~Class[])
+                     #invoke(() as ~Object,() as ~Object[]);
+            
+            //get the function for creating the verticle
+            fn = case functionName of
+                None _ : rs unsafely_as ~Fun;
+                Some funName :
+                    ((rs unsafely_as ~Struct)#get(funName is string))
+                        unsafely_as ~Fun;
+                esac;
 
-            fn = moduleCl#getMethod("eval",() as ~Class[])#invoke(() as ~Object,() as ~Object[]);
-            (fn unsafely_as ~Fun)#apply(() as ~Object) unsafely_as ~Verticle;
+            //invoke the function
+            fn#apply(() as ~Object) unsafely_as ~Verticle;
         catch CompileException ex:
             import java.lang:ClassNotFoundException;
             println "Yeti Compilation Error: \(ex#getMessage())";
             throw new ClassNotFoundException(ex#getMessage());
-            //() as ~Verticle;
-            //throw new RuntimeException(ex#getMessage());
         finally
             Thread#currentThread()#setContextClassLoader(ocl);
         yrt,
