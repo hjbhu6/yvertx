@@ -29,9 +29,9 @@ import org.vertx.java.deploy.Verticle;
 
 verticle do {vertx,container}:
     (server = https.create vertx;
-    _ = ws.websocketHandler 
+    _ = ws.serverHandler 
         server
-        do webs:
+        do webs path:
         _ = if webs#path == "/myapp" then
             ws.dataHandler webs do data:
                 _ = webs#writeTextFrame(string data); //Echo it back
