@@ -11,6 +11,7 @@ load yvertx.testutils;
 
 httpc = load yvertx.httpc;
 https = load yvertx.https;
+webs = load yvertx.websocket;
 
 
 
@@ -105,10 +106,8 @@ verticle do {container, vertx}:
             sentBuff = generateRandomBuffer(1000);
             
             
-            //client2 = vertx#createHttpClient()#setHost("localhost")#setPort(8080);
             client = httpc.create vertx "localhost:8080";
 
-            //request = client2#request(method, uri, toHandler 
             request = httpc.request client (variant uri) headers
             do resp:
 
@@ -149,7 +148,52 @@ verticle do {container, vertx}:
             _ = request#writeBuffer(sentBuff);
             request#end();
         done);
+
+    websocketEcho binary rs =        
+        (rs.setTimeout 1000;
+      
+        server = https.create vertx;
+
+        webs.serverHandler server do ws:
+            webs.dataHandler ws do buff:
+                _ = ws#writeBuffer(buff);
+            done;
+        done;
+        server#listen(8080);
+
+        
+        _ = setTimer vertx 1000 do:
+            client = httpc.create vertx "localhost:8080";
             
+            {buff,str} = if binary then
+                    {buff = generateRandomBuffer 1000, str = ""};
+                else
+                    str = randomUnicodeString(1000);
+                    {buff = newStringBuffer str, str};
+                fi;
+
+            webs.clientHandler client "/someurl" do ws:
+                received = newBuffer 0;
+                webs.dataHandler ws do data:
+                    _ = received#appendBuffer(data);
+                    if received#length() == buff#length() then
+                        rs.assert "be" (buffersEqual received buff);
+                        client#close();
+                        https.close server do:
+                            rs.assure "finished" true;
+                        done;
+                    fi;
+                    if binary then
+                        ws#writeBinaryFrame(buff);
+                    else
+                        ws#writeTextFrame(str);
+                    fi
+                done;
+            done
+        done);
+        
+
+
     runTests vertx container [
 
 "common load": do rs:
@@ -583,6 +627,78 @@ done,
         fi
     done;
 done,
+
+"websocket:echoBinary" : websocketEcho true,
+
+"websocket:echoString" : websocketEcho false,
+
+"websocket:writeFromConnectionHandler" : do rs:
+    rs.setTimeout 5000;
+    server = https.create vertx;
+    webs.serverHandler server do ws:
+        _ = ws#writeTextFrame("foo");
+    done;
+    server#listen(8080);
+
+    _ = setTimer vertx 1000 do:
+        client = httpc.create vertx "localhost:8080";
+        webs.clientHandler client "/someurl" do ws:
+            webs.dataHandler ws do buff:
+                rs.assert "" ("foo" == string buff);
+                client#close();
+                https.close server do:
+                    rs.assure "close" true;
+                done;
+            done
+        done;
+    done;
+done,
+
+"websocket:close" : do rs:
+    rs.setTimeout 5000;
+    server = https.create vertx;
+    webs.serverHandler server do ws:
+        webs.dataHandler ws do:
+            ws#close();
+        done;
+    done;
+    server#listen(8080);
+
+    _ = setTimer vertx 1000 do:
+        client = httpc.create vertx "localhost:8080";
+        webs.clientHandler client "/someurl" do ws:
+            webs.closedHandler ws do:
+                client#close();
+                https.close server do:
+                    rs.assure "close" true;
+                done;
+                ws#writeTextFrame("foo");
+            done;
+        done;
+    done
+done,
+
+"websocket:closeFromConnectionHandler" : do rs:
+    rs.setTimeout 5000;
+    server = https.create vertx;
+    webs.serverHandler server do ws:
+        ws#close();
+    done;
+    server#listen(8080);
+
+    _ = setTimer vertx 1000 do:
+        client = httpc.create vertx "localhost:8080";
+        webs.clientHandler client "/someurl" do ws:
+            webs.closedHandler ws do:
+                client#close();
+                https.close server do:
+                    rs.assure "close" true;
+                done;
+            done;
+        done;
+    done
+done,
+
 ];
     \()
 done;
