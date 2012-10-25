@@ -27,8 +27,8 @@ import org.vertx.java.core.http:HttpClientResponse,
 
 yvertx = load yvertx;
 
-toResponseHandler fn is (~HttpClientResponse -> ()) -> ~Handler =
-        yvertx.toHandler fn;
+toResponseHandler fn =
+        yvertx.toHandler (fn . (unsafely_as ~HttpClientResponse));
 
 responseHandler response fn = 
         fn (response is ~HttpClientResponse);
@@ -39,7 +39,7 @@ dataHandler response handler =
 
 endHandler response handler =   
     (response is ~HttpClientResponse)#endHandler(
-            yvertx.toHandler handler);
+            yvertx.toSimpleHandler handler);
 
 bodyHandler response handler =
    (response is ~HttpClientResponse)#bodyHandler(

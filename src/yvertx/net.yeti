@@ -25,8 +25,8 @@ import org.vertx.java.core.net:NetSocket,
 
 yvertx = load yvertx;
 
-toSocketHandler fn is (~NetSocket -> 'a) -> ~Handler =
-        yvertx.toHandler fn;
+toSocketHandler fn =
+        yvertx.toHandler (fn . (unsafely_as ~NetSocket));
 
 dataHandler socket handler = 
     (socket is ~NetSocket)#dataHandler(yvertx.toBufferHandler handler);

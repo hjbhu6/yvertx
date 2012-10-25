@@ -161,24 +161,22 @@ fromJSArray ar is ~JsonArray -> list<'a> =
 
 
 
-toHandler fn is ('a -> 'b) -> ~Handler = 
+toHandler fn is (~Object -> ()) -> ~Handler = 
    (class IYetiHandler extends Handler
         void handle(Object ob)
-            fn (ob unsafely_as 'a),
+            fn ob,
     end;
     new IYetiHandler());
 
-toSimpleHandler fn is (() -> 'a) -> ~Handler =
-    toHandler fn;
+toSimpleHandler fn =
+    toHandler (fn . \());
 
-toLongHandler fn is (number -> ()) -> ~Handler =
-    toHandler do lv: fn (lv is ~Long)#longValue() done;
+toLongHandler fn =
+    toHandler do ob: fn (ob unsafely_as ~Long)#longValue() done;
         
 
-toWebsocketHandler fn is (~WebSocket -> 'a) -> ~Handler =
-        toHandler fn;
 
-toAsyncResultHandler fn is ((Some 'a | Exception ~Exception ) -> 'b) -> ~AsyncResultHandler =
+toAsyncResultHandler fn =
        (class IYetiAsyncResultHandler extends AsyncResultHandler
             void handle(Object o)
                 r = o unsafely_as ~AsyncResult;
@@ -190,7 +188,9 @@ toAsyncResultHandler fn is ((Some 'a | Exception ~Exception ) -> 'b) -> ~AsyncRe
         end;
         new IYetiAsyncResultHandler());
 
-toTypedAsyncResultHandler tfn fn is (~Object -> 'a) -> ((Some 'a | Exception ~Exception ) -> 'b) -> ~AsyncResultHandler =
+toTypedAsyncResultHandler tfn fn 
+    is (~Object -> 'a) -> ((Some 'a | Exception ~Exception ) -> 'b) 
+        -> ~AsyncResultHandler =
        (class IYetiAsyncResultHandler extends AsyncResultHandler
             void handle(Object o)
                 r = o unsafely_as ~AsyncResult;
@@ -202,20 +202,20 @@ toTypedAsyncResultHandler tfn fn is (~Object -> 'a) -> ((Some 'a | Exception ~Ex
         end;
         new IYetiAsyncResultHandler());
         
-toBufferHandler fn is (~Buffer -> 'a) -> ~Handler =
-        toHandler fn;
+toBufferHandler fn =
+        toHandler (fn . (unsafely_as ~Buffer));
 
     
-toExceptionHandler fn is (~Exception -> 'a) -> ~Handler =
-        toHandler fn;
+toExceptionHandler fn =
+        toHandler (fn . (unsafely_as ~Exception));
         
-toStringHandler fn is (string ->'a) -> ~Handler =
-        toHandler fn;
+toStringHandler fn =
+        toHandler (fn . (as string) .(unsafely_as ~String));
         
 
 
 runOnLoop vertx handler = 
-    (vertx is ~Vertx)#runOnLoop(toHandler (handler is () -> ()));
+    (vertx is ~Vertx)#runOnLoop(toSimpleHandler handler);
 
 setPeriodic vertx delay handler = 
     (vertx is ~Vertx)#setPeriodic(delay, 
@@ -228,7 +228,10 @@ setTimer vertx delay handler =
 cancelTimer vertx timerId =
     (vertx is ~Vertx)#cancelTimer(timerId);
     
-verticle runFn is ({vertx is ~Vertx, container is ~Container} -> ({vertx is ~Vertx, container is ~Container} -> 'a)) -> ( () -> ~Verticle) =
+verticle runFn 
+        is ({vertx is ~Vertx, container is ~Container} 
+            -> ({vertx is ~Vertx, container is ~Container} -> 'a)) 
+            -> ( () -> ~Verticle) =
    (class IYetiVerticle extends Verticle 
         var stopFn = \(failWith "No stopfuntion assigned yet"),
         
@@ -266,11 +269,11 @@ enviroment container =
 
 undeployModule container deploymentID handler =
     (container is ~Container)#undeployModule(deploymentID, 
-                                    toHandler (handler is () -> ()));
+                                    toSimpleHandler handler);
     
 undeployVerticle container deploymentID handler =
     (container is ~Container)#undeployVerticle(deploymentID, 
-                                    toHandler (handler is () -> ()));
+                                    toHandler handler);
 
 timeout vertx time tofn fn = 
     (var handled = false;
@@ -293,7 +296,7 @@ timeout vertx time tofn fn =
 
 bus = {
     toMessageHandler fn =
-            toHandler (fn is ~Message -> ()),
+            toHandler (fn . (unsafely_as ~Message)),
 
     toJsonMessageHandler fn =
         (class YvertxMessageHandler extends Handler
@@ -494,7 +497,6 @@ fileSystem vertx =
 
     toHandler, 
     toSimpleHandler,
-    toWebsocketHandler, 
     toAsyncResultHandler, 
     toExceptionHandler,
     toBufferHandler,

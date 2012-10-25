@@ -23,7 +23,7 @@ import org.vertx.java.core.sockjs:SockJSSocket,
 yvertx = load yvertx;
 
 toHandler handler =
-    yvertx.toHandler (handler is (~SockJSSocket) -> 'a);
+    yvertx.toHandler (handler . (unsafely_as ~SockJSSocket));
 
 dataHandler socket handler =
     (socket is ~SockJSSocket)#dataHandler(
@@ -34,10 +34,10 @@ exceptionHandler socket handler =
         yvertx.toExceptionHandler handler);
 
 drainHandler socket handler =
-    (socket is ~SockJSSocket)#drainHandler(yvertx.toHandler handler);
+    (socket is ~SockJSSocket)#drainHandler(yvertx.toSimpleHandler handler);
         
 endHandler socket handler =
-    (socket is ~SockJSSocket)#endHandler(yvertx.toHandler handler);
+    (socket is ~SockJSSocket)#endHandler(yvertx.toSimpleHandler handler);
     
     
 installApp server config handler =

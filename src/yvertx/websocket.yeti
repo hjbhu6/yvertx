@@ -28,14 +28,15 @@ import org.vertx.java.core.http:HttpServer,
 yvertx = load yvertx;
 
 serverHandler server fn =
-    ((server is ~HttpServer)#websocketHandler(yvertx.toHandler do socket:
-            fn (socket is ~ServerWebSocket);
-        done);
+    ((server is ~HttpServer)#websocketHandler(
+            yvertx.toHandler (fn . (unsafely_as ~ServerWebSocket)));
     ());
 
 clientHandler client uri handler =
-    (client is ~HttpClient)#connectWebsocket(uri is string,
-                            yvertx.toHandler (handler is ~WebSocket -> 'a));
+    (client is ~HttpClient)
+        #connectWebsocket(uri is string,
+                          yvertx.toHandler 
+                                (handler .(unsafely_as ~WebSocket)));
 
 dataHandler socket handler =
    (socket is ~WebSocket)#dataHandler(yvertx.toBufferHandler handler);

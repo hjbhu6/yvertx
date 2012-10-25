@@ -28,8 +28,8 @@ import org.vertx.java.core.http:HttpServer,
 
 yvertx = load yvertx;
 
-toRequestHandler fn is (~HttpServerRequest -> ()) -> ~Handler =
-        yvertx.toHandler fn;
+toRequestHandler fn =
+        yvertx.toHandler (fn . (unsafely_as ~HttpServerRequest));
 
 requestHandler server handler =
    (server is ~HttpServer)#requestHandler(toRequestHandler handler);
@@ -39,7 +39,7 @@ dataHandler request handler =
    (request is ~HttpServerRequest)#dataHandler(yvertx.toBufferHandler handler);
 
 endHandler request handler =
-   (request is ~HttpServerRequest)#endHandler(yvertx.toHandler handler);
+   (request is ~HttpServerRequest)#endHandler(yvertx.toSimpleHandler handler);
 
 exceptionHandler request handler =
    (request is ~HttpServerRequest)#exceptionHandler(
@@ -61,7 +61,7 @@ close server handler =
 
 _routeMatcher () =
    (routeMatcher = new RouteMatcher();
-     toHa h = yvertx.toHandler (h is ~HttpServerRequest -> 'a);
+     toHa h = yvertx.toHandler (h . (unsafely_as ~HttpServerRequest));
      
     {
         all route h = routeMatcher#all(route,toHa h), 

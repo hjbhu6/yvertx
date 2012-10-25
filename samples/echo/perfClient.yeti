@@ -45,7 +45,7 @@ verticle do {vertx, container}:
 
             sendData _ = 
                (socket#write(buff);
-                handler = toHandler sendData;
+                handler = toHandler (sendData . \());
                 if not socket#writeQueueFull() then
                     (vertx is ~Vertx)#runOnLoop(handler)
                 else
