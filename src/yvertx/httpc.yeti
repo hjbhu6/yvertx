@@ -105,9 +105,6 @@ getBodyNow client uri headers handler =
                     done
                 done;
 
-connectWebsocket client uri handler =
-    (client is ~HttpClient)#connectWebsocket(uri is string,
-                            yvertx.toHandler (handler is ~WebSocket -> 'a));
 {
     toResponseHandler,
     dataHandler,
@@ -138,7 +135,6 @@ connectWebsocket client uri handler =
     generalRequest,
     getNow,
     getBodyNow,
-    connectWebsocket,
     
     
 }

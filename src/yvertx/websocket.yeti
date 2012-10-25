@@ -23,36 +23,45 @@ import org.vertx.java.core.http:HttpServer,
                                 HttpServerRequest,
                                 WebSocket,
                                 ServerWebSocket,
-                                RouteMatcher;
+                                HttpClient;
 
 yvertx = load yvertx;
 
 toWebsocketHandler fn is (~ServerWebSocket -> 'a) -> ~Handler =
         yvertx.toHandler fn;
 
-        
-websocketHandler server fn is ~HttpServer -> (~ServerWebSocket -> 'a) -> 'b =
-    server#websocketHandler(toWebsocketHandler fn);
+serverHandler server fn is ~HttpServer -> (~ServerWebSocket -> 'a) -> 'b =
+    (server#websocketHandler(toWebsocketHandler fn);
+    ());
+
+clientHandler client uri handler =
+    (client is ~HttpClient)#connectWebsocket(uri is string,
+                            yvertx.toHandler (handler is ~WebSocket -> 'a));
 
 dataHandler socket handler =
-   (socket is ~ServerWebSocket)#dataHandler(yvertx.toBufferHandler handler);
+   (socket is ~WebSocket)#dataHandler(yvertx.toBufferHandler handler);
 
 endHandler socket handler =
-   (socket is ~ServerWebSocket)#endHandler(yvertx.toHandler handler);
+   (socket is ~WebSocket)#endHandler(yvertx.toSimpleHandler handler);
 
 exceptionHandler socket handler =
-   (socket is ~ServerWebSocket)#exceptionHandler(
+   (socket is ~WebSocket)#exceptionHandler(
         yvertx.toExceptionHandler handler);
    
 drainHandler socket handler =
-   (socket is ~ServerWebSocket)#drainHandler(yvertx.toHandler handler);
-    
+   (socket is ~WebSocket)#drainHandler(yvertx.toSimpleHandler handler);
+
+closedHandler socket handler =
+   (socket is ~WebSocket)#closedHandler(yvertx.toSimpleHandler handler);
+
 {
     toWebsocketHandler,
-    websocketHandler,
+    serverHandler,
+    clientHandler,
     dataHandler,
     endHandler,
     exceptionHandler,
+    closedHandler,
     
 }
  
