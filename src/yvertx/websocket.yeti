@@ -27,11 +27,11 @@ import org.vertx.java.core.http:HttpServer,
 
 yvertx = load yvertx;
 
-toWebsocketHandler fn is (~ServerWebSocket -> 'a) -> ~Handler =
-        yvertx.toHandler fn;
-
-serverHandler server fn is ~HttpServer -> (~ServerWebSocket -> 'a) -> 'b =
-    (server#websocketHandler(toWebsocketHandler fn);
+serverHandler server fn =
+    ((server is ~HttpServer)#websocketHandler(yvertx.toHandler do socket:
+            s = (socket is ~ServerWebSocket);
+            fn (s as ~WebSocket) s#path;
+        done);
     ());
 
 clientHandler client uri handler =
@@ -55,7 +55,6 @@ closedHandler socket handler =
    (socket is ~WebSocket)#closedHandler(yvertx.toSimpleHandler handler);
 
 {
-    toWebsocketHandler,
     serverHandler,
     clientHandler,
     dataHandler,

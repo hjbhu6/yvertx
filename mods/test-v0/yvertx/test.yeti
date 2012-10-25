@@ -154,7 +154,7 @@ verticle do {container, vertx}:
       
         server = https.create vertx;
 
-        webs.serverHandler server do ws:
+        webs.serverHandler server do ws path:
             webs.dataHandler ws do buff:
                 _ = ws#writeBuffer(buff);
             done;
@@ -635,7 +635,7 @@ done,
 "websocket:writeFromConnectionHandler" : do rs:
     rs.setTimeout 5000;
     server = https.create vertx;
-    webs.serverHandler server do ws:
+    webs.serverHandler server do ws path:
         _ = ws#writeTextFrame("foo");
     done;
     server#listen(8080);
@@ -657,7 +657,7 @@ done,
 "websocket:close" : do rs:
     rs.setTimeout 5000;
     server = https.create vertx;
-    webs.serverHandler server do ws:
+    webs.serverHandler server do ws path:
         webs.dataHandler ws do:
             ws#close();
         done;
@@ -681,7 +681,7 @@ done,
 "websocket:closeFromConnectionHandler" : do rs:
     rs.setTimeout 5000;
     server = https.create vertx;
-    webs.serverHandler server do ws:
+    webs.serverHandler server do ws path:
         ws#close();
     done;
     server#listen(8080);
