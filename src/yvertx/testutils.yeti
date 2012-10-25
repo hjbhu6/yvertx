@@ -76,8 +76,12 @@ _runTestsImpl tests resultO allResults vertx container =
             print "Ok :";
         fi;
         println "total runs: \(length allResults); ok: \(length ok); failures: \(length f); exceptions: \(length exs)";
-        
-        (container is ~Container)#exit();
+        import java.lang.System;
+        if length allResults != length ok then
+            System#exit(1);
+        else
+            System#exit(0);
+        fi
     else
         case resultO of
         None _ : 
