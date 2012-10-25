@@ -29,8 +29,7 @@ yvertx = load yvertx;
 
 serverHandler server fn =
     ((server is ~HttpServer)#websocketHandler(yvertx.toHandler do socket:
-            s = (socket is ~ServerWebSocket);
-            fn (s as ~WebSocket) s#path;
+            fn (socket is ~ServerWebSocket);
         done);
     ());
 
