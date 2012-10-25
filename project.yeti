@@ -48,7 +48,7 @@ remoteRepository "typesafe"
 deployRepository.url :="file:///${basedir}/../../chrisis-maven-repo/snapshots/";
 
 //yeti dependency
-dependency "org.yeti" "yeti" "0.9.6+-SNAPSHOT" [];
+//dependency "org.yeti" "yeti" "0.9.6+-SNAPSHOT" [];
 //dependency "junit" "junit" "3.8" [];
 
 ////////////////////////////////////////////////////////////////////////////////
