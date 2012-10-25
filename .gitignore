@@ -1,5 +1,6 @@
 lib/yeti.jar
 lib/managed
+lib/unmanaged
 lib/ybuilder/extlib_managed
 target
 mods/**/lib/*
