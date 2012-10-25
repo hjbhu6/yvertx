@@ -113,7 +113,8 @@ _runTestsImpl tests resultO allResults vertx container =
                 test res;
                 _runTestsImpl tests (Some res) allResults vertx container;
             catch Exception ex:
-               container#getLogger()#error("test: [\(name)]",ex);
+               (container is ~Container)#getLogger()
+                                    #error("test: [\(name)]",ex);
                //run next tests but with bad result
                _runTestsImpl (tail tests)
                              none
