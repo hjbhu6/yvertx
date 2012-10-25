@@ -551,6 +551,38 @@ done,
     done;
     parser input;
 done,
+
+"timer:oneOff" : do rs:
+    rs.setTimeout 5000;
+
+    var count = 0;
+    _ = setTimer vertx 1000 do tid:
+        rs.assert "count" (count == 0);
+        count := count + 1;
+        _ = setTimer vertx 10 do:
+            rs.assure "" true
+        done;
+    done;
+done,
+
+"timer:periodic" : do rs:
+    rs.setTimeout 5000;
+    numFires = 20;
+    delay = 100;
+    var count = 0;
+    _ = setPeriodic vertx delay do timerId:
+        count := count + 1;
+        if count == numFires then
+            _ = cancelTimer vertx timerId;
+            _ = setTimer vertx 10 do:
+                rs.assure "" true;
+            done;
+        fi;
+        if count > numFires then
+            rs.assert "Fired too many times" false;
+        fi
+    done;
+done,
 ];
     \()
 done;

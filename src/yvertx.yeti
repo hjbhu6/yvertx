@@ -17,7 +17,8 @@
 module yvertx;
 
 import java.lang:Exception,
-                 Runnable;
+                 Runnable,
+                 Long;
 
 import org.vertx.java.core:Handler,
                            AsyncResult,
@@ -170,6 +171,10 @@ toHandler fn is ('a -> 'b) -> ~Handler =
 toSimpleHandler fn is (() -> 'a) -> ~Handler =
     toHandler fn;
 
+toLongHandler fn is (number -> ()) -> ~Handler =
+    toHandler do lv: fn (lv is ~Long)#longValue() done;
+        
+
 toWebsocketHandler fn is (~WebSocket -> 'a) -> ~Handler =
         toHandler fn;
 
@@ -213,13 +218,15 @@ runOnLoop vertx handler =
     (vertx is ~Vertx)#runOnLoop(toHandler (handler is () -> ()));
 
 setPeriodic vertx delay handler = 
-    (vertx is ~Vertx)#setPeriodic(delay, toHandler (handler is number -> ()));
+    (vertx is ~Vertx)#setPeriodic(delay, 
+        toLongHandler handler);
 
 setTimer vertx delay handler =
-    (vertx is ~Vertx)#setTimer(delay, toHandler (handler is number -> ()));
+    (vertx is ~Vertx)#setTimer(delay, 
+        toLongHandler handler);
 
 cancelTimer vertx timerId =
-    (vertx is ~Vertx)#cancelTimer(timerId is number);
+    (vertx is ~Vertx)#cancelTimer(timerId);
     
 verticle runFn is ({vertx is ~Vertx, container is ~Container} -> ({vertx is ~Vertx, container is ~Container} -> 'a)) -> ( () -> ~Verticle) =
    (class IYetiVerticle extends Verticle 
