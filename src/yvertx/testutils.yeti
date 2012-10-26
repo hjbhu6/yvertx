@@ -26,21 +26,22 @@ load yvertx;
 
 _runTestsImpl tests resultO allResults vertx container =
     if empty? tests then
-        f = allResults |> map do {name,result}:
+        oallResults = reverse allResults;
+        f = oallResults |> map do {name,result}:
             case result of
             Failure msg: Some {name, msg};
             _ : none;
             esac
             done
             |> catSome;
-        ok = allResults |> map do {name,result}:
+        ok = oallResults |> map do {name,result}:
             case result of
             Success msg : Some {name, msg};
             _ : none;
             esac
             done
             |> catSome;
-        exs = allResults |> map do {name,result}:
+        exs = oallResults |> map do {name,result}:
             case result of
             Exception ex: Some {name, msg = string ex};
             _ : none;
