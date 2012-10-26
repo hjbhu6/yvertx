@@ -187,10 +187,37 @@ _runTestsImpl tests resultO allResults vertx container =
     randomUnicodeString size = 
         TestUtils#randomUnicodeString(size is number),
 
-    runTests vertx container tests =
-        (ts = tests
-            |> mapHash do name test: {name,test} done 
-            |> sortBy do v1 v2: v1.name < v2.name done;
+    runTests vertx container opts tests =
+        (includes =  array [];
+        excludes = array [];
+        for opts \case of
+            Include str : push includes str;
+            Exclude str : push excludes str;
+            esac;
+        
+        testNames = tests |> mapHash do name _ : name done;
+
+        included = if empty? includes then
+                testNames;
+            else
+                includes 
+                |> concatMap do pattern:
+                        testNames |> filter (=~ pattern);
+                    done
+                |> nub
+            fi;
+
+        ts = 
+            excludes
+            |> fold do r pattern:
+                    r |> filter ((not) . ( =~ pattern))
+                done included
+            |> sort
+            |> map do name:
+                    {name,
+                    test = tests.[name]}
+                done;
+
         println "start testing: tests \(ts |> map (.name))";
         _runTestsImpl ts none [] vertx container),
 

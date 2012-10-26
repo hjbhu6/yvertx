@@ -194,7 +194,7 @@ verticle do {container, vertx}:
         
 
 
-    runTests vertx container [
+    runTests vertx container [Exclude "websocket:"] [
 
 "common load": do rs:
    // rs.assure "" ("foo" == load yvertx.common.module1);
