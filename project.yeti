@@ -41,14 +41,10 @@ project.description := "Yeti support for vert.x";
 _ = load ybuilder.core.vertxBase;
 
 //repositories
-remoteRepository "sonatype-nexus-releases" 
-    "https://oss.sonatype.org/content/repositories/snapshots";
-remoteRepository "typesafe" 
-    "http://repo.typesafe.com/typesafe/releases/";
 deployRepository.url :="file:///${basedir}/../../chrisis-maven-repo/snapshots/";
 
 //yeti dependency
-//dependency "org.yeti" "yeti" "0.9.6+-SNAPSHOT" [];
+dependency "org.yeti" "yeti" "0.9.6+-SNAPSHOT" [];
 //dependency "junit" "junit" "3.8" [];
 
 ////////////////////////////////////////////////////////////////////////////////
