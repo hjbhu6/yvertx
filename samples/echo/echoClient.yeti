@@ -21,8 +21,8 @@ import org.vertx.java.core.buffer.Buffer;
 load yvertx;
 net = load yvertx.net;
 
-verticle do {vertx, container}:
-    _ = net.createAndConnectClient vertx "localhost:1234" \() \() do socket:
+verticle do :
+    _ = net.createAndConnectClient "localhost:1234" \() \() do socket:
         
         net.dataHandler socket do buffer:
             println "Net client receiving: \(buffer)"

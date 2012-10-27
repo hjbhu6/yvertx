@@ -29,10 +29,10 @@ import org.vertx.java.core.http.HttpServerRequest;
 import org.vertx.java.deploy.Verticle;
 
 
-verticle do {vertx, container}:
-    client =httpc.create vertx "localhost:8282";
+verticle do :
+    client =httpc.create "localhost:8282";
     
-    (https.createWithHandler vertx do req:
+    (https.createWithHandler do req:
         println "Proxying request: \(req#uri)";
         cReq =httpc.generalRequest client req#method req#uri [:] do cRes:
             println "Proxying response: \((cRes is ~HttpClientResponse)#statusCode)";

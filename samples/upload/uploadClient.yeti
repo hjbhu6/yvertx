@@ -33,11 +33,11 @@ import java.lang:Exception;
 import java.nio.file:Files,
                      Paths;
 
-verticle do {vertx,container}:
+verticle do :
 
-    fs = fileSystem vertx;
+    fs = fileSystem;
 
-    client = httpc.create vertx "localhost:8080";
+    client = httpc.create "localhost:8080";
     req =httpc.request client (Put "/some-url") [:] do resp:
         println "File uploaded \(resp#statusCode)";
     done;

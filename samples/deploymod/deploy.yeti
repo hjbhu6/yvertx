@@ -2,9 +2,9 @@ module deploy;
 
 load yvertx;
 
-verticle do {vertx, container}:
+verticle do :
     println "Deploying module";
-    deployModule container "org.foo.MyMod-v1.0" 
+    deployModule "org.foo.MyMod-v1.0" 
                     {``some-var`` = "hello"} 
                     1 
                     do deploymentId:

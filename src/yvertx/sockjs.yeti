@@ -66,6 +66,6 @@ bridge server opts sjsConfig inboundPermitted outboundPermitted =
     exceptionHandler,
     installApp,
     bridge,
-    create vertx server =
-        (vertx is ~Vertx)#createSockJSServer(server),
+    create server =
+        (yvertx.vertx)#createSockJSServer(server),
 }

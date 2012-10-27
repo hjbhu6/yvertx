@@ -20,8 +20,8 @@ load yvertx;
 https = load yvertx.https;
  
 
-verticle do {vertx, container}:
-    (https.createWithHandler vertx do req:
+verticle do :
+    (https.createWithHandler do req:
         println "Got request: \(req#uri)";
         println "Headers are: ";
         forJavaMap req#headers() do key value:

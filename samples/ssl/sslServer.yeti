@@ -18,8 +18,8 @@ module sslServer;
 load yvertx;
 net = load yvertx.net;
 
-verticle do {vertx, container}:
-    _ = (net.createServerWithHandler vertx do socket:
+verticle do :
+    _ = (net.createServerWithHandler do socket:
         net.dataHandler socket do buffer:
             _ = socket#write(buffer);
         done;

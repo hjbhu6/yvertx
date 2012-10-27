@@ -18,9 +18,9 @@ module client;
 load yvertx;
 httpc = load yvertx.httpc;
 
-verticle do {vertx, container}:
+verticle do :
     req = httpc.request 
-            (httpc.create vertx "localhost:8080")
+            (httpc.create "localhost:8080")
             (Put "/some-url") 
             [:]
             do resp:

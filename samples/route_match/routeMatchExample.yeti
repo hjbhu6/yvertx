@@ -18,7 +18,7 @@ module routeMatchExample;
 load yvertx;
 https = load yvertx.https;
 
-verticle do {vertx,container}:
+verticle do :
     rm = https.routeMatcher ();
     rm._get "/details/:user/:id" do req:
         p = https.params req;
@@ -29,6 +29,6 @@ verticle do {vertx,container}:
         _ = req#response#sendFile("route_match/index.html");
     done;
     
-    _ = (https.createWithHandler vertx rm.handle)#listen(8080);
+    _ = (https.createWithHandler rm.handle)#listen(8080);
     \()
 done;

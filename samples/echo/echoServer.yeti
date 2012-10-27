@@ -22,8 +22,8 @@ import org.vertx.java.core.streams:Pump,
                                    ReadStream,
                                    WriteStream;
 
-verticle do {vertx,container}:
-    (net.createServerWithHandler vertx do sock:
+verticle do :
+    (net.createServerWithHandler do sock:
         (createPump sock sock)#start();
     done)#listen(1234);
     \();

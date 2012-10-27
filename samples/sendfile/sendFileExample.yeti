@@ -23,8 +23,8 @@ https = load yvertx.https;
 
 webroot = "sendfile/";
 
-verticle do {vertx, container}:
-    (https.createWithHandler vertx do req:
+verticle do :
+    (https.createWithHandler do req:
         _ = if req#path == "/" then
             req#response#sendFile(webroot ^ "index.html")
         else

@@ -127,7 +127,7 @@ _runTestsImpl tests resultO allResults vertx container =
         Some res:
             (if System#currentTimeMillis() < res.stopTime then
                 print ".";
-                _ = setTimer vertx 100 
+                _ = setTimer 100 
                     \(_runTestsImpl tests resultO allResults vertx container)
             else
                 case res.result of
@@ -188,7 +188,7 @@ _runTestsImpl tests resultO allResults vertx container =
     randomUnicodeString size = 
         TestUtils#randomUnicodeString(size is number),
 
-    runTests vertx container opts tests =
+    runTests opts tests =
         (includes =  array [];
         excludes = array [];
         for opts \case of

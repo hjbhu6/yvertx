@@ -23,8 +23,8 @@ net = load yvertx.net;
 
 import java.lang:System;
 
-verticle do {vertx, container}:
-    _ = net.createAndConnectClient vertx "localhost:1234" \() \() do socket:
+verticle do :
+    _ = net.createAndConnectClient "localhost:1234" \() \() do socket:
         packetSize = 32 * 1024;
         batch = 1024 * 1024 * 512;
         var bytesReceived = 0;

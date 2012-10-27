@@ -21,14 +21,14 @@ import org.vertx.java.core:Vertx;
 load yvertx; 
 net = load yvertx.net;
 
-verticle do {vertx, container}:
-   connections = (vertx is ~Vertx)#sharedData()#getSet("conns");
-    (net.createServerWithHandler vertx do socket:
+verticle do :
+   connections = sharedData#getSet("conns");
+    (net.createServerWithHandler do socket:
         _ = connections#add(socket#writeHandlerID);
         net.dataHandler socket do buffer:
             it = connections#iterator();
             it#hasNext() loop
-                 bus.publish vertx (string it#next()) buffer;
+                 bus.publish (string it#next()) buffer;
         done;
         net.closedHandler socket do:
             _ = connections#remove(socket#writeHandlerID)

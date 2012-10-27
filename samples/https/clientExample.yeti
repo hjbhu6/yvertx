@@ -22,8 +22,8 @@ load yvertx;
 httpc = load yvertx.httpc;
 
 
-verticle do {vertx, container}:
-    client = (httpc.create vertx "localhost:4443")
+verticle do :
+    client = (httpc.create "localhost:4443")
              #setSSL(true)
              #setTrustAll(true);
              

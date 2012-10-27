@@ -50,11 +50,11 @@ bodyHandler request handler =
         yvertx.toBufferHandler handler);
 
    
-create vertx = 
-    (vertx is ~Vertx)#createHttpServer();
+create () = 
+    (yvertx.vertx)#createHttpServer();
 
-createWithHandler vertx handler = 
-    (vertx is ~Vertx)#createHttpServer()#requestHandler(toRequestHandler handler);
+createWithHandler handler = 
+    (yvertx.vertx)#createHttpServer()#requestHandler(toRequestHandler handler);
     
 close server handler =
     (server is ~HttpServer)#close(yvertx.toSimpleHandler handler);
@@ -87,8 +87,8 @@ _routeMatcher () =
         noMatch h = routeMatcher#noMatch(toHa h),
         routeMatcher,
         handle req = routeMatcher#handle(req is ~HttpServerRequest),
-        createServer vertx = 
-            (vertx is ~Vertx)#createHttpServer()#requestHandler(routeMatcher)
+        createServer () = 
+            (yvertx.vertx)#createHttpServer()#requestHandler(routeMatcher)
     });        
         
  

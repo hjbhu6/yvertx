@@ -32,6 +32,7 @@ import org.vertx.java.core.impl:Context;
 import org.vertx.java.core.eventbus:Message;
 import org.vertx.java.deploy:Verticle,
                              Container;
+import org.vertx.java.deploy.impl:VertxLocator;
 
 
 import org.vertx.java.core.file:FileSystem,
@@ -213,20 +214,38 @@ toStringHandler fn =
         toHandler (fn . (as string) .(unsafely_as ~String));
         
 
+vertxThreadLocal = threadLocal VertxLocator#vertx;
+containerThreadLocal = threadLocal VertxLocator#container;
 
-runOnLoop vertx handler = 
-    (vertx is ~Vertx)#runOnLoop(toSimpleHandler handler);
+getVertx () = 
+    (loc = vertxThreadLocal.value;
+    if not defined? loc then
+        VertxLocator#vertx;
+    else
+        loc
+    fi);
 
-setPeriodic vertx delay handler = 
-    (vertx is ~Vertx)#setPeriodic(delay, 
+getContainer () =
+    (loc = containerThreadLocal.value;
+    if not defined? loc then
+        VertxLocator#container;
+    else
+        loc;
+    fi);
+
+runOnLoop handler = 
+    (getVertx ())#runOnLoop(toSimpleHandler handler);
+
+setPeriodic  delay handler = 
+    (getVertx ())#setPeriodic(delay, 
         toLongHandler handler);
 
-setTimer vertx delay handler =
-    (vertx is ~Vertx)#setTimer(delay, 
+setTimer delay handler =
+    (getVertx ())#setTimer(delay, 
         toLongHandler handler);
 
-cancelTimer vertx timerId =
-    (vertx is ~Vertx)#cancelTimer(timerId);
+cancelTimer timerId =
+    (getVertx ())#cancelTimer(timerId);
     
 verticle runFn 
         is ({vertx is ~Vertx, container is ~Container} 
@@ -244,41 +263,41 @@ verticle runFn
     \(new IYetiVerticle() as ~Verticle));
 
  
-deployModule container name config instances handler = 
-    (container is ~Container)#deployModule(name is string, 
+deployModule name config instances handler = 
+    (getContainer ())#deployModule(name is string, 
                                             toJS config, 
                                             instances is number, 
                                             toStringHandler handler);
 
-deployVerticle container name config instances handler= 
-    (container is ~Container)#deployVerticle(name is string, 
+deployVerticle name config instances handler= 
+    (getContainer ())#deployVerticle(name is string, 
                                                 toJS config, 
                                                 instances is number, 
                                                 toStringHandler handler);
     
-config container = fromJS ((container is ~Container)#getConfig());
+config () = fromJS ((getContainer ())#getConfig());
 
 
-enviroment container = 
+_enviroment () = 
    (ret = [:];
-    forJavaMap ((container is ~Container)#getEnv()) do key value: 
+    forJavaMap ((getContainer ())#getEnv()) do key value: 
         ret.[string key] := string value;
     done;
     ret);
 
 
-undeployModule container deploymentID handler =
-    (container is ~Container)#undeployModule(deploymentID, 
+undeployModule deploymentID handler =
+    (getContainer ())#undeployModule(deploymentID, 
                                     toSimpleHandler handler);
     
-undeployVerticle container deploymentID handler =
-    (container is ~Container)#undeployVerticle(deploymentID, 
+undeployVerticle deploymentID handler =
+    (getContainer ())#undeployVerticle(deploymentID, 
                                     toHandler handler);
 
-timeout vertx time tofn fn = 
+timeout time tofn fn = 
     (var handled = false;
 
-    _ = setTimer vertx time do:
+    _ = setTimer time do:
         if not handled then
             handled := true;
             tofn time;
@@ -315,31 +334,31 @@ bus = {
         end;
         new YvertxMessageHandler() as ~Handler),
 
-    publish vertx address msg = 
-        (vertx is ~Vertx)#eventBus()#publish(address is string, toJS msg),
+    publish address msg = 
+        (getVertx ())#eventBus()#publish(address is string, toJS msg),
 
-    send vertx address msg =
-        (vertx is ~Vertx)#eventBus()#send(address is string, toJS msg),
+    send address msg =
+        (getVertx ())#eventBus()#send(address is string, toJS msg),
 
-    request vertx address msg handler =   
-        (vertx is ~Vertx)#eventBus()#send(address is string, toJS msg, 
+    request address msg handler =   
+        (getVertx ())#eventBus()#send(address is string, toJS msg, 
                 toJsonMessageHandler handler),
     
-    requestBody vertx address msg handler =
-        request vertx address msg do {body}: handler body done,
+    requestBody address msg handler =
+        request address msg do {body}: handler body done,
         
-    register vertx address resultHandler handler =
-        (vertx is ~Vertx)#eventBus()#registerHandler(address is string,
+    register address resultHandler handler =
+        (getVertx ())#eventBus()#registerHandler(address is string,
                                 toJsonMessageHandler handler,
                                 toAsyncResultHandler resultHandler),
         
-    registerLocal vertx address handler =
-        (vertx is ~Vertx)#eventBus()#registerLocalHandler(address is string,
+    registerLocal address handler =
+        (getVertx ())#eventBus()#registerLocalHandler(address is string,
                        toJsonMessageHandler handler),
             
 
-    unregister vertx id handler resultHandler =
-        (vertx is ~Vertx)#eventBus()#unregisterHandler(id is string, handler, 
+    unregister id handler resultHandler =
+        (getVertx ())#eventBus()#unregisterHandler(id is string, handler, 
                               toAsyncResultHandler resultHandler),
 };
 
@@ -362,104 +381,108 @@ fsHelper = {
                                    toAsyncResultHandler handler),
 };
 
-fileSystem vertx =
-    (fs = (vertx is ~Vertx)#fileSystem();
-    {
-    fileSystem = fs,
+fileSystem = ({
+    get fs () = ((getVertx ())#fileSystem()),
     chmod path perms handler =
-        fs#chmod(path is string, perms is string, 
+        ((getVertx())#fileSystem())#chmod(path is string, perms is string, 
                     toAsyncResultHandler handler),
 
     chmodDir path perms dirPerms handler =
-        (fs)#chmod(path is string, perms is string, dirPerms is string,
+        ((getVertx ())#fileSystem())#chmod(path is string, 
+                         perms is string, dirPerms is string,
                          toAsyncResultHandler handler),
 
     copy from to recursive handler =
-        (fs)#copy(from is string, to is string, 
+        ((getVertx ())#fileSystem())#copy(from is string, to is string, 
                          recursive is boolean, toAsyncResultHandler handler),
 
     createFile path perms handler =
         case perms of
         None _ :
-            (fs)#createFile(path is string, toAsyncResultHandler handler);
+            ((getVertx ())#fileSystem())#createFile(path is string, 
+                                            toAsyncResultHandler handler);
         Some perm:
-            (fs)#createFile(path, perm is string, 
+            ((getVertx ())#fileSystem())#createFile(path, perm is string, 
                         toAsyncResultHandler handler);
         esac,
 
     delete path recursive handler =
-        (fs)#delete(path is string, recursive is boolean, 
+        ((getVertx ())#fileSystem())#delete(path is string, 
+                    recursive is boolean, 
                     toAsyncResultHandler handler),
 
     exists path handler =
-        (fs)#exists(path is string, 
+        ((getVertx ())#fileSystem())#exists(path is string, 
                 toTypedAsyncResultHandler (unsafely_as boolean) handler),
         
     fsProps path handler =
-        (fs)#fsProps(path is string, 
+        ((getVertx ())#fileSystem())#fsProps(path is string, 
                      toTypedAsyncResultHandler 
                         (unsafely_as ~FileSystemProps) handler),
 
     link link existing handler =
-        (fs)#link(link is string, existing is string, 
+        ((getVertx ())#fileSystem())#link(link is string, existing is string, 
                     toAsyncResultHandler handler),
      
     lprops path handler =
-        (fs)#lprops(path is string, 
+        ((getVertx ())#fileSystem())#lprops(path is string, 
                     toTypedAsyncResultHandler 
                         (unsafely_as ~FileProps) handler),
 
     mkdir path perms createParents handler =
         case perms of
-        None _ : 
-            (fs)#mkdir(path is string, 
+        None () : 
+            ((getVertx ())#fileSystem())#mkdir(path is string, 
                        createParents is boolean, toAsyncResultHandler handler);
         Some perm:
-            (fs)#mkdir(path is string, perm is string, 
+            ((getVertx ())#fileSystem())#mkdir(path is string, perm is string, 
                        createParents is boolean, toAsyncResultHandler handler);
         esac,
 
     move from to handler =
-        (fs)#move(from is string, to is string, toAsyncResultHandler handler),
+        ((getVertx ())#fileSystem())#move(from is string, to is string, 
+                                          toAsyncResultHandler handler),
 
     props path handler =
-        (fs)#props(path is string, 
+        ((getVertx ())#fileSystem())#props(path is string, 
                    toTypedAsyncResultHandler (unsafely_as ~FileProps) handler),
         
     readDir path filter handler =
        (mfn obj = map string (wrapArray ((obj is ~Object) 
                                     unsafely_as ~String[]));
         case filter of
-        None _:
-            (fs)#readDir(path is string, 
+        None ():
+            ((getVertx ())#fileSystem())#readDir(path is string, 
                          toTypedAsyncResultHandler mfn handler);
         Some fil:
-            (fs)#readDir(path is string, 
+            ((getVertx ())#fileSystem())#readDir(path is string, 
                          fil is string, toTypedAsyncResultHandler mfn handler);
         esac),
 
     readFile path handler =
-        (fs)#readFile(path is string, 
+        ((getVertx ())#fileSystem())#readFile(path is string, 
                       toTypedAsyncResultHandler (unsafely_as ~Buffer) handler),
 
     readSymlink path handler =
-        (fs)#readSymlink(path is string, 
+        ((getVertx ())#fileSystem())#readSymlink(path is string, 
                          toTypedAsyncResultHandler 
                             (unsafely_as string) handler),
         
     symlink link existing handler =
-        (fs)#symlink(link is string, existing is string, 
+        ((getVertx ())#fileSystem())#symlink(link is string, 
+                     existing is string, 
                      toAsyncResultHandler handler),
 
     truncate path len handler =
-        (fs)#truncate(path is string, 
+        ((getVertx ())#fileSystem())#truncate(path is string, 
                       len is number, toAsyncResultHandler handler),
 
     unlink link handler =
-        (fs)#unlink(link is string, toAsyncResultHandler handler),
+        ((getVertx ())#fileSystem())#unlink(link is string, 
+                                            toAsyncResultHandler handler),
 
     writeFile path data handler =
-        (fs)#writeFile(path is string, 
+        ((getVertx ())#fileSystem())#writeFile(path is string, 
                        data is ~Buffer, 
                        toAsyncResultHandler handler),
 
@@ -479,7 +502,8 @@ fileSystem vertx =
             esac
         done;
         
-        (fs)#open(path is string, perms, read, write, createNew, flush, 
+        ((getVertx ())#fileSystem())#open(path is string, perms, read, 
+                  write, createNew, flush, 
                   toTypedAsyncResultHandler 
                         (unsafely_as ~AsyncFile) handler)),
 
@@ -519,17 +543,17 @@ fileSystem vertx =
     runOnLoop, 
     setPeriodic, 
     setTimer, 
-    logger container = (container is ~Container)#getLogger(),
+    get logger () = (getContainer ())#getLogger(),
     
-    sharedData vertx = 
-        (vertx is ~Vertx)#sharedData(),
+    get sharedData ()= 
+        (getVertx ())#sharedData(),
     
     
 
     deployModule, 
     deployVerticle, 
     config, 
-    enviroment,
+    get enviroment () = _enviroment (),
     undeployModule, 
     undeployVerticle,
 
@@ -546,14 +570,26 @@ fileSystem vertx =
     } with fsHelper,
     
     bus,
+
     fileSystem,
 
-    publish = bus.publish,
-    send = bus.send,
-    
     obj x = x unsafely_as ~Object,
 
     timeout,
-    cancelTimer
+    cancelTimer,
 
+    getContainer,
+    getVertx,
+    get container () = getContainer(),
+    get vertx () = getVertx(),
+    withVertx vertx fn =
+        (ov = vertxThreadLocal.value;
+        vertxThreadLocal.value := (vertx is ~Vertx);
+        try
+            fn ();
+        finally
+            vertxThreadLocal.value := ov;
+        yrt),
+    vertxThreadLocal,
+    containerThreadLocal,
 }

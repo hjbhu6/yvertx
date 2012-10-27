@@ -5,9 +5,9 @@ import org.vertx.java.core.buffer.Buffer;
 load yvertx;
 https = load yvertx.https;
 
-verticle do {container, vertx}:
-    fs = fileSystem vertx;
-    (https.createWithHandler vertx do req:
+verticle do :
+    fs = fileSystem;
+    (https.createWithHandler do req:
         fs.readFile "foo.html" \case of
             Some buffer:
                 https.putHeaders req 

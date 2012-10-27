@@ -2,11 +2,11 @@ module yvertx.deploy.child;
 
 load yvertx;
 
-verticle do {vertx}:
-   bus.send vertx "test-handler" {started=true}; 
+verticle do :
+   bus.send "test-handler" {started=true}; 
    println "child started";
    \(
-   		bus.send vertx "test-handler" {stopped = true};
+   		bus.send "test-handler" {stopped = true};
    	);
 done;
 

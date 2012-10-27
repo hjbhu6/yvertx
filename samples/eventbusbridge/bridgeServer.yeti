@@ -8,8 +8,8 @@ load yvertx;
 sockjs = load yvertx.sockjs;
 https = load yvertx.https;
 
-verticle do {vertx, container}:
-    server = https.createWithHandler vertx do req:
+verticle do :
+    server = https.createWithHandler do req:
         if "/" == req#path then 
             req#response#sendFile("index.html") //serve the index.html
         fi;
@@ -22,7 +22,7 @@ verticle do {vertx, container}:
     //Let everything trough
     permitted = [emptyJS];
     sockjs.bridge 
-         (sockjs.create vertx server)
+         (sockjs.create server)
          [] 
          {prefix = "/eventbus"} 
          permitted permitted;

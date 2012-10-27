@@ -51,9 +51,9 @@ exceptionHandler response handler =
 
    
    
-create vertx hostPort = 
+create hostPort = 
    ({port,host} = yvertx.helper.hostAndPort hostPort; 
-    (vertx is ~Vertx)#createHttpClient()#setPort(port)#setHost(host));
+    (yvertx.vertx)#createHttpClient()#setPort(port)#setHost(host));
 
 
     

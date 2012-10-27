@@ -19,8 +19,8 @@ module sslClient;
 load yvertx;
 net = load yvertx.net;
 
-verticle do {vertx, container}:
-    _ = net.createAndConnectClient vertx "localhost:1234" 
+verticle do :
+    _ = net.createAndConnectClient "localhost:1234" 
         do cl: 
             cl#setSSL(true)#setTrustAll(true)
         done

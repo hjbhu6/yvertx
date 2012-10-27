@@ -21,7 +21,7 @@ import org.vertx.java.deploy.Verticle;
 
 import java.net.URL;
 
-verticle do {vertx, container}:
+verticle do :
     urlBar = (classOf yvertx)#getClassLoader()#getResource("bar.txt");
     println "bar url is \(urlBar)";
     urlFoo = (classOf yvertx)#getClassLoader()#getResource("foo.xml");

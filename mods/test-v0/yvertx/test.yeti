@@ -17,184 +17,185 @@ webs = load yvertx.websocket;
 
 fileDir = "../../target/yeti-test-output";
 
+fs = fileSystem;
 
-verticle do {container, vertx}:
-    fs = fileSystem vertx;
-    fshelper = {
-        clean dir after = 
-            fs.exists dir (noex do exi:
-                if exi then
-                    fs.delete dir true (noex \(
-                        fs.mkdir dir none true (noex after)
-                    ))
-                else
+fshelper = {
+    clean dir after = 
+        fs.exists dir (noex do exi:
+            if exi then
+                fs.delete dir true (noex \(
                     fs.mkdir dir none true (noex after)
-                fi
-            done);
+                ))
+            else
+                fs.mkdir dir none true (noex after)
+            fi
+        done);
+    
+};
+
+httpMethod opts method variant rstu =
+    (rstu.setTimeout 15000;
+    var ssl = false;
+    var chunked = false;
+    for opts \case of
+        SSL b: ssl := b;
+        Chunked b: chunked := b;
+        esac;
+
+    path = "/someurl/blah.html";
+    query = "param1=vparam1&param2=vparam2";
+    
+    uri = if ssl then "https" else "http" fi
+              ^ "://localhost:8080" ^ path ^"?"^query;
+    headers = ["header1":"vheader1",
+               "header2":"vheader2"];
+    rheaders = ["rheader1":"vrheader1",
+               "rheader2":"vrheader"];
+    
+    server = https.createWithHandler do req:
+        rstu.assert "uri \(req#uri)" (uri == req#uri);
+        rstu.assert "method" (method == req#method);
+        rstu.assert "path" (path == req#path);
+        rstu.assert "query" (query == req#query);
+
+        rstu.assert "headers" 
+            (fold (flip ((and) . (in (https.headers req))))
+                true (keys headers));
+        rstu.assert "params" (https.params req == ["param1":"vparam1",
+                                             "param2":"vparam2"]);
+                                            
+        https.putHeaders req rheaders; 
         
-    };
+        body = newBuffer 0;
 
-    httpMethod opts method variant rstu =
-        (rstu.setTimeout 15000;
-        var ssl = false;
-        var chunked = false;
-        for opts \case of
-            SSL b: ssl := b;
-            Chunked b: chunked := b;
-            esac;
+        https.dataHandler req do data:
+            _ = body#appendBuffer(data);
+        done;
 
-        path = "/someurl/blah.html";
-        query = "param1=vparam1&param2=vparam2";
+        req#response#setChunked(chunked);
+
+        https.endHandler req do:
+            if not chunked then
+                https.putHeaders req 
+                    ["Content-Length":string body#length()];
+            fi;
+            req#response#writeBuffer(body);
+            if chunked then
+                https.putTrailers req ["trailer1" : "vtrailer1",
+                                       "trailer2" : "vtrailer2"];
+            fi;
+            req#response#end();
+        done;
+    done;
+
+    if ssl then
+        server#setSSL(true)
+            #setKeyStorePassword("wibble")
+            #setKeyStorePath("keystores/server-keystore.jks")
+            #setTrustStorePath("keystores/server-truststore.jks")
+            #setTrustStorePassword("wibble")
+            #setClientAuthRequired(true)
+    fi;
+
+    _ = server#listen(8080);
+
+    //wait for server to be ready
+    _ = setTimer 1000 do:
+
+        sentBuff = generateRandomBuffer(1000);
         
-        uri = if ssl then "https" else "http" fi
-                  ^ "://localhost:8080" ^ path ^"?"^query;
-        headers = ["header1":"vheader1",
-                   "header2":"vheader2"];
-        rheaders = ["rheader1":"vrheader1",
-                   "rheader2":"vrheader"];
         
-        server = https.createWithHandler vertx do req:
-            rstu.assert "uri \(req#uri)" (uri == req#uri);
-            rstu.assert "method" (method == req#method);
-            rstu.assert "path" (path == req#path);
-            rstu.assert "query" (query == req#query);
+        client = httpc.create "localhost:8080";
 
-            rstu.assert "headers" 
-                (fold (flip ((and) . (in (https.headers req))))
-                    true (keys headers));
-            rstu.assert "params" (https.params req == ["param1":"vparam1",
-                                                 "param2":"vparam2"]);
-                                                
-            https.putHeaders req rheaders; 
-            
-            body = newBuffer 0;
+        request = httpc.request client (variant uri) headers
+        do resp:
 
-            https.dataHandler req do data:
+            rstu.assert "statusCode" (200 == resp#statusCode);
+            rstu.assert "rHeaders: \(httpc.headers resp) | \(rheaders)" 
+                    (fold (flip ((and) . (in (httpc.headers resp))))
+                        true (keys rheaders) );
+            body = newBuffer(0);
+            httpc.dataHandler resp do data:
                 _ = body#appendBuffer(data);
             done;
 
-            req#response#setChunked(chunked);
-
-            https.endHandler req do:
-                if not chunked then
-                    https.putHeaders req 
-                        ["Content-Length":string body#length()];
-                fi;
-                req#response#writeBuffer(body);
+            httpc.endHandler resp do:
+                rstu.assert "sentBuff" (buffersEqual sentBuff body);
                 if chunked then
-                    https.putTrailers req ["trailer1" : "vtrailer1",
-                                           "trailer2" : "vtrailer2"];
+                    rstu.assert "rTrailers" (httpc.trailers resp ==
+                                    ["trailer1":"vtrailer1",
+                                    "trailer2":"vtrailer2"]);
                 fi;
-                req#response#end();
+                https.close server do:
+                    rstu.assure "" true;
+                done;
             done;
         done;
-
         if ssl then
-            server#setSSL(true)
+            client#setSSL(true)
+                #setKeyStorePath("keystores/client-keystore.jks")
                 #setKeyStorePassword("wibble")
-                #setKeyStorePath("keystores/server-keystore.jks")
-                #setTrustStorePath("keystores/server-truststore.jks")
-                #setTrustStorePassword("wibble")
-                #setClientAuthRequired(true)
+                #setTrustStorePath("keystores/client-truststore.jks")
+                #setTrustStorePassword("wibble");
         fi;
 
-        _ = server#listen(8080);
+        _ = request#setChunked(chunked);
+        if not chunked then
+            httpc.putHeaders request 
+                ["Content-Length": string sentBuff#length()];
+        fi;
+        _ = request#writeBuffer(sentBuff);
+        request#end();
+    done);
 
-        //wait for server to be ready
-        _ = setTimer vertx 1000 do:
+websocketEcho binary rs =        
+    (rs.setTimeout 1000;
+  
+    server = https.create ();
 
-            sentBuff = generateRandomBuffer(1000);
-            
-            
-            client = httpc.create vertx "localhost:8080";
-
-            request = httpc.request client (variant uri) headers
-            do resp:
-
-                rstu.assert "statusCode" (200 == resp#statusCode);
-                rstu.assert "rHeaders: \(httpc.headers resp) | \(rheaders)" 
-                        (fold (flip ((and) . (in (httpc.headers resp))))
-                            true (keys rheaders) );
-                body = newBuffer(0);
-                httpc.dataHandler resp do data:
-                    _ = body#appendBuffer(data);
-                done;
-
-                httpc.endHandler resp do:
-                    rstu.assert "sentBuff" (buffersEqual sentBuff body);
-                    if chunked then
-                        rstu.assert "rTrailers" (httpc.trailers resp ==
-                                        ["trailer1":"vtrailer1",
-                                        "trailer2":"vtrailer2"]);
-                    fi;
-                    https.close server do:
-                        rstu.assure "" true;
-                    done;
-                done;
-            done;
-            if ssl then
-                client#setSSL(true)
-                    #setKeyStorePath("keystores/client-keystore.jks")
-                    #setKeyStorePassword("wibble")
-                    #setTrustStorePath("keystores/client-truststore.jks")
-                    #setTrustStorePassword("wibble");
-            fi;
-
-            _ = request#setChunked(chunked);
-            if not chunked then
-                httpc.putHeaders request 
-                    ["Content-Length": string sentBuff#length()];
-            fi;
-            _ = request#writeBuffer(sentBuff);
-            request#end();
-        done);
-
-    websocketEcho binary rs =        
-        (rs.setTimeout 1000;
-      
-        server = https.create vertx;
-
-        webs.serverHandler server do ws:
-            webs.dataHandler ws do buff:
-                _ = ws#writeBuffer(buff);
-            done;
+    webs.serverHandler server do ws:
+        webs.dataHandler ws do buff:
+            _ = ws#writeBuffer(buff);
         done;
-        server#listen(8080);
+    done;
+    server#listen(8080);
 
+    
+    _ = setTimer 1000 do:
+        client = httpc.create "localhost:8080";
         
-        _ = setTimer vertx 1000 do:
-            client = httpc.create vertx "localhost:8080";
-            
-            {buff,str} = if binary then
-                    {buff = generateRandomBuffer 1000, str = ""};
-                else
-                    str = randomUnicodeString(1000);
-                    {buff = newStringBuffer str, str};
+        {buff,str} = if binary then
+                {buff = generateRandomBuffer 1000, str = ""};
+            else
+                str = randomUnicodeString(1000);
+                {buff = newStringBuffer str, str};
+            fi;
+
+        webs.clientHandler client "/someurl" do ws:
+            received = newBuffer 0;
+            webs.dataHandler ws do data:
+                _ = received#appendBuffer(data);
+                if received#length() == buff#length() then
+                    rs.assert "be" (buffersEqual received buff);
+                    client#close();
+                    https.close server do:
+                        rs.assure "finished" true;
+                    done;
                 fi;
+                if binary then
+                    ws#writeBinaryFrame(buff);
+                else
+                    ws#writeTextFrame(str);
+                fi
+            done;
+        done
+    done);
 
-            webs.clientHandler client "/someurl" do ws:
-                received = newBuffer 0;
-                webs.dataHandler ws do data:
-                    _ = received#appendBuffer(data);
-                    if received#length() == buff#length() then
-                        rs.assert "be" (buffersEqual received buff);
-                        client#close();
-                        https.close server do:
-                            rs.assure "finished" true;
-                        done;
-                    fi;
-                    if binary then
-                        ws#writeBinaryFrame(buff);
-                    else
-                        ws#writeTextFrame(str);
-                    fi
-                done;
-            done
-        done);
+verticle do :
         
 
 
-    runTests vertx container [Exclude "websocket:"] [
+    runTests [Exclude "websocket:"] [
 
 "common load": do rs:
    // rs.assure "" ("foo" == load yvertx.common.module1);
@@ -202,30 +203,29 @@ verticle do {container, vertx}:
 done,
 
 "deploy" : do rs:
-    bus.register vertx "test-handler"
+    bus.register "test-handler"
         \(_ = deployVerticle 
-                container 
                 "yvertx.deploy.child.yeti" emptyJS 1 
                 \())
         do {body,handler}:
         if body.started then
             rs.assure "in body" true;
-            bus.unregister vertx "test-handler" handler \();
+            bus.unregister "test-handler" handler \();
         else
         fi
         done;
 done,
 
 "undeploy" : do rs:
-    _ = deployVerticle container "yvertx.deploy.child.yeti" emptyJS 1
+    _ = deployVerticle "yvertx.deploy.child.yeti" emptyJS 1
         do did:
-            bus.register vertx "test-handler" \() do {body,handler}:
+            bus.register "test-handler" \() do {body,handler}:
                 if body.stopped then
                     rs.assure "body-stopped" true;
-                    bus.unregister vertx "test-handler" handler \();
+                    bus.unregister "test-handler" handler \();
                 fi
             done;
-            undeployVerticle container did \();
+            undeployVerticle did \();
         done;
 done,
 
@@ -258,13 +258,13 @@ done,
     //make services 
     adresses = [1..10] |> map (("adr"^) . string);
     for adresses do adr:
-        bus.register vertx adr \() do {reply, handler}:
+        bus.register adr \() do {reply, handler}:
             reply {value = 1};
-            bus.unregister vertx adr handler \();
+            bus.unregister adr handler \();
         done
     done;
     handlers = adresses |> map do adr:
-        bus.request vertx adr emptyJS -> 
+        bus.request adr emptyJS -> 
             do {body} : body.value done
     done;
     cbSeq handlers do res:
@@ -274,18 +274,18 @@ done,
 
 "cb:Col" : do rs:
     register adr =
-        bus.register vertx adr \() do {reply, handler} :
+        bus.register adr \() do {reply, handler} :
             reply {value = adr ^ "foo"};
-            bus.unregister vertx adr handler \();
+            bus.unregister adr handler \();
         done;
     
     for [1..2] (register . ("adr"^) . string);
 
     cbCol \{
          a = cbSet
-            (bus.requestBody vertx "adr1" emptyJS -> (.value)),
+            (bus.requestBody "adr1" emptyJS -> (.value)),
          b = cbSet
-            (bus.requestBody vertx "adr2" emptyJS -> (.value)),
+            (bus.requestBody "adr2" emptyJS -> (.value)),
         }
         do r :
             rs.assure "\(r)" (r.a() == "adr1foo" 
@@ -301,42 +301,42 @@ done,
     rs.setTimeout(2000);
     address = "foo-some";
     var handled = false;
-    bus.register vertx address \() do {body, handler}:
-        bus.unregister vertx address handler \();
+    bus.register address \() do {body, handler}:
+        bus.unregister address handler \();
         rs.assure "\(body)" (body == msg and not handled);
         handled := true;
     done;
-    bus.send vertx address msg;
+    bus.send address msg;
 done,
 
 "eventbus:emptyMessage" : do rs:
     var handled = false;
     adr = "foo";
     msg = emptyJS;
-    bus.register vertx adr \() do {body,handler}:
-        bus.unregister vertx adr handler \();
+    bus.register adr \() do {body,handler}:
+        bus.unregister adr handler \();
         rs.assure "\(body)" (body == msg and not handled);
         handled := true;
     done;
-    bus.send vertx adr msg;
+    bus.send adr msg;
 done,
 
 "eventbus:unregister" : do rs:
     var handled = false;
     msg = {count = 1, foo = "foo"};
     var assertion = true;
-    bus.register vertx "foo" \() do {body,handler}:
+    bus.register "foo" \() do {body,handler}:
         assertion := assertion and (body == msg and not handled);
-        bus.unregister vertx "foo" handler \();
+        bus.unregister "foo" handler \();
         //should do nothing
-        bus.unregister vertx "foo" handler \();
+        bus.unregister "foo" handler \();
         handled := true;
-        _ = setTimer vertx 100 do:
+        _ = setTimer 100 do:
             //complete the test
             rs.assure "" assertion;
         done;
     done;
-    for [1..3] \(bus.send vertx "foo" msg);
+    for [1..3] \(bus.send "foo" msg);
 done,
 
 "eventbus:withReply" : do rs:
@@ -344,14 +344,14 @@ done,
     msg = {count=1, foo = "foo2"};
     repl = {reply = true};
     var asserts = true;
-    bus.register vertx "foo" \() do {body,handler, reply}:
+    bus.register "foo" \() do {body,handler, reply}:
         asserts := asserts and (not handled and msg == body);
-        bus.unregister vertx "foo" handler \();
+        bus.unregister "foo" handler \();
         handled := true;
         reply repl;
     done;
 
-    bus.request vertx "foo" msg do {body}:
+    bus.request "foo" msg do {body}:
         rs.assure "\(body)" (asserts and (body == repl));
     done;
 done,
@@ -362,16 +362,16 @@ done,
     repl = {msg = "repl"};
     repl2 = {msg = "repl2"};
     repl3 = {msg = "repl3"};
-    bus.register vertx adr \() do {body, handler, request}:
+    bus.register adr \() do {body, handler, request}:
         rs.assert "" (msg == body);
         request repl do {body, reply}:
             rs.assert "" (repl2 == body);
             reply repl3;
-            bus.unregister vertx adr handler \();
+            bus.unregister adr handler \();
         done
     done;
 
-    bus.request vertx adr msg do {body,request}:
+    bus.request adr msg do {body,request}:
         rs.assert "" (body == repl);
         request repl2 do {body}:
             rs.assure "" (body == repl3);
@@ -383,14 +383,14 @@ done,
     var handled = false;
     adr = "foo";
     msg = emptyJS;
-    bus.register vertx adr \() do {reply, body, handler}:
+    bus.register adr \() do {reply, body, handler}:
         rs.assert "" (not handled);
         rs.assert "" (msg == body);
-        bus.unregister vertx adr handler \();
+        bus.unregister adr handler \();
         handled := true;
         reply emptyJS;
     done;
-    bus.request vertx adr msg do {body, reply}:
+    bus.request adr msg do {body, reply}:
         rs.assure "" true;
     done;
 done,
@@ -496,7 +496,7 @@ done,
 "http:clientserver" : do rs:
     import java.lang:Thread;
     rs.setTimeout(15000);
-    server = (https.createWithHandler vertx do req:
+    server = (https.createWithHandler do req:
         (https.putHeaders req 
             ["Content-Type": "text/html; charset=UTF-8"]);
         req#response#end(
@@ -504,8 +504,8 @@ done,
     done);
     server#listen(8080);
 
-    _ = setTimer vertx 1000 do:
-        client = httpc.create vertx "localhost:8080";
+    _ = setTimer 1000 do:
+        client = httpc.create "localhost:8080";
         httpc.getBodyNow
             client
             "/" 
@@ -539,7 +539,7 @@ done,
 
 "net:test1" : do rs:
     net = load yvertx.net;
-    server = net.createServerWithHandler vertx do sock:
+    server = net.createServerWithHandler do sock:
         net.dataHandler sock do buffer:
             _ = sock#write(buffer);
         done;
@@ -549,7 +549,7 @@ done,
 
     serverCloseFn _ = net.closeServer server \(rs.assure "closed" true);
 
-    client = net.createClient vertx;
+    client = net.createClient ();
 
     net.connectClient client "localhost:1234" serverCloseFn
         do sock:
@@ -600,10 +600,10 @@ done,
     rs.setTimeout 5000;
 
     var count = 0;
-    _ = setTimer vertx 1000 do tid:
+    _ = setTimer 1000 do tid:
         rs.assert "count" (count == 0);
         count := count + 1;
-        _ = setTimer vertx 10 do:
+        _ = setTimer 10 do:
             rs.assure "" true
         done;
     done;
@@ -614,11 +614,11 @@ done,
     numFires = 20;
     delay = 100;
     var count = 0;
-    _ = setPeriodic vertx delay do timerId:
+    _ = setPeriodic delay do timerId:
         count := count + 1;
         if count == numFires then
-            _ = cancelTimer vertx timerId;
-            _ = setTimer vertx 10 do:
+            _ = cancelTimer timerId;
+            _ = setTimer 10 do:
                 rs.assure "" true;
             done;
         fi;
@@ -634,14 +634,14 @@ done,
 
 "websocket:writeFromConnectionHandler" : do rs:
     rs.setTimeout 5000;
-    server = https.create vertx;
+    server = https.create ();
     webs.serverHandler server do ws:
         _ = ws#writeTextFrame("foo");
     done;
     server#listen(8080);
 
-    _ = setTimer vertx 1000 do:
-        client = httpc.create vertx "localhost:8080";
+    _ = setTimer 1000 do:
+        client = httpc.create "localhost:8080";
         webs.clientHandler client "/someurl" do ws:
             webs.dataHandler ws do buff:
                 rs.assert "" ("foo" == string buff);
@@ -656,7 +656,7 @@ done,
 
 "websocket:close" : do rs:
     rs.setTimeout 5000;
-    server = https.create vertx;
+    server = https.create ();
     webs.serverHandler server do ws:
         webs.dataHandler ws do:
             ws#close();
@@ -664,8 +664,8 @@ done,
     done;
     server#listen(8080);
 
-    _ = setTimer vertx 1000 do:
-        client = httpc.create vertx "localhost:8080";
+    _ = setTimer 1000 do:
+        client = httpc.create "localhost:8080";
         webs.clientHandler client "/someurl" do ws:
             webs.closedHandler ws do:
                 client#close();
@@ -680,14 +680,14 @@ done,
 
 "websocket:closeFromConnectionHandler" : do rs:
     rs.setTimeout 5000;
-    server = https.create vertx;
+    server = https.create ();
     webs.serverHandler server do ws :
         ws#close();
     done;
     server#listen(8080);
 
-    _ = setTimer vertx 1000 do:
-        client = httpc.create vertx "localhost:8080";
+    _ = setTimer 1000 do:
+        client = httpc.create "localhost:8080";
         webs.clientHandler client "/someurl" do ws:
             webs.closedHandler ws do:
                 client#close();

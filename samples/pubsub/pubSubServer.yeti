@@ -27,15 +27,15 @@ import org.vertx.java.deploy.Verticle;
 
 import java.util.Set;
 
-verticle do {vertx, container}:
-    (net.createServerWithHandler vertx do socket:
+verticle do :
+    (net.createServerWithHandler do socket:
         net.dataHandler socket (rb.delimited "\n" do frame:
             line = strTrim (string frame);
             println "Line is \(line)";
             case list (strSplit '\\' line) of
             "subscribe" :: topic :: _ : 
                 (println "Topic is \(topic)";
-                 _ = (vertx |> sharedData)#getSet(topic)
+                 _ = sharedData#getSet(topic)
                     #add(socket#writeHandlerID));
             "unsubscribe" :: topic :: _ :
                 _ = vertx#sharedData()#getSet(topic)#remove(socket#writeHandlerID);

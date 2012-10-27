@@ -20,7 +20,7 @@ import org.vertx.java.core.Vertx;
 
 load yvertx;
 
-verticle do {vertx, container}:
+verticle do :
 
     var count = 0;
     var last = 0;
@@ -36,8 +36,8 @@ verticle do {vertx, container}:
         count := count + mn;
         totCount := totCount +mn;
     done;
-    _ = (vertx is ~Vertx)#eventBus()#registerHandler("rate-counter",handler);
-    _ = setPeriodic vertx 3000 do :
+    _ = vertx#eventBus()#registerHandler("rate-counter",handler);
+    _ = setPeriodic 3000 do :
         if last != 0 then
             now = System#currentTimeMillis();
             rate = 1000 * count / (now - last);

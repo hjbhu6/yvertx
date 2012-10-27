@@ -23,9 +23,9 @@ import org.vertx.java.core.file.AsyncFile;
 import java.util.UUID;
 
 
-verticle do {vertx,container}:
-    fs = fileSystem vertx;
-    (https.createWithHandler vertx do req:
+verticle do :
+    fs = fileSystem;
+    (https.createWithHandler do req:
         req#pause();
         filename = "upload/file-\(UUID#randomUUID()).upload";
         fs.open [] filename \case of
