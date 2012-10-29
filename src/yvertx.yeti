@@ -613,6 +613,10 @@ closedWebSocket socket handler =
 
 
 //sockjs functions
+
+createSockJSServer server =
+    (getVertx())#createSockJSServer(server);
+
 installSockJSApp server config handler =
     (server is ~SockJSServer)#installApp(toJS config, 
                  toHandler (handler . (unsafely_as ~SockJSSocket)));  
@@ -966,6 +970,7 @@ fileSystem = ({
     //sockjs
     installSockJSApp,
     bridgeSockJS,
+    createSockJSServer,
 
     //net functions
     netsocketClosedHandler,
