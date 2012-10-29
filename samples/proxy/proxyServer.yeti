@@ -34,7 +34,9 @@ verticle do :
     
     (https.createWithHandler do req:
         println "Proxying request: \(req#uri)";
-        cReq = httpc.generalRequest client req#method req#uri [:] do cRes:
+        cReq = httpc.request client 
+            (Request {method = req#method, uri = req#uri}) [:] 
+            do cRes:
             println ("Proxying response:"
                     ^ (string cRes#statusCode));
             req#response#statusCode := cRes#statusCode;

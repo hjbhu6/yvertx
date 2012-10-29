@@ -27,11 +27,7 @@ import org.vertx.java.core.http:HttpClientResponse,
 
 yvertx = load yvertx;
 
-toResponseHandler fn =
-        yvertx.toHandler (fn . (unsafely_as ~HttpClientResponse));
-
-responseHandler response fn = 
-        fn (response is ~HttpClientResponse);
+toHandler = yvertx.toHandler;
 
 bodyHandler response handler =
    (response is ~HttpClientResponse)#bodyHandler(
@@ -47,39 +43,35 @@ putHeaders request headers =
     request);
     
 request client muri headers handler =
-    (req = case muri of
+    (h = toHandler (handler . (unsafely_as ~HttpClientResponse));
+    req = case muri of
     Connect uri: 
-        (client is ~HttpClient)#connect(uri is string,
-                                    toResponseHandler handler);
+        (client is ~HttpClient)#connect(uri is string, h);
     Delete uri:    
-        client#delete(uri is string, toResponseHandler handler);
+        client#delete(uri is string, h);
     Get uri: 
-        client#get(uri is string, toResponseHandler handler);
+        client#get(uri is string, h);
     Head uri:
-        client#head(uri is string, toResponseHandler handler);
+        client#head(uri is string, h);
     Options uri:
-        client#options(uri is string, toResponseHandler handler);
+        client#options(uri is string, h);
     Patch uri:
-        client#patch(uri is string, toResponseHandler handler);
+        client#patch(uri is string, h);
     Put uri:
-        client#put(uri is string, toResponseHandler handler);
+        client#put(uri is string, h);
     Post uri:
-        client#post(uri is string, toResponseHandler handler);
+        client#post(uri is string, h);
     Trace uri:
-        client#trace(uri is string, toResponseHandler handler);
+        client#trace(uri is string, h);
     Request {method, uri}:
-        client#request(method is string, uri is string,
-            toResponseHandler handler); 
+        client#request(method is string, uri is string, h); 
     esac;
     putHeaders req headers);
 
-generalRequest client method uri headers handler =
-    request client (Request {method, uri}) headers handler;
-    
 getNow client uri headers handler =
    (client is ~HttpClient)#getNow(uri is string, 
-                                   headers is hash<string,string>,
-                                   toResponseHandler handler);
+                                  headers is hash<string,string>,
+                    toHandler (handler . (unsafely_as ~HttpClientResponse)));
                                    
 getBodyNow client uri headers handler =
    getNow client uri headers 
@@ -90,8 +82,6 @@ getBodyNow client uri headers handler =
                 done;
 
 {
-    toResponseHandler,
-
     putHeaders,
     headers resp =
         (ret = [:];
@@ -111,7 +101,6 @@ getBodyNow client uri headers handler =
     create,
 
     request,
-    generalRequest,
     getNow,
     getBodyNow,
     
