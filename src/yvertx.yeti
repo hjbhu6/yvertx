@@ -25,30 +25,30 @@ import org.vertx.java.core:Handler,
                            AsyncResult,
                            AsyncResultHandler,
                            Vertx;
+import org.vertx.java.core.impl:Context;
 import org.vertx.java.core.buffer:Buffer;
+import org.vertx.java.core.eventbus:Message;
+import org.vertx.java.core.file:FileSystem,
+                                FileSystemProps,
+                                FileProps,
+                                AsyncFile;
 import org.vertx.java.core.http:HttpClientRequest,
                                 HttpClientResponse,
                                 HttpClient,
                                 HttpServer,
                                 HttpServerRequest,
                                 HttpServerResponse;
+import org.vertx.java.core.json:JsonObject,
+                                JsonArray;
+import org.vertx.java.core.parsetools:RecordParser;
 import org.vertx.java.core.streams:Pump,
                                    ReadStream,
                                    WriteStream;
-import org.vertx.java.core.json:JsonObject,
-                           JsonArray;
-import org.vertx.java.core.impl:Context;
-import org.vertx.java.core.eventbus:Message;
-import org.vertx.java.core.parsetools:RecordParser;
 import org.vertx.java.deploy:Verticle,
                              Container;
 import org.vertx.java.deploy.impl:VertxLocator;
 
 
-import org.vertx.java.core.file:FileSystem,
-                                FileSystemProps,
-                                FileProps,
-                                AsyncFile;
 
 //callback functions
 typedef callback<a> = a -> ();
