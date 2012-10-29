@@ -327,7 +327,74 @@ timeout time tofn fn =
         fi
     done);
 
-        
+//http client things
+bodyHandler response handler =
+   (import org.vertx.java.core.http.impl:HttpReadStreamBase; 
+   (response is ~HttpReadStreamBase)#bodyHandler(
+        yvertx.toBufferHandler handler));
+   
+createHttpClient hostPort = 
+   ({port,host} = yvertx.helper.hostAndPort hostPort; 
+    (yvertx.vertx)#createHttpClient()#setPort(port)#setHost(host));
+
+putRequestHeaders request headers =
+   ((request is ~HttpClientRequest)#headers()#putAll(
+        (headers is hash<string,string>) as ~Map);
+    request);
+
+clientResponseHeaders resp =
+    (ret = [:];
+    forJavaMap (resp is ~HttpClientResponse)#headers() do k v:
+        ret.[string k] := if defined? v then string v else "" fi;
+    done;
+    ret),
+
+clientResponseTrailers resp =
+    (ret = [:];
+    forJavaMap (resp is ~HttpClientResponse)#trailers() do k v:
+        ret.[string k] := if defined? v then string v else "" fi;
+    done;
+    ret),
+    
+request client muri headers handler =
+    (h = toHandler (handler . (unsafely_as ~HttpClientResponse));
+    req = case muri of
+    Connect uri: 
+        (client is ~HttpClient)#connect(uri is string, h);
+    Delete uri:    
+        client#delete(uri is string, h);
+    Get uri: 
+        client#get(uri is string, h);
+    Head uri:
+        client#head(uri is string, h);
+    Options uri:
+        client#options(uri is string, h);
+    Patch uri:
+        client#patch(uri is string, h);
+    Put uri:
+        client#put(uri is string, h);
+    Post uri:
+        client#post(uri is string, h);
+    Trace uri:
+        client#trace(uri is string, h);
+    Request {method, uri}:
+        client#request(method is string, uri is string, h); 
+    esac;
+    putHeaders req headers);
+
+getNow client uri headers handler =
+   (client is ~HttpClient)#getNow(uri is string, 
+                                  headers is hash<string,string>,
+                    toHandler (handler . (unsafely_as ~HttpClientResponse)));
+                                   
+getBodyNow client uri headers handler =
+   getNow client uri headers 
+                do resp:
+                    bodyHandler resp do buffer:
+                        handler {buffer, resp}
+                    done
+                done;
+
 
 bus = {
     toMessageHandler fn =
