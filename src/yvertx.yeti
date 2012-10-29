@@ -40,6 +40,9 @@ import org.vertx.java.core.http:HttpClientRequest,
                                 HttpServerResponse;
 import org.vertx.java.core.json:JsonObject,
                                 JsonArray;
+import org.vertx.java.core.net:NetClient,
+                               NetServer,
+                               NetSocket;
 import org.vertx.java.core.parsetools:RecordParser;
 import org.vertx.java.core.streams:Pump,
                                    ReadStream,
@@ -591,6 +594,44 @@ getHttpBodyNow client uri headers handler =
                     done
                 done;
 
+//net functions
+netsocketClosedHandler socket handler =
+    (socket is ~NetSocket)#closedHandler(toSimpleHandler handler);
+    
+createNetClient () = 
+    (getVertx())#createNetClient();
+
+connectNetClient client hostPort exceptionHandler handler =
+    ({host,port} = hostAndPort hostPort;
+     (client is ~NetClient)#exceptionHandler(
+            toExceptionHandler exceptionHandler);
+     _ = client#connect(port is number, host is string,
+                toHandler (handler . (unsafely_as ~NetSocket)));
+     ());
+
+createAndConnectNetClient hostPort settings exceptionHandler handler=
+    (client = createNetClient ();
+    _ = settings client;
+    connectNetClient client hostPort exceptionHandler handler;
+    client);
+    
+createNetServer () =
+    (getVertx())#createNetServer();
+
+connectNetServerHandler server handler =
+    (server is ~NetServer)#connectHandler(
+        toHandler (handler . (unsafely_as ~NetSocket)));
+
+createAndConnectNetServer handler =
+    connectNetServerHandler (createNetServer ()) handler;
+
+closeNetServer server handler =
+    (server is ~NetServer)#close(toSimpleHandler handler);
+
+closeNetClient client =
+    (client is ~NetClient)#close();
+
+
 //bus things
 toJsonMessageHandler fn =
     (class YvertxMessageHandler extends Handler
@@ -857,7 +898,7 @@ fileSystem = ({
         toTypedAsyncResultHandler
     } with fsHelper,
     
-    //http things
+    //http server functions
     bodyHandler,
     httpServerRequestHandler,
     createHttpServer,
@@ -869,6 +910,7 @@ fileSystem = ({
     params,
     requestHeaders,
 
+    //http client functions
     createHttpClient,
     putRequestHeaders,
     responseHeaders,
@@ -876,6 +918,18 @@ fileSystem = ({
     httpRequest,
     getHttpNow,
     getHttpBodyNow,
+
+    //net functions
+    netsocketClosedHandler,
+    createNetClient,
+    connectNetClient,
+    createAndConnectNetClient,
+    connectNetServerHandler,
+    createNetServer,
+    createAndConnectNetServer,
+    closeNetServer,
+    closeNetClient,
+
 
     //bus functions
     publish,
