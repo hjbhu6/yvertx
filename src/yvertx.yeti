@@ -49,6 +49,112 @@ import org.vertx.java.core.file:FileSystem,
                                 FileProps,
                                 AsyncFile;
 
+//callback functions
+typedef callback<a> = a -> ();
+typedef asyncFunction<a> = callback<a> -> ();
+
+
+cbId v is 'a -> asyncFunction<'a> = do cb: cb v done;
+
+cbBind fn cbfn is ('a -> asyncFunction<'b>) -> asyncFunction<'a> -> asyncFunction<'b>= 
+    do cb:
+        cbfn do a: (fn a) cb done
+    done;
+
+cbFlatten cbfn is asyncFunction<asyncFunction<'a>> -> asyncFunction<'a> = 
+    cbBind id cbfn;
+
+cbMap fn cbfn is ('a -> 'b) -> asyncFunction<'a> -> asyncFunction<'b>=
+    do cb:
+        cbfn do a: cb (fn a) done
+    done;
+
+cbLift fn a cb is ('a -> 'b) -> ('a -> asyncFunction<'b>)=
+    cb (fn a);
+    
+cbSeq cbfns cb is list?<asyncFunction<'a>> -> callback<list<'a>> -> ()=
+    (res = array [];
+     for cbfns do c:
+        c do a:
+            push res a;
+            if length res == length cbfns then
+                cb (list res);
+            fi
+        done;
+    done);
+
+cbStruTH = threadLocal none;
+
+cbSet cbfn is asyncFunction<'a> -> (() -> 'a) =
+    (ctr = case cbStruTH.value of
+        None _ : failWith "cbSet must only be used directly in cbCol";
+        Some r: r;
+        esac;
+    ctr.starting();
+    var hasReceived = false;
+    var res = NotSet ();
+    cbfn do a:
+        res := Some a;
+        if not hasReceived then
+            ctr.hasReceived();
+            hasReceived := true
+        fi;
+    done;
+    \(case res of
+        NotSet (): failWith "Not set";
+        Some v: v
+      esac));    
+
+cbCol inex cb is (() -> 'a) -> asyncFunction<'a>=
+    (var called = false;
+     var requests = 0;
+     var received = 0;
+     var result = none;
+     ctr = {
+        starting () = 
+            requests := requests + 1,
+        hasReceived () =
+            received := received + 1;
+            if not called then
+                case result of
+                None _ : ();
+                Some v: 
+                    if received == requests then
+                        called := true;
+                        cb v;
+                    fi;
+                esac;
+            fi,
+    };
+    oCtr = cbStruTH.value;
+    try 
+        cbStruTH.value := Some ctr;
+        r = inex (); 
+        result := Some r;
+        if not called and received == requests then
+            called := true;
+            cb r
+        fi;
+            
+    catch Exception ex:
+        if not called then
+            called := true;
+        fi
+    finally
+        cbStruTH.value := oCtr;
+    yrt;
+    ());
+
+cbRun exfn = exfn \();
+
+noex fn = do cb:
+    case cb of
+    Exception ex: throw (ex is ~Exception);
+    Some v: fn v;
+    esac;
+done;
+
+
 emptyJS = {´_´ = ()};
 
 _toJS object = 
@@ -679,7 +785,21 @@ fileSystem = ({
 
 
  
-(load yvertx.cb) with {
+{
+    //callback functions
+    cbId,
+    cbBind,
+    cbFlatten,
+    cbMap,
+    cbLift,
+    cbSeq,
+    cbSet,
+    cbCol,
+    (->) cbfn fn =  cbMap fn cbfn,
+    (->>) cbfn fn = cbBind fn cbfn,
+    ($) a b = a b,
+    noex
+
     get context () =  Context#getContext(),
     addCloseHook key fn = 
         Context#getContext()#putCloseHook(key is string, runnable fn),
