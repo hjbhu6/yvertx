@@ -693,17 +693,17 @@ toJsonMessageHandler fn =
     end;
     new YvertxMessageHandler() as ~Handler);
 
-publishMsg address msg = 
+publish address msg = 
     (getVertx ())#eventBus()#publish(address is string, toJS msg);
 
-sendMsg address msg =
+send address msg =
     (getVertx ())#eventBus()#send(address is string, toJS msg);
 
-requestMsg address msg handler =   
+request address msg handler =   
     (getVertx ())#eventBus()#send(address is string, toJS msg, 
             toJsonMessageHandler handler);
 
-requestMsgBody address msg handler =
+requestBody address msg handler =
     request address msg do {body}: handler body done;
     
 registerBusHandler address resultHandler handler =
@@ -983,11 +983,10 @@ fileSystem = ({
     closeNetServer,
     closeNetClient,
 
-
     //bus functions
-    publishMsg,
-    sendMsg,
-    requestMsg,
+    publish,
+    send,
+    request,
     requestBody,
     registerBusHandler,
     registerLocalBusHandler,

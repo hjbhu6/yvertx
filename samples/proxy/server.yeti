@@ -18,10 +18,9 @@ module server;
 import org.vertx.java.core.http.HttpServerRequest;
 
 load yvertx;
-https = load yvertx.https;
 
 verticle do :
-    (https.createWithHandler do req:
+    (createHttpServerWithHandler do req:
         println "Got request: \(req#uri)";
         println "Headers are: ";
         forJavaMap req#headers() do k v:

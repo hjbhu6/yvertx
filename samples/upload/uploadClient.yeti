@@ -16,7 +16,6 @@
 module uploadClient.yeti;
 
 load yvertx;
-httpc = load yvertx.httpc;
  
 import org.vertx.java.core.AsyncResult;
 import org.vertx.java.core.AsyncResultHandler;
@@ -35,30 +34,29 @@ import java.nio.file:Files,
 
 verticle do :
 
-    fs = fileSystem;
 
-    client = httpc.create "localhost:8080";
-    req =httpc.request client (Put "/some-url") [:] do resp:
+    client = createHttpClient "localhost:8080";
+    req =httpRequest client (Put "/some-url") [:] do resp:
         println "File uploaded \(resp#statusCode)";
     done;
     
     filename = "upload/upload.txt";
     
     //For a non-chunked upload you need to specify size of upload up-front
-    _ = httpc.putHeaders req 
+    _ = putRequestHeaders req 
         ["Content-Length" : string Files#size(Paths#get(filename, []))];
 
     // For a chunked upload you don't need to specify size, just do:
     // req.setChunked(true);
 
-    fs.open [] filename \case of
+    fileSystem.open [] filename \case of
         Exception ex: (ex is ~Exception)#printStackTrace(System#err);
         Some file :
             (pump = createPump (file is ~AsyncFile)#getReadStream() req;
              pump#start();
              
              file#getReadStream()#endHandler(toHandler do:
-                fs.closeAFile file \case of
+                fileSystem.closeAFile file \case of
                     Some _ :
                         (req#end();
                          println "File sent");

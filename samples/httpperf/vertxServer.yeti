@@ -3,14 +3,12 @@ module vertxServer;
 import org.vertx.java.core.buffer.Buffer;
 
 load yvertx;
-https = load yvertx.https;
 
 verticle do :
-    fs = fileSystem;
-    (https.createWithHandler do req:
-        fs.readFile "foo.html" \case of
+    (createHttpServerWithHandler do req:
+        fileSystem.readFile "foo.html" \case of
             Some buffer:
-                https.putHeaders req 
+               putResponseHeaders req 
                     ["Content-Length": string (buffer is ~Buffer)#length(),
                      "Content-Type": "text/html"];
                 _ = req#response#end(buffer);

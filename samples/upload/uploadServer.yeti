@@ -16,7 +16,6 @@
 module uploadServer;
 
 load yvertx;
-https = load yvertx.https;
 
 import org.vertx.java.core.file.AsyncFile;
 
@@ -24,16 +23,15 @@ import java.util.UUID;
 
 
 verticle do :
-    fs = fileSystem;
-    (https.createWithHandler do req:
+    (createHttpServerWithHandler do req:
         req#pause();
         filename = "upload/file-\(UUID#randomUUID()).upload";
-        fs.open [] filename \case of
+        fileSystem.open [] filename \case of
             Some file:
                (pump = createPump req (file is ~AsyncFile)#getWriteStream();
                 start = System#currentTimeMillis();
                 endHandler req do:
-                    fs.closeAFile file \case of
+                    fileSystem.closeAFile file \case of
                         Some _ : 
                             (req#response#end();
                              end = System#currentTimeMillis();

@@ -16,8 +16,6 @@
 module proxyServer;
 
 load yvertx;
-httpc = load yvertx.httpc;
-https = load yvertx.https;
 
 import org.vertx.java.core.Handler;
 import org.vertx.java.core.SimpleHandler;
@@ -30,11 +28,11 @@ import org.vertx.java.deploy.Verticle;
 
 
 verticle do :
-    client =httpc.create "localhost:8282";
+    client = createHttpClient "localhost:8282";
     
-    (https.createWithHandler do req:
+    (createHttpServerWithHandler do req:
         println "Proxying request: \(req#uri)";
-        cReq = httpc.request client 
+        cReq = httpRequest client 
             (Request {method = req#method, uri = req#uri}) [:] 
             do cRes:
             println ("Proxying response:"

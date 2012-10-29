@@ -16,8 +16,6 @@
 module pubSubServer;
 
 load yvertx;
-net = load yvertx.net;
-rb = load yvertx.recordparser;
 
 import org.vertx.java.core.Vertx;
 import org.vertx.java.core.buffer.Buffer;
@@ -28,8 +26,8 @@ import org.vertx.java.deploy.Verticle;
 import java.util.Set;
 
 verticle do :
-    (net.createServerWithHandler do socket:
-        dataHandler socket (rb.delimited "\n" do frame:
+    (createAndConnectNetServer do socket:
+        dataHandler socket (delimitedRecordParser "\n" do frame:
             line = strTrim (string frame);
             println "Line is \(line)";
             case list (strSplit '\\' line) of

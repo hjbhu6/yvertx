@@ -16,14 +16,13 @@
 module echoServer;
 
 load yvertx;
-net = load yvertx.net;
 
 import org.vertx.java.core.streams:Pump,
                                    ReadStream,
                                    WriteStream;
 
 verticle do :
-    (net.createServerWithHandler do sock:
+    (createAndConnectNetServer do sock:
         (createPump sock sock)#start();
     done)#listen(1234);
     \();

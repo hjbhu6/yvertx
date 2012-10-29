@@ -17,8 +17,6 @@
 module websocketsExample;
 
 load yvertx;
-https = load yvertx.https;
-ws = load yvertx.websocket;
 
  
 import org.vertx.java.core.Handler;
@@ -28,8 +26,8 @@ import org.vertx.java.core.http.ServerWebSocket;
 import org.vertx.java.deploy.Verticle;
 
 verticle do :
-    (server = https.create ();
-    _ = ws.serverHandler 
+    (server = createHttpServer ();
+    _ = connectWebSocketServer 
         server
         do webs :
         _ = if webs#path == "/myapp" then
@@ -40,7 +38,8 @@ verticle do :
             webs#reject();
         fi;
     done;
-    https.requestHandler server do req:
+    httpServerRequestHandler
+    server do req:
         if req#path == "/" then
             _ = req#response#sendFile("websockets/ws.html");
         fi

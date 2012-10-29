@@ -19,18 +19,17 @@ module fanoutServer;
 import org.vertx.java.core:Vertx;
 
 load yvertx; 
-net = load yvertx.net;
 
 verticle do :
    connections = sharedData#getSet("conns");
-    (net.createServerWithHandler do socket:
+    (createAndConnectNetServer do socket:
         _ = connections#add(socket#writeHandlerID);
         dataHandler socket do buffer:
             it = connections#iterator();
             it#hasNext() loop
-                 bus.publish (string it#next()) buffer;
+                 publish (string it#next()) buffer;
         done;
-        net.closedHandler socket do:
+        netsocketClosed socket do:
             _ = connections#remove(socket#writeHandlerID)
         done;
     done)#listen(1234);

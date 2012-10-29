@@ -16,17 +16,15 @@
 module sockJSExample;
 
 load yvertx;
-sockjs = load yvertx.sockjs;
-https = load yvertx.https;
 
 verticle do :
-    server = https.createWithHandler do req:
+    server = createHttpServerWithHandler do req:
         if req#path == "/" then
             _ = req#response#sendFile("sockjs/index.html");
         fi;
     done;
-    sockjs.installApp 
-        (sockjs.create server)
+    installSockJSApp 
+        (createSockJSServer server)
         {prefix = "/testapp"} 
         do sock:
             dataHandler sock do buffer:

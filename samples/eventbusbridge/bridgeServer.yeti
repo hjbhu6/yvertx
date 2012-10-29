@@ -5,11 +5,9 @@
 module bridgeServer;
 
 load yvertx;
-sockjs = load yvertx.sockjs;
-https = load yvertx.https;
 
 verticle do :
-    server = https.createWithHandler do req:
+    server = createHttpServerWithHandler do req:
         if "/" == req#path then 
             req#response#sendFile("index.html") //serve the index.html
         fi;
@@ -21,8 +19,8 @@ verticle do :
     
     //Let everything trough
     permitted = [emptyJS];
-    sockjs.bridge 
-         (sockjs.create server)
+    bridgeSockJS 
+         (createSockJSServer server)
          [] 
          {prefix = "/eventbus"} 
          permitted permitted;

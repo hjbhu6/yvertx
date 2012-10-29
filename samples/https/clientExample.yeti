@@ -19,15 +19,14 @@ module clientExample;
 import org.vertx.java.core.buffer.Buffer;
  
 load yvertx;
-httpc = load yvertx.httpc;
 
 
 verticle do :
-    client = (httpc.create "localhost:4443")
+    client = (createHttpClient "localhost:4443")
              #setSSL(true)
              #setTrustAll(true);
              
-    httpc.getBodyNow client "/" [:] do {buffer, resp}:
+    getHttpBodyNow client "/" [:] do {buffer, resp}:
             println "length: \((buffer is ~Buffer)#length())";
             println (string buffer);
           done;

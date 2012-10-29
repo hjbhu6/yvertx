@@ -19,12 +19,11 @@ module sendFileExample;
 import org.vertx.java.core.http.HttpServerRequest;
 
 load yvertx;
-https = load yvertx.https;
 
 webroot = "sendfile/";
 
 verticle do :
-    (https.createWithHandler do req:
+    (createHttpServerWithHandler do req:
         _ = if req#path == "/" then
             req#response#sendFile(webroot ^ "index.html")
         else

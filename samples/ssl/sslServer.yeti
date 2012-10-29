@@ -16,10 +16,9 @@
 module sslServer;
 
 load yvertx;
-net = load yvertx.net;
 
 verticle do :
-    _ = (net.createServerWithHandler do socket:
+    _ = (createAndConnectNetServer do socket:
         dataHandler socket do buffer:
             _ = socket#write(buffer);
         done;

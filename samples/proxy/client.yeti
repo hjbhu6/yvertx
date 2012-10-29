@@ -16,11 +16,10 @@
 module client;
 
 load yvertx;
-httpc = load yvertx.httpc;
 
 verticle do :
-    req = httpc.request 
-            (httpc.create "localhost:8080")
+    req = httpRequest 
+            (createHttpClient "localhost:8080")
             (Put "/some-url") 
             [:]
             do resp:

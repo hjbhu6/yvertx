@@ -17,6 +17,7 @@ module rateCounter;
 
 import java.lang.System;
 import org.vertx.java.core.Vertx;
+import org.vertx.java.core.eventbus:Message;
 
 load yvertx;
 
@@ -27,15 +28,16 @@ verticle do :
     var start = 0;
     var totCount = 0;
     
-    handler = bus.toMessageHandler do msg:
+    handler = toHandler (do msg:
         if last == 0 then
             start := System#currentTimeMillis();
             last := start;
         fi;
-        mn = (msg#body) unsafely_as number;
+        mn = ((msg is ~Message)#body) unsafely_as number;
         count := count + mn;
         totCount := totCount +mn;
-    done;
+    done . (unsafely_as ~Message));
+
     _ = vertx#eventBus()#registerHandler("rate-counter",handler);
     _ = setPeriodic 3000 do :
         if last != 0 then
