@@ -26,7 +26,7 @@ verticle do :
         done
         \() 
         do socket:
-            net.dataHandler socket do buffer:
+            dataHandler socket do buffer:
                 println "Net client receiving: \(buffer#toString('UTF-8'))";
             done;
             //Now send some data

@@ -32,7 +32,7 @@ verticle do :
             Some file:
                (pump = createPump req (file is ~AsyncFile)#getWriteStream();
                 start = System#currentTimeMillis();
-                https.endHandler req do:
+                endHandler req do:
                     fs.closeAFile file \case of
                         Some _ : 
                             (req#response#end();

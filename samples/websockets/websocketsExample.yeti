@@ -33,7 +33,7 @@ verticle do :
         server
         do webs :
         _ = if webs#path == "/myapp" then
-            ws.dataHandler webs do data:
+            dataHandler webs do data:
                 _ = webs#writeTextFrame(string data); //Echo it back
             done;
         else

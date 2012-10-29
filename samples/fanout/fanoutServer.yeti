@@ -25,7 +25,7 @@ verticle do :
    connections = sharedData#getSet("conns");
     (net.createServerWithHandler do socket:
         _ = connections#add(socket#writeHandlerID);
-        net.dataHandler socket do buffer:
+        dataHandler socket do buffer:
             it = connections#iterator();
             it#hasNext() loop
                  bus.publish (string it#next()) buffer;

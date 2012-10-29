@@ -20,7 +20,7 @@ net = load yvertx.net;
 
 verticle do :
     _ = (net.createServerWithHandler do socket:
-        net.dataHandler socket do buffer:
+        dataHandler socket do buffer:
             _ = socket#write(buffer);
         done;
     done)#setSSL(true)

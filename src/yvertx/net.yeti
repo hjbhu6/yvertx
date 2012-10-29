@@ -28,22 +28,9 @@ yvertx = load yvertx;
 toSocketHandler fn =
         yvertx.toHandler (fn . (unsafely_as ~NetSocket));
 
-dataHandler socket handler = 
-    (socket is ~NetSocket)#dataHandler(yvertx.toBufferHandler handler);
-    
-endHandler socket handler =
-    (socket is ~NetSocket)#endHandler(yvertx.toSimpleHandler handler);
-
 closedHandler socket handler =
     (socket is ~NetSocket)#closedHandler(yvertx.toSimpleHandler handler);
     
-drainHandler socket handler =
-    (socket is ~NetSocket)#drainHandler(yvertx.toSimpleHandler handler);
-
-exceptionHandler socket handler =
-    (socket is ~NetSocket)#exceptionHandler(
-        yvertx.toExceptionHandler handler);
-
 createClient () = 
     (yvertx.vertx)#createNetClient();
 
@@ -77,11 +64,7 @@ closeClient client =
     (client is ~NetClient)#close();
 {
     toSocketHandler,
-    dataHandler,
-    endHandler,
-    drainHandler,
     closedHandler,
-    exceptionHandler,
     createClient,
     connectClient,
     createAndConnectClient,

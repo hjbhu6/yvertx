@@ -24,7 +24,7 @@ verticle do :
             (Put "/some-url") 
             [:]
             do resp:
-                httpc.dataHandler resp do buffer:
+                dataHandler resp do buffer:
                      println "Got response data: \(buffer)"; 
                 done
             done;

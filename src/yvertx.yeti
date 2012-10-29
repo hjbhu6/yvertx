@@ -25,7 +25,9 @@ import org.vertx.java.core:Handler,
                            AsyncResultHandler,
                            Vertx;
 import org.vertx.java.core.buffer:Buffer;
-import org.vertx.java.core.streams:Pump;                           
+import org.vertx.java.core.streams:Pump,
+                                   ReadStream,
+                                   WriteStream;
 import org.vertx.java.core.json:JsonObject,
                            JsonArray;
 import org.vertx.java.core.impl:Context;
@@ -212,7 +214,21 @@ toExceptionHandler fn =
         
 toStringHandler fn =
         toHandler (fn . (as string) .(unsafely_as ~String));
-        
+
+dataHandler rs handler =
+    (rs is ~ReadStream)#dataHandler(toBufferHandler handler);
+
+endHandler rs handler =
+    (rs is ~ReadStream)#endHandler(toSimpleHandler handler);
+
+exceptionHandler rs handler =
+    (rs is ~ReadStream)#exceptionHandler(toExceptionHandler handler);
+
+drainHandler ws handler =
+    (ws is ~WriteStream)#drainHandler(toSimpleHandler handler);
+
+wsExceptionHandler ws handler =
+    (ws is ~WriteStream)#exceptionHandler(toExceptionHandler handler);
 
 vertxThreadLocal = threadLocal VertxLocator#vertx;
 containerThreadLocal = threadLocal VertxLocator#container;
@@ -530,6 +546,12 @@ fileSystem = ({
     fromJS, 
     fromJSArray,
     emptyJS, 
+
+    dataHandler,
+    endHandler,
+    exceptionHandler,
+    drainHandler,
+    wsExceptionHandler,
     
     verticle,
     newBuffer size = new Buffer(size is number),

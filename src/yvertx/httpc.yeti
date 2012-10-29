@@ -33,30 +33,14 @@ toResponseHandler fn =
 responseHandler response fn = 
         fn (response is ~HttpClientResponse);
 
-dataHandler response handler =
-   (response is ~HttpClientResponse)#dataHandler(
-        yvertx.toBufferHandler handler);
-
-endHandler response handler =   
-    (response is ~HttpClientResponse)#endHandler(
-            yvertx.toSimpleHandler handler);
-
 bodyHandler response handler =
    (response is ~HttpClientResponse)#bodyHandler(
         yvertx.toBufferHandler handler);
-
-exceptionHandler response handler =
-   (response is ~HttpClientResponse)#exceptionHandler(
-        yvertx.toExceptionHandler handler);
-
-   
    
 create hostPort = 
    ({port,host} = yvertx.helper.hostAndPort hostPort; 
     (yvertx.vertx)#createHttpClient()#setPort(port)#setHost(host));
 
-
-    
 putHeaders request headers =
    ((request is ~HttpClientRequest)#headers()#putAll(
         (headers is hash<string,string>) as ~Map);
@@ -107,11 +91,6 @@ getBodyNow client uri headers handler =
 
 {
     toResponseHandler,
-    dataHandler,
-    endHandler,
-    bodyHandler,
-    exceptionHandler,
-
 
     putHeaders,
     headers resp =

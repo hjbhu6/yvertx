@@ -38,28 +38,12 @@ clientHandler client uri handler =
                           yvertx.toHandler 
                                 (handler .(unsafely_as ~WebSocket)));
 
-dataHandler socket handler =
-   (socket is ~WebSocket)#dataHandler(yvertx.toBufferHandler handler);
-
-endHandler socket handler =
-   (socket is ~WebSocket)#endHandler(yvertx.toSimpleHandler handler);
-
-exceptionHandler socket handler =
-   (socket is ~WebSocket)#exceptionHandler(
-        yvertx.toExceptionHandler handler);
-   
-drainHandler socket handler =
-   (socket is ~WebSocket)#drainHandler(yvertx.toSimpleHandler handler);
-
 closedHandler socket handler =
    (socket is ~WebSocket)#closedHandler(yvertx.toSimpleHandler handler);
 
 {
     serverHandler,
     clientHandler,
-    dataHandler,
-    endHandler,
-    exceptionHandler,
     closedHandler,
     
 }

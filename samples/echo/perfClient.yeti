@@ -30,7 +30,7 @@ verticle do :
         var bytesReceived = 0;
         var start = System#currentTimeMillis();
 
-        net.dataHandler socket do buffer:
+        dataHandler socket do buffer:
             bytesReceived := bytesReceived + buffer#length();
             if bytesReceived > batch then
                 ende = System#currentTimeMillis();
@@ -45,11 +45,10 @@ verticle do :
 
             sendData _ = 
                (socket#write(buff);
-                handler = toHandler (sendData . \());
                 if not socket#writeQueueFull() then
-                    (vertx is ~Vertx)#runOnLoop(handler)
+                    runOnLoop sendData;
                 else
-                    socket#drainHandler(handler);
+                    drainHandler socket sendData;
                 fi);
             sendData ();
             

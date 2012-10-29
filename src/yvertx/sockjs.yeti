@@ -25,21 +25,6 @@ yvertx = load yvertx;
 toHandler handler =
     yvertx.toHandler (handler . (unsafely_as ~SockJSSocket));
 
-dataHandler socket handler =
-    (socket is ~SockJSSocket)#dataHandler(
-        yvertx.toBufferHandler handler);
-
-exceptionHandler socket handler =
-    (socket is ~SockJSSocket)#exceptionHandler(
-        yvertx.toExceptionHandler handler);
-
-drainHandler socket handler =
-    (socket is ~SockJSSocket)#drainHandler(yvertx.toSimpleHandler handler);
-        
-endHandler socket handler =
-    (socket is ~SockJSSocket)#endHandler(yvertx.toSimpleHandler handler);
-    
-    
 installApp server config handler =
     (server is ~SockJSServer)#installApp(yvertx.toJS config, 
                  toHandler handler);  
@@ -60,10 +45,6 @@ bridge server opts sjsConfig inboundPermitted outboundPermitted =
              authAddress));
 {
     toHandler,
-    dataHandler,
-    drainHandler,
-    endHandler,
-    exceptionHandler,
     installApp,
     bridge,
     create server =

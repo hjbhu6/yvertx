@@ -29,7 +29,7 @@ verticle do :
         (sockjs.create server)
         {prefix = "/testapp"} 
         do sock:
-            sockjs.dataHandler sock do buffer:
+            dataHandler sock do buffer:
                 _ = sock#writeBuffer(buffer); //Echo it back
             done;
         done;

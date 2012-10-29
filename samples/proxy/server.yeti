@@ -28,10 +28,10 @@ verticle do :
             println "\(k) : \(v)";
         done;
         
-        https.dataHandler req do buffer:
+        dataHandler req do buffer:
             println "Got data: \(buffer)"
         done;
-        https.endHandler req do:
+        endHandler req do:
             req#response#setChunked(true);
             for [0 .. 9] do i:
                 _ = req#response#write("server-data-chunk-\(i)");

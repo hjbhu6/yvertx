@@ -29,7 +29,7 @@ import java.util.Set;
 
 verticle do :
     (net.createServerWithHandler do socket:
-        net.dataHandler socket (rb.delimited "\n" do frame:
+        dataHandler socket (rb.delimited "\n" do frame:
             line = strTrim (string frame);
             println "Line is \(line)";
             case list (strSplit '\\' line) of

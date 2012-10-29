@@ -34,26 +34,27 @@ verticle do :
     
     (https.createWithHandler do req:
         println "Proxying request: \(req#uri)";
-        cReq =httpc.generalRequest client req#method req#uri [:] do cRes:
-            println "Proxying response: \((cRes is ~HttpClientResponse)#statusCode)";
+        cReq = httpc.generalRequest client req#method req#uri [:] do cRes:
+            println ("Proxying response:"
+                    ^ (string cRes#statusCode));
             req#response#statusCode := cRes#statusCode;
             req#response#headers()#putAll(cRes#headers());
             req#response#setChunked(true);
-            httpc.dataHandler cRes do data:
+            dataHandler cRes do data:
                 println "proxing response body: \(data)";
                 _ = req#response#write(data);
             done;
-            httpc.endHandler cRes do:
+            endHandler cRes do:
                 req#response#end();
             done;
         done;
         cReq#headers()#putAll(req#headers());
         cReq#setChunked(true);
-        https.dataHandler req do buffer:
+        dataHandler req do buffer:
             println "Proxing request bodey: \(buffer)";
             _ = cReq#write(buffer);
         done;
-        https.endHandler req \(cReq#end());
+        endHandler req \(cReq#end());
     done)#listen(8080);
     \();
 done;

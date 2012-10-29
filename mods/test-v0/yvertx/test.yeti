@@ -68,13 +68,13 @@ httpMethod opts method variant rstu =
         
         body = newBuffer 0;
 
-        https.dataHandler req do data:
+        dataHandler req do data:
             _ = body#appendBuffer(data);
         done;
 
         req#response#setChunked(chunked);
 
-        https.endHandler req do:
+        endHandler req do:
             if not chunked then
                 https.putHeaders req 
                     ["Content-Length":string body#length()];
@@ -115,11 +115,11 @@ httpMethod opts method variant rstu =
                     (fold (flip ((and) . (in (httpc.headers resp))))
                         true (keys rheaders) );
             body = newBuffer(0);
-            httpc.dataHandler resp do data:
+            dataHandler resp do data:
                 _ = body#appendBuffer(data);
             done;
 
-            httpc.endHandler resp do:
+            endHandler resp do:
                 rstu.assert "sentBuff" (buffersEqual sentBuff body);
                 if chunked then
                     rstu.assert "rTrailers" (httpc.trailers resp ==
@@ -154,7 +154,7 @@ websocketEcho binary rs =
     server = https.create ();
 
     webs.serverHandler server do ws:
-        webs.dataHandler ws do buff:
+        dataHandler ws do buff:
             _ = ws#writeBuffer(buff);
         done;
     done;
@@ -173,7 +173,7 @@ websocketEcho binary rs =
 
         webs.clientHandler client "/someurl" do ws:
             received = newBuffer 0;
-            webs.dataHandler ws do data:
+            dataHandler ws do data:
                 _ = received#appendBuffer(data);
                 if received#length() == buff#length() then
                     rs.assert "be" (buffersEqual received buff);
@@ -540,7 +540,7 @@ done,
 "net:test1" : do rs:
     net = load yvertx.net;
     server = net.createServerWithHandler do sock:
-        net.dataHandler sock do buffer:
+        dataHandler sock do buffer:
             _ = sock#write(buffer);
         done;
     done;
@@ -553,7 +553,7 @@ done,
 
     net.connectClient client "localhost:1234" serverCloseFn
         do sock:
-            net.dataHandler sock do buffer:
+            dataHandler sock do buffer:
                 net.closeClient client;
                 serverCloseFn();
             done;
@@ -643,7 +643,7 @@ done,
     _ = setTimer 1000 do:
         client = httpc.create "localhost:8080";
         webs.clientHandler client "/someurl" do ws:
-            webs.dataHandler ws do buff:
+            dataHandler ws do buff:
                 rs.assert "" ("foo" == string buff);
                 client#close();
                 https.close server do:
@@ -658,7 +658,7 @@ done,
     rs.setTimeout 5000;
     server = https.create ();
     webs.serverHandler server do ws:
-        webs.dataHandler ws do:
+        dataHandler ws do:
             ws#close();
         done;
     done;

@@ -35,21 +35,10 @@ requestHandler server handler =
    (server is ~HttpServer)#requestHandler(toRequestHandler handler);
         
 
-dataHandler request handler =
-   (request is ~HttpServerRequest)#dataHandler(yvertx.toBufferHandler handler);
-
-endHandler request handler =
-   (request is ~HttpServerRequest)#endHandler(yvertx.toSimpleHandler handler);
-
-exceptionHandler request handler =
-   (request is ~HttpServerRequest)#exceptionHandler(
-        yvertx.toExceptionHandler handler);
-   
 bodyHandler request handler =
    (request is ~HttpServerRequest)#bodyHandler(
         yvertx.toBufferHandler handler);
 
-   
 create () = 
     (yvertx.vertx)#createHttpServer();
 
@@ -105,9 +94,6 @@ putTrailers request trailers =
 {
     toRequestHandler,
     requestHandler,
-    dataHandler,
-    endHandler,
-    exceptionHandler,
     bodyHandler,
     createWithHandler,
     create,

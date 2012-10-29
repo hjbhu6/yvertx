@@ -24,7 +24,7 @@ net = load yvertx.net;
 verticle do :
     _ = net.createAndConnectClient "localhost:1234" \() \() do socket:
         
-        net.dataHandler socket do buffer:
+        dataHandler socket do buffer:
             println "Net client receiving: \(buffer)"
         done;
         
