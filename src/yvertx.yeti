@@ -39,6 +39,7 @@ import org.vertx.java.core.json:JsonObject,
                            JsonArray;
 import org.vertx.java.core.impl:Context;
 import org.vertx.java.core.eventbus:Message;
+import org.vertx.java.core.parsetools:RecordParser;
 import org.vertx.java.deploy:Verticle,
                              Container;
 import org.vertx.java.deploy.impl:VertxLocator;
@@ -907,4 +908,16 @@ fileSystem = ({
         yrt),
     vertxThreadLocal,
     containerThreadLocal,
+
+    //recordparser
+    fixedRecordParser size handler = 
+       (parser = RecordParser#newFixed(size is number, 
+                                       toBufferHandler handler);
+        do buffer: parser#handle(buffer is ~Buffer) done),
+        
+    delimitedRecordParser delimiter handler = 
+       (parser = RecordParser#newDelimited(delimiter is string, 
+                                       toBufferHandler handler);
+        do buffer: parser#handle(buffer is ~Buffer) done),    
+    
 }
