@@ -44,6 +44,8 @@ import org.vertx.java.core.net:NetClient,
                                NetServer,
                                NetSocket;
 import org.vertx.java.core.parsetools:RecordParser;
+import org.vertx.java.core.sockjs:SockJSSocket,
+                                  SockJSServer;
 import org.vertx.java.core.streams:Pump,
                                    ReadStream,
                                    WriteStream;
@@ -593,6 +595,26 @@ getHttpBodyNow client uri headers handler =
                         handler {buffer, resp}
                     done
                 done;
+//sockjs functions
+installSockJSApp server config handler =
+    (server is ~SockJSServer)#installApp(toJS config, 
+                 toHandler (handler . (unsafely_as ~SockJSSocket)));  
+
+bridgeSockJS server opts sjsConfig inboundPermitted outboundPermitted =
+   (var authTimeout = 5 * 60 * 1000;
+    var authAddress = "vertx.basicauthmanager.athorise";
+    for opts do opt:
+        case opt of
+        AuthTimeout n : authTimeout := n;
+        AuthAddress a : authAddress := a;
+        esac
+    done;
+    (server is ~SockJSServer)#bridge(toJS sjsConfig, 
+             toJSArray inboundPermitted, 
+             toJSArray outboundPermitted,
+             authTimeout,
+             authAddress));
+
 
 //net functions
 netsocketClosedHandler socket handler =
@@ -919,6 +941,10 @@ fileSystem = ({
     getHttpNow,
     getHttpBodyNow,
 
+    //sockjs
+    installSockJSApp,
+    bridgeSockJS,
+
     //net functions
     netsocketClosedHandler,
     createNetClient,
@@ -939,8 +965,8 @@ fileSystem = ({
     registerBusHandler,
     registerLocalBusHandler,
     unregisterBusHandler,
-    
 
+    //filesystem
     fileSystem,
 
     obj x = x unsafely_as ~Object,
