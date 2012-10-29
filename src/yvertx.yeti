@@ -638,7 +638,7 @@ bridgeSockJS server opts sjsConfig inboundPermitted outboundPermitted =
 
 
 //net functions
-netsocketClosedHandler socket handler =
+netsocketClosed socket handler =
     (socket is ~NetSocket)#closedHandler(toSimpleHandler handler);
     
 createNetClient () = 
@@ -693,17 +693,17 @@ toJsonMessageHandler fn =
     end;
     new YvertxMessageHandler() as ~Handler);
 
-publish address msg = 
+publishMsg address msg = 
     (getVertx ())#eventBus()#publish(address is string, toJS msg);
 
-send address msg =
+sendMsg address msg =
     (getVertx ())#eventBus()#send(address is string, toJS msg);
 
-request address msg handler =   
+requestMsg address msg handler =   
     (getVertx ())#eventBus()#send(address is string, toJS msg, 
             toJsonMessageHandler handler);
 
-requestBody address msg handler =
+requestMsgBody address msg handler =
     request address msg do {body}: handler body done;
     
 registerBusHandler address resultHandler handler =
@@ -973,7 +973,7 @@ fileSystem = ({
     createSockJSServer,
 
     //net functions
-    netsocketClosedHandler,
+    netsocketClosed,
     createNetClient,
     connectNetClient,
     createAndConnectNetClient,
@@ -985,9 +985,9 @@ fileSystem = ({
 
 
     //bus functions
-    publish,
-    send,
-    request,
+    publishMsg,
+    sendMsg,
+    requestMsg,
     requestBody,
     registerBusHandler,
     registerLocalBusHandler,
