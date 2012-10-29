@@ -19,12 +19,19 @@ module yvertx;
 import java.lang:Exception,
                  Runnable,
                  Long;
+import java.util:Map;
 
 import org.vertx.java.core:Handler,
                            AsyncResult,
                            AsyncResultHandler,
                            Vertx;
 import org.vertx.java.core.buffer:Buffer;
+import org.vertx.java.core.http:HttpClientRequest,
+                                HttpClientResponse,
+                                HttpClient,
+                                HttpServer,
+                                HttpServerRequest,
+                                HttpServerResponse;
 import org.vertx.java.core.streams:Pump,
                                    ReadStream,
                                    WriteStream;
@@ -162,6 +169,14 @@ fromJS object is ~JsonObject -> 'a =
 fromJSArray ar is ~JsonArray -> list<'a> =
     (_fromJS ar) unsafely_as list<'a>;    
 
+hostAndPort hostPort =
+   (i = strIndexOf hostPort ":" 0;
+    if i < 0 then 
+        {port = 80, host = hostPort}
+    else
+       {host = strLeft hostPort i,
+        port = int (number (strRight hostPort (i+1)))}
+    fi);
 
 
 toHandler fn is (~Object -> ()) -> ~Handler = 
@@ -231,6 +246,7 @@ wsExceptionHandler ws handler =
     (ws is ~WriteStream)#exceptionHandler(toExceptionHandler handler);
 
 vertxThreadLocal = threadLocal VertxLocator#vertx;
+
 containerThreadLocal = threadLocal VertxLocator#container;
 
 getVertx () = 
@@ -326,16 +342,89 @@ timeout time tofn fn =
             fn Some;
         fi
     done);
+//http server things
+httpServerRequestHandler server handler =
+   (server is ~HttpServer)#requestHandler(
+        toHandler (handler . (unsafely_as ~HttpServerRequest)));
+        
+
+createHttpServer () = 
+    (getVertx())#createHttpServer();
+
+createHttpServerWithHandler handler = 
+    (getVertx())#createHttpServer()#requestHandler(
+        toHandler (handler . (unsafely_as ~HttpServerRequest)));
+    
+close server handler =
+    (server is ~HttpServer)#close(toSimpleHandler handler);
+
+routeMatcher () =
+   (import org.vertx.java.core.http:RouteMatcher;
+   _rm = new RouteMatcher();
+   toHa h = toHandler (h . (unsafely_as ~HttpServerRequest));
+     
+    {
+        all route h = _rm#all(route,toHa h), 
+        allWithRegex route h = _rm#allWithRegEx(route,toHa h), 
+        connect route h = _rm#connect(route,toHa h),
+        connectWithRegEx route h = _rm#connectWithRegEx(route,toHa h),
+        delete route h = _rm#delete(route,toHa h), 
+        deleteWithRegEx route h = _rm#deleteWithRegEx(route,toHa h), 
+        _get route h = _rm#get(route,toHa h),
+        getWithRegEx route h = _rm#getWithRegEx(route,toHa h), 
+        head route h = _rm#head(route,toHa h), 
+        headWithRegEx route h = _rm#headWithRegEx(route,toHa h), 
+        options route h = _rm#options(route,toHa h), 
+        optionsWithRegEx route h = _rm#optionsWithRegEx(route,toHa h), 
+        patch route h = _rm#patch(route,toHa h), 
+        patchWithRegEx route h = _rm#patchWithRegEx(route,toHa h), 
+        post route h = _rm#post(route,toHa h), 
+        postWithRegEx route h = _rm#postWithRegEx(route,toHa h), 
+        put route h = _rm#put(route,toHa h), 
+        putWithRegEx route h = _rm#putWithRegEx(route,toHa h), 
+        trace route h = _rm#trace(route,toHa h), 
+        traceWithRegEx route h = _rm#traceWithRegEx(route,toHa h), 
+        noMatch h = _rm#noMatch(toHa h),
+        rm = _rm,
+        handle req = _rm#handle(req is ~HttpServerRequest),
+        createServer () = 
+            (getVertx())#createHttpServer()#requestHandler(_rm)
+    });        
+        
+ 
+putResponseHeaders request headers =
+   ((request is ~HttpServerRequest)#response#headers()#putAll(
+        (headers is hash<string,string>) as ~Map);
+    ());
+
+putResponseTrailers request trailers =
+    ((request is ~HttpServerRequest)#response#trailers()#putAll(
+        (trailers is hash<string,string>) as ~Map);
+    ());
+
+params req =
+   (ret = [:];
+    forJavaMap (req is ~HttpServerRequest)#params() do key value:
+        ret.[string key] := if defined? value then string value else "" fi;
+    done;
+    ret);
+    
+requestHeaders req =
+    (ret = [:];
+    forJavaMap (req is ~HttpServerRequest)#headers() do key value:
+        ret.[string key] := if defined? value then string value else "" fi;
+    done;
+    ret);
 
 //http client things
 bodyHandler response handler =
    (import org.vertx.java.core.http.impl:HttpReadStreamBase; 
    (response is ~HttpReadStreamBase)#bodyHandler(
-        yvertx.toBufferHandler handler));
+        toBufferHandler handler));
    
 createHttpClient hostPort = 
-   ({port,host} = yvertx.helper.hostAndPort hostPort; 
-    (yvertx.vertx)#createHttpClient()#setPort(port)#setHost(host));
+   ({port,host} = hostAndPort hostPort; 
+    (getVertx())#createHttpClient()#setPort(port)#setHost(host));
 
 putRequestHeaders request headers =
    ((request is ~HttpClientRequest)#headers()#putAll(
@@ -347,14 +436,14 @@ clientResponseHeaders resp =
     forJavaMap (resp is ~HttpClientResponse)#headers() do k v:
         ret.[string k] := if defined? v then string v else "" fi;
     done;
-    ret),
+    ret);
 
 clientResponseTrailers resp =
     (ret = [:];
     forJavaMap (resp is ~HttpClientResponse)#trailers() do k v:
         ret.[string k] := if defined? v then string v else "" fi;
     done;
-    ret),
+    ret);
     
 request client muri headers handler =
     (h = toHandler (handler . (unsafely_as ~HttpClientResponse));
@@ -380,7 +469,7 @@ request client muri headers handler =
     Request {method, uri}:
         client#request(method is string, uri is string, h); 
     esac;
-    putHeaders req headers);
+    putRequestHeaders req headers);
 
 getNow client uri headers handler =
    (client is ~HttpClient)#getNow(uri is string, 
@@ -647,14 +736,7 @@ fileSystem = ({
     undeployVerticle,
 
     helper = {
-        hostAndPort hostPort =
-           (i = strIndexOf hostPort ":" 0;
-            if i < 0 then 
-                {port = 80, host = hostPort}
-            else
-               {host = strLeft hostPort i,
-                port = int (number (strRight hostPort (i+1)))}
-            fi),
+        hostAndPort,
         toTypedAsyncResultHandler
     } with fsHelper,
     
