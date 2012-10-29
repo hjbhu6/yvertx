@@ -37,7 +37,9 @@ import org.vertx.java.core.http:HttpClientRequest,
                                 HttpClient,
                                 HttpServer,
                                 HttpServerRequest,
-                                HttpServerResponse;
+                                HttpServerResponse,
+                                WebSocket,
+                                ServerWebSocket;
 import org.vertx.java.core.json:JsonObject,
                                 JsonArray;
 import org.vertx.java.core.net:NetClient,
@@ -595,6 +597,21 @@ getHttpBodyNow client uri headers handler =
                         handler {buffer, resp}
                     done
                 done;
+//websocket functions
+connectWebSocketServer server fn =
+    ((server is ~HttpServer)#websocketHandler(
+            toHandler (fn . (unsafely_as ~ServerWebSocket)));
+    ());
+
+connectWebSocketClient client uri handler =
+    (client is ~HttpClient)
+        #connectWebsocket(uri is string,
+                          toHandler (handler .(unsafely_as ~WebSocket)));
+
+closedWebSocket socket handler =
+   (socket is ~WebSocket)#closedHandler(toSimpleHandler handler);
+
+
 //sockjs functions
 installSockJSApp server config handler =
     (server is ~SockJSServer)#installApp(toJS config, 
@@ -640,12 +657,12 @@ createAndConnectNetClient hostPort settings exceptionHandler handler=
 createNetServer () =
     (getVertx())#createNetServer();
 
-connectNetServerHandler server handler =
+connectNetServer server handler =
     (server is ~NetServer)#connectHandler(
         toHandler (handler . (unsafely_as ~NetSocket)));
 
 createAndConnectNetServer handler =
-    connectNetServerHandler (createNetServer ()) handler;
+    connectNetServer(createNetServer ()) handler;
 
 closeNetServer server handler =
     (server is ~NetServer)#close(toSimpleHandler handler);
@@ -941,6 +958,11 @@ fileSystem = ({
     getHttpNow,
     getHttpBodyNow,
 
+    //websocket
+    connectWebSocketServer,
+    connectWebSocketClient,
+    closedWebSocket,
+
     //sockjs
     installSockJSApp,
     bridgeSockJS,
@@ -950,7 +972,7 @@ fileSystem = ({
     createNetClient,
     connectNetClient,
     createAndConnectNetClient,
-    connectNetServerHandler,
+    connectNetServer,
     createNetServer,
     createAndConnectNetServer,
     closeNetServer,
