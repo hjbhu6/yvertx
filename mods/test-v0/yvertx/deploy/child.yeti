@@ -3,10 +3,10 @@ module yvertx.deploy.child;
 load yvertx;
 
 verticle do :
-   bus.send "test-handler" {started=true}; 
+   send "test-handler" {started=true}; 
    println "child started";
    \(
-   		bus.send "test-handler" {stopped = true};
+   		send "test-handler" {stopped = true};
    	);
 done;
 

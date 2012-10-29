@@ -158,7 +158,7 @@ cbRun exfn = exfn \();
 noex fn = do cb:
     case cb of
     Exception ex: throw (ex is ~Exception);
-    Some v: fn v;
+    Some v: (fn is 'a -> ()) v;
     esac;
 done;
 
@@ -883,7 +883,7 @@ fileSystem = ({
     (->) cbfn fn =  cbMap fn cbfn,
     (->>) cbfn fn = cbBind fn cbfn,
     ($) a b = a b,
-    noex
+    noex,
 
     get context () =  Context#getContext(),
     addCloseHook key fn = 

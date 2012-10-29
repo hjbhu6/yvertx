@@ -5,29 +5,21 @@ import org.vertx.java.core.file:FileProps;
 
 load yvertx;
 
-load yvertx.cb;
-
 load yvertx.testutils;
-
-httpc = load yvertx.httpc;
-https = load yvertx.https;
-webs = load yvertx.websocket;
-
 
 
 fileDir = "../../target/yeti-test-output";
 
-fs = fileSystem;
-
 fshelper = {
     clean dir after = 
-        fs.exists dir (noex do exi:
+        fileSystem.exists dir (noex do exi:
             if exi then
-                fs.delete dir true (noex \(
-                    fs.mkdir dir none true (noex after)
+                fileSystem.delete dir true (noex \(
+                    fileSystem.mkdir dir none true (noex 
+                        (after is 'a -> ()))
                 ))
             else
-                fs.mkdir dir none true (noex after)
+                fileSystem.mkdir dir none true (noex after)
             fi
         done);
     
@@ -52,19 +44,19 @@ httpMethod opts method variant rstu =
     rheaders = ["rheader1":"vrheader1",
                "rheader2":"vrheader"];
     
-    server = https.createWithHandler do req:
+    server = createHttpServerWithHandler do req:
         rstu.assert "uri \(req#uri)" (uri == req#uri);
         rstu.assert "method" (method == req#method);
         rstu.assert "path" (path == req#path);
         rstu.assert "query" (query == req#query);
 
         rstu.assert "headers" 
-            (fold (flip ((and) . (in (https.headers req))))
+            (fold (flip ((and) . (in (requestHeaders req))))
                 true (keys headers));
-        rstu.assert "params" (https.params req == ["param1":"vparam1",
+        rstu.assert "params" (params req == ["param1":"vparam1",
                                              "param2":"vparam2"]);
                                             
-        https.putHeaders req rheaders; 
+        putResponseHeaders req rheaders; 
         
         body = newBuffer 0;
 
@@ -76,12 +68,12 @@ httpMethod opts method variant rstu =
 
         endHandler req do:
             if not chunked then
-                https.putHeaders req 
+                putResponseHeaders req 
                     ["Content-Length":string body#length()];
             fi;
             req#response#writeBuffer(body);
             if chunked then
-                https.putTrailers req ["trailer1" : "vtrailer1",
+                putResponseTrailers req ["trailer1" : "vtrailer1",
                                        "trailer2" : "vtrailer2"];
             fi;
             req#response#end();
@@ -105,14 +97,14 @@ httpMethod opts method variant rstu =
         sentBuff = generateRandomBuffer(1000);
         
         
-        client = httpc.create "localhost:8080";
+        client = createHttpClient "localhost:8080";
 
-        request = httpc.request client (variant uri) headers
+        request = httpRequest client (variant uri) headers
         do resp:
 
             rstu.assert "statusCode" (200 == resp#statusCode);
-            rstu.assert "rHeaders: \(httpc.headers resp) | \(rheaders)" 
-                    (fold (flip ((and) . (in (httpc.headers resp))))
+            rstu.assert "rHeaders: \(responseHeaders resp) | \(rheaders)" 
+                    (fold (flip ((and) . (in (responseHeaders resp))))
                         true (keys rheaders) );
             body = newBuffer(0);
             dataHandler resp do data:
@@ -122,11 +114,11 @@ httpMethod opts method variant rstu =
             endHandler resp do:
                 rstu.assert "sentBuff" (buffersEqual sentBuff body);
                 if chunked then
-                    rstu.assert "rTrailers" (httpc.trailers resp ==
+                    rstu.assert "rTrailers" (responseTrailers resp ==
                                     ["trailer1":"vtrailer1",
                                     "trailer2":"vtrailer2"]);
                 fi;
-                https.close server do:
+                closeHttpServer server do:
                     rstu.assure "" true;
                 done;
             done;
@@ -141,7 +133,7 @@ httpMethod opts method variant rstu =
 
         _ = request#setChunked(chunked);
         if not chunked then
-            httpc.putHeaders request 
+            putRequestHeaders request 
                 ["Content-Length": string sentBuff#length()];
         fi;
         _ = request#writeBuffer(sentBuff);
@@ -151,9 +143,9 @@ httpMethod opts method variant rstu =
 websocketEcho binary rs =        
     (rs.setTimeout 1000;
   
-    server = https.create ();
+    server = createHttpServer ();
 
-    webs.serverHandler server do ws:
+    connectWebSocketServer server do ws:
         dataHandler ws do buff:
             _ = ws#writeBuffer(buff);
         done;
@@ -162,7 +154,7 @@ websocketEcho binary rs =
 
     
     _ = setTimer 1000 do:
-        client = httpc.create "localhost:8080";
+        client = createHttpClient "localhost:8080";
         
         {buff,str} = if binary then
                 {buff = generateRandomBuffer 1000, str = ""};
@@ -171,14 +163,14 @@ websocketEcho binary rs =
                 {buff = newStringBuffer str, str};
             fi;
 
-        webs.clientHandler client "/someurl" do ws:
+        connectWebSocketClient client "/someurl" do ws:
             received = newBuffer 0;
             dataHandler ws do data:
                 _ = received#appendBuffer(data);
                 if received#length() == buff#length() then
                     rs.assert "be" (buffersEqual received buff);
                     client#close();
-                    https.close server do:
+                    closeHttpServer server do:
                         rs.assure "finished" true;
                     done;
                 fi;
@@ -203,14 +195,14 @@ verticle do :
 done,
 
 "deploy" : do rs:
-    bus.register "test-handler"
+    registerBusHandler "test-handler"
         \(_ = deployVerticle 
                 "yvertx.deploy.child.yeti" emptyJS 1 
                 \())
         do {body,handler}:
         if body.started then
             rs.assure "in body" true;
-            bus.unregister "test-handler" handler \();
+            unregisterBusHandler "test-handler" handler \();
         else
         fi
         done;
@@ -219,10 +211,10 @@ done,
 "undeploy" : do rs:
     _ = deployVerticle "yvertx.deploy.child.yeti" emptyJS 1
         do did:
-            bus.register "test-handler" \() do {body,handler}:
+            registerBusHandler "test-handler" \() do {body,handler}:
                 if body.stopped then
                     rs.assure "body-stopped" true;
-                    bus.unregister "test-handler" handler \();
+                    unregisterBusHandler "test-handler" handler \();
                 fi
             done;
             undeployVerticle did \();
@@ -258,13 +250,13 @@ done,
     //make services 
     adresses = [1..10] |> map (("adr"^) . string);
     for adresses do adr:
-        bus.register adr \() do {reply, handler}:
+        registerBusHandler adr \() do {reply, handler}:
             reply {value = 1};
-            bus.unregister adr handler \();
+            unregisterBusHandler adr handler \();
         done
     done;
     handlers = adresses |> map do adr:
-        bus.request adr emptyJS -> 
+        request adr emptyJS -> 
             do {body} : body.value done
     done;
     cbSeq handlers do res:
@@ -274,18 +266,18 @@ done,
 
 "cb:Col" : do rs:
     register adr =
-        bus.register adr \() do {reply, handler} :
+        registerBusHandler adr \() do {reply, handler} :
             reply {value = adr ^ "foo"};
-            bus.unregister adr handler \();
+            unregisterBusHandler adr handler \();
         done;
     
     for [1..2] (register . ("adr"^) . string);
 
     cbCol \{
          a = cbSet
-            (bus.requestBody "adr1" emptyJS -> (.value)),
+            (requestBody "adr1" emptyJS -> (.value)),
          b = cbSet
-            (bus.requestBody "adr2" emptyJS -> (.value)),
+            (requestBody "adr2" emptyJS -> (.value)),
         }
         do r :
             rs.assure "\(r)" (r.a() == "adr1foo" 
@@ -301,42 +293,42 @@ done,
     rs.setTimeout(2000);
     address = "foo-some";
     var handled = false;
-    bus.register address \() do {body, handler}:
-        bus.unregister address handler \();
+    registerBusHandler address \() do {body, handler}:
+        unregisterBusHandler address handler \();
         rs.assure "\(body)" (body == msg and not handled);
         handled := true;
     done;
-    bus.send address msg;
+    send address msg;
 done,
 
 "eventbus:emptyMessage" : do rs:
     var handled = false;
     adr = "foo";
     msg = emptyJS;
-    bus.register adr \() do {body,handler}:
-        bus.unregister adr handler \();
+    registerBusHandler adr \() do {body,handler}:
+        unregisterBusHandler adr handler \();
         rs.assure "\(body)" (body == msg and not handled);
         handled := true;
     done;
-    bus.send adr msg;
+    send adr msg;
 done,
 
 "eventbus:unregister" : do rs:
     var handled = false;
     msg = {count = 1, foo = "foo"};
     var assertion = true;
-    bus.register "foo" \() do {body,handler}:
+    registerBusHandler "foo" \() do {body,handler}:
         assertion := assertion and (body == msg and not handled);
-        bus.unregister "foo" handler \();
+        unregisterBusHandler "foo" handler \();
         //should do nothing
-        bus.unregister "foo" handler \();
+        unregisterBusHandler "foo" handler \();
         handled := true;
         _ = setTimer 100 do:
             //complete the test
             rs.assure "" assertion;
         done;
     done;
-    for [1..3] \(bus.send "foo" msg);
+    for [1..3] \(send "foo" msg);
 done,
 
 "eventbus:withReply" : do rs:
@@ -344,14 +336,14 @@ done,
     msg = {count=1, foo = "foo2"};
     repl = {reply = true};
     var asserts = true;
-    bus.register "foo" \() do {body,handler, reply}:
+    registerBusHandler "foo" \() do {body,handler, reply}:
         asserts := asserts and (not handled and msg == body);
-        bus.unregister "foo" handler \();
+        unregisterBusHandler "foo" handler \();
         handled := true;
         reply repl;
     done;
 
-    bus.request "foo" msg do {body}:
+    request "foo" msg do {body}:
         rs.assure "\(body)" (asserts and (body == repl));
     done;
 done,
@@ -362,16 +354,16 @@ done,
     repl = {msg = "repl"};
     repl2 = {msg = "repl2"};
     repl3 = {msg = "repl3"};
-    bus.register adr \() do {body, handler, request}:
+    registerBusHandler adr \() do {body, handler, request}:
         rs.assert "" (msg == body);
         request repl do {body, reply}:
             rs.assert "" (repl2 == body);
             reply repl3;
-            bus.unregister adr handler \();
+            unregisterBusHandler adr handler \();
         done
     done;
 
-    bus.request adr msg do {body,request}:
+    request adr msg do {body,request}:
         rs.assert "" (body == repl);
         request repl2 do {body}:
             rs.assure "" (body == repl3);
@@ -383,14 +375,14 @@ done,
     var handled = false;
     adr = "foo";
     msg = emptyJS;
-    bus.register adr \() do {reply, body, handler}:
+    registerBusHandler adr \() do {reply, body, handler}:
         rs.assert "" (not handled);
         rs.assert "" (msg == body);
-        bus.unregister adr handler \();
+        unregisterBusHandler adr handler \();
         handled := true;
         reply emptyJS;
     done;
-    bus.request adr msg do {body, reply}:
+    request adr msg do {body, reply}:
         rs.assure "" true;
     done;
 done,
@@ -401,9 +393,9 @@ done,
     from = dir ^"/foo.tmp";
     to = dir ^"/bar.tmp";
     content = "some-data";
-    fs.writeFile from (newStringBuffer content) (noex do:
-        fs.copy from to true (noex do:
-            fs.readFile to (noex do res:
+    fileSystem.writeFile from (newStringBuffer content) (noex do:
+        fileSystem.copy from to true (noex do:
+            fileSystem.readFile to (noex do res:
                 rs.assure "" ((string res) == content)
             done);
         done)
@@ -415,9 +407,9 @@ done,
     from = fileDir ^"/foo.tmp";
     to = fileDir ^"/bar.tmp";
     content = "some-data";
-    fs.writeFile from (newStringBuffer content) (noex do:
-        fs.move from to (noex do:
-            fs.readFile to (noex do res:
+    fileSystem.writeFile from (newStringBuffer content) (noex do:
+        fileSystem.move from to (noex do:
+            fileSystem.readFile to (noex do res:
                 rs.assure "" ((string res) == content)
             done)
         done)
@@ -431,10 +423,10 @@ done,
         file2 = dir ^"/bar.tmp";
         file3 = dir ^"/baz.tmp";
         content = newStringBuffer "some-data";
-        fs.writeFile file1 content (noex do:
-            fs.writeFile file2 content (noex do:
-                fs.writeFile file3 content (noex do:
-                    fs.readDir dir none (noex do res:
+        fileSystem.writeFile file1 content (noex do:
+            fileSystem.writeFile file2 content (noex do:
+                fileSystem.writeFile file3 content (noex do:
+                    fileSystem.readDir dir none (noex do res:
                         rs.assert "\(res)" (length res == 3);
                     done)
                 done)
@@ -448,8 +440,8 @@ done,
     fshelper.clean dir \(
         content = newStringBuffer "some-data";
         file = dir ^"/foo.tmp";
-        fs.writeFile file content (noex do:
-            fs.props file (noex do res:
+        fileSystem.writeFile file content (noex do:
+            fileSystem.props file (noex do res:
                 rs.assert "" (res is ~FileProps)#isRegularFile;
                 rs.assert "" (res#creationTime#getTime() > 0);
                 rs.assert "" (res#lastAccessTime#getTime() > 0);
@@ -466,9 +458,9 @@ done,
         from = dir^"/foo.tmp";
         to = dir^"/bar.tmp";
         content = generateRandomBuffer(10000);
-        fs.writeFile from content (noex do:
-            fs.open [] from (noex do file1:
-                fs.open [] to (noex do file2:
+        fileSystem.writeFile from content (noex do:
+            fileSystem.open [] from (noex do file1:
+                fileSystem.open [] to (noex do file2:
                     rs = (file1 is ~AsyncFile)#getReadStream();
                     ws = (file2 is ~AsyncFile)#getWriteStream();
                     pump = createPump rs ws;
@@ -476,7 +468,7 @@ done,
                     rs#endHandler(toHandler do:
                         file1#close(toAsyncResultHandler (noex do:
                             file2#close(toAsyncResultHandler (noex do:
-                                fs.readFile to (noex do res:
+                                fileSystem.readFile to (noex do res:
                                     tests.assert "" (buffersEqual content res);
                                 done);
                             done));
@@ -496,8 +488,8 @@ done,
 "http:clientserver" : do rs:
     import java.lang:Thread;
     rs.setTimeout(15000);
-    server = (https.createWithHandler do req:
-        (https.putHeaders req 
+    server = (createHttpServerWithHandler do req:
+        (putResponseHeaders req 
             ["Content-Type": "text/html; charset=UTF-8"]);
         req#response#end(
             "<html><body><h1>Hello from vert.x!</h1></body></html>");
@@ -505,13 +497,13 @@ done,
     server#listen(8080);
 
     _ = setTimer 1000 do:
-        client = httpc.create "localhost:8080";
-        httpc.getBodyNow
+        client = createHttpClient "localhost:8080";
+        getHttpBodyNow
             client
             "/" 
             [:] 
             do {resp, buffer}:
-                https.close server do:
+                closeHttpServer server do:
                     rs.assure (string buffer) true;
                 done;
             done;
@@ -538,8 +530,7 @@ done,
 "http:path" : httpMethod [] "PATCH" Patch,
 
 "net:test1" : do rs:
-    net = load yvertx.net;
-    server = net.createServerWithHandler do sock:
+    server = createAndConnectNetServer do sock:
         dataHandler sock do buffer:
             _ = sock#write(buffer);
         done;
@@ -547,14 +538,14 @@ done,
 
     server#listen(1234,"localhost");
 
-    serverCloseFn _ = net.closeServer server \(rs.assure "closed" true);
+    serverCloseFn _ = closeNetServer server \(rs.assure "closed" true);
 
-    client = net.createClient ();
+    client = createNetClient ();
 
-    net.connectClient client "localhost:1234" serverCloseFn
+    connectNetClient client "localhost:1234" serverCloseFn
         do sock:
             dataHandler sock do buffer:
-                net.closeClient client;
+                closeNetClient client;
                 serverCloseFn();
             done;
             _ = sock#write(newStringBuffer "this is a buffer");
@@ -562,10 +553,9 @@ done,
 done,
 
 "parsetools:delimited" : do rs:
-    recordparser = load yvertx.recordparser;
     var lineCount = 0;
     
-    parser = recordparser.delimited "\n" do buffer:
+    parser = delimitedRecordParser "\n" do buffer:
         lineCount := lineCount + 1;
         if lineCount == 3 then
             rs.assure "" true;
@@ -576,12 +566,11 @@ done,
 done,
 
 "parsetools:fixed" : do rs:
-    recordparser = load yvertx.recordparser;
     var chunkCount = 0;
     chunkSize = 100;
     numChunks = 3;
 
-    parser = recordparser.fixed chunkSize do buffer:
+    parser = fixedRecordParser chunkSize do buffer:
         rs.assert "" (chunkSize == buffer#length());
         chunkCount = chunkCount + 1;
         if chunkCount == numChunks then
@@ -634,19 +623,19 @@ done,
 
 "websocket:writeFromConnectionHandler" : do rs:
     rs.setTimeout 5000;
-    server = https.create ();
-    webs.serverHandler server do ws:
+    server = createHttpServer ();
+    connectWebSocketServer server do ws:
         _ = ws#writeTextFrame("foo");
     done;
     server#listen(8080);
 
     _ = setTimer 1000 do:
-        client = httpc.create "localhost:8080";
-        webs.clientHandler client "/someurl" do ws:
+        client = createHttpClient "localhost:8080";
+        connectWebSocketClient client "/someurl" do ws:
             dataHandler ws do buff:
                 rs.assert "" ("foo" == string buff);
                 client#close();
-                https.close server do:
+                closeHttpServer server do:
                     rs.assure "close" true;
                 done;
             done
@@ -656,8 +645,8 @@ done,
 
 "websocket:close" : do rs:
     rs.setTimeout 5000;
-    server = https.create ();
-    webs.serverHandler server do ws:
+    server = createHttpServer ();
+    connectWebSocketServer server do ws:
         dataHandler ws do:
             ws#close();
         done;
@@ -665,11 +654,11 @@ done,
     server#listen(8080);
 
     _ = setTimer 1000 do:
-        client = httpc.create "localhost:8080";
-        webs.clientHandler client "/someurl" do ws:
-            webs.closedHandler ws do:
+        client = createHttpClient "localhost:8080";
+        connectWebSocketClient client "/someurl" do ws:
+            closedWebSocket ws do:
                 client#close();
-                https.close server do:
+                closeHttpServer server do:
                     rs.assure "close" true;
                 done;
                 ws#writeTextFrame("foo");
@@ -680,18 +669,18 @@ done,
 
 "websocket:closeFromConnectionHandler" : do rs:
     rs.setTimeout 5000;
-    server = https.create ();
-    webs.serverHandler server do ws :
+    server = createHttpServer ();
+    connectWebSocketServer server do ws :
         ws#close();
     done;
     server#listen(8080);
 
     _ = setTimer 1000 do:
-        client = httpc.create "localhost:8080";
-        webs.clientHandler client "/someurl" do ws:
-            webs.closedHandler ws do:
+        client = createHttpClient "localhost:8080";
+        connectWebSocketClient client "/someurl" do ws:
+            closedWebSocket ws do:
                 client#close();
-                https.close server do:
+                closeHttpServer server do:
                     rs.assure "close" true;
                 done;
             done;
