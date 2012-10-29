@@ -484,56 +484,52 @@ getHttpBodyNow client uri headers handler =
                     done
                 done;
 
+//bus things
+toJsonMessageHandler fn =
+    (class YvertxMessageHandler extends Handler
+        void handle(Object ob)
+            msg = ob unsafely_as ~Message;
+            _ = fn  
+                {message = msg,
+                handler = this as ~Handler,
+                get body () = 
+                    fromJS (msg#body unsafely_as ~JsonObject),
+                get replyAddress () = string msg#replyAddress,
+                reply v = msg#reply(toJS v),
+                request v handler = 
+                    msg#reply(toJS v, toJsonMessageHandler handler)
+               },
+    end;
+    new YvertxMessageHandler() as ~Handler);
 
-bus = {
-    toMessageHandler fn =
-            toHandler (fn . (unsafely_as ~Message)),
+publish address msg = 
+    (getVertx ())#eventBus()#publish(address is string, toJS msg);
 
-    toJsonMessageHandler fn =
-        (class YvertxMessageHandler extends Handler
-            void handle(Object ob)
-                msg = ob unsafely_as ~Message;
-                _ = fn  
-                    {message = msg,
-                    handler = this as ~Handler,
-                    get body () = 
-                        fromJS (msg#body unsafely_as ~JsonObject),
-                    get replyAddress () = string msg#replyAddress,
-                    reply v = msg#reply(toJS v),
-                    request v handler = 
-                        msg#reply(toJS v, toJsonMessageHandler handler)
-                   },
-        end;
-        new YvertxMessageHandler() as ~Handler),
+send address msg =
+    (getVertx ())#eventBus()#send(address is string, toJS msg);
 
-    publish address msg = 
-        (getVertx ())#eventBus()#publish(address is string, toJS msg),
+request address msg handler =   
+    (getVertx ())#eventBus()#send(address is string, toJS msg, 
+            toJsonMessageHandler handler);
 
-    send address msg =
-        (getVertx ())#eventBus()#send(address is string, toJS msg),
-
-    request address msg handler =   
-        (getVertx ())#eventBus()#send(address is string, toJS msg, 
-                toJsonMessageHandler handler),
+requestBody address msg handler =
+    request address msg do {body}: handler body done;
     
-    requestBody address msg handler =
-        request address msg do {body}: handler body done,
+registerBusHandler address resultHandler handler =
+    (getVertx ())#eventBus()#registerHandler(address is string,
+                            toJsonMessageHandler handler,
+                            toAsyncResultHandler resultHandler);
+    
+registerLocalBusHandler address handler =
+    (getVertx ())#eventBus()#registerLocalHandler(address is string,
+                   toJsonMessageHandler handler);
         
-    register address resultHandler handler =
-        (getVertx ())#eventBus()#registerHandler(address is string,
-                                toJsonMessageHandler handler,
-                                toAsyncResultHandler resultHandler),
-        
-    registerLocal address handler =
-        (getVertx ())#eventBus()#registerLocalHandler(address is string,
-                       toJsonMessageHandler handler),
-            
 
-    unregister id handler resultHandler =
-        (getVertx ())#eventBus()#unregisterHandler(id is string, handler, 
-                              toAsyncResultHandler resultHandler),
-};
+unregisterBusHandler id handler resultHandler =
+    (getVertx ())#eventBus()#unregisterHandler(id is string, handler, 
+                          toAsyncResultHandler resultHandler);
 
+//filesystem
 fsHelper = {
     closeAFile file handler =
         (file is ~AsyncFile)#close(toAsyncResultHandler handler),
@@ -741,6 +737,7 @@ fileSystem = ({
     } with fsHelper,
     
     //http things
+    bodyHandler,
     httpServerRequestHandler,
     createHttpServer,
     createHttpServerWithHandler,
@@ -751,7 +748,6 @@ fileSystem = ({
     params,
     requestHeaders,
 
-    bodyHandler,
     createHttpClient,
     putRequestHeaders,
     responseHeaders,
@@ -760,7 +756,15 @@ fileSystem = ({
     getHttpNow,
     getHttpBodyNow,
 
-    bus,
+    //bus functions
+    publish,
+    send,
+    request,
+    requestBody,
+    registerBusHandler,
+    registerLocalBusHandler,
+    unregisterBusHandler,
+    
 
     fileSystem,
 
