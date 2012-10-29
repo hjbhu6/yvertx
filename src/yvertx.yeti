@@ -355,7 +355,7 @@ createHttpServerWithHandler handler =
     (getVertx())#createHttpServer()#requestHandler(
         toHandler (handler . (unsafely_as ~HttpServerRequest)));
     
-close server handler =
+closeHttpServer server handler =
     (server is ~HttpServer)#close(toSimpleHandler handler);
 
 routeMatcher () =
@@ -431,21 +431,21 @@ putRequestHeaders request headers =
         (headers is hash<string,string>) as ~Map);
     request);
 
-clientResponseHeaders resp =
+responseHeaders resp =
     (ret = [:];
     forJavaMap (resp is ~HttpClientResponse)#headers() do k v:
         ret.[string k] := if defined? v then string v else "" fi;
     done;
     ret);
 
-clientResponseTrailers resp =
+responseTrailers resp =
     (ret = [:];
     forJavaMap (resp is ~HttpClientResponse)#trailers() do k v:
         ret.[string k] := if defined? v then string v else "" fi;
     done;
     ret);
     
-request client muri headers handler =
+httpRequest client muri headers handler =
     (h = toHandler (handler . (unsafely_as ~HttpClientResponse));
     req = case muri of
     Connect uri: 
@@ -471,13 +471,13 @@ request client muri headers handler =
     esac;
     putRequestHeaders req headers);
 
-getNow client uri headers handler =
+getHttpNow client uri headers handler =
    (client is ~HttpClient)#getNow(uri is string, 
                                   headers is hash<string,string>,
                     toHandler (handler . (unsafely_as ~HttpClientResponse)));
                                    
-getBodyNow client uri headers handler =
-   getNow client uri headers 
+getHttpBodyNow client uri headers handler =
+   getHttpNow client uri headers 
                 do resp:
                     bodyHandler resp do buffer:
                         handler {buffer, resp}
@@ -740,6 +740,26 @@ fileSystem = ({
         toTypedAsyncResultHandler
     } with fsHelper,
     
+    //http things
+    httpServerRequestHandler,
+    createHttpServer,
+    createHttpServerWithHandler,
+    closeHttpServer,
+    routeMatcher,
+    putResponseHeaders,
+    putResponseTrailers,
+    params,
+    requestHeaders,
+
+    bodyHandler,
+    createHttpClient,
+    putRequestHeaders,
+    responseHeaders,
+    responseTrailers,
+    httpRequest,
+    getHttpNow,
+    getHttpBodyNow,
+
     bus,
 
     fileSystem,
