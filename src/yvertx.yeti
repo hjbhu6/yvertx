@@ -58,27 +58,60 @@ import org.vertx.java.deploy.impl:VertxLocator;
 
 
 //callback functions
+typedef either<a> = Exception string | Some a; 
 typedef callback<a> = a -> ();
 typedef asyncFunction<a> = callback<a> -> ();
-
+typedef eitherAsyncFunction<a> = asyncFunction<either<a>>;
 
 cbId v is 'a -> asyncFunction<'a> = do cb: cb v done;
 
-cbBind fn cbfn is ('a -> asyncFunction<'b>) -> asyncFunction<'a> -> asyncFunction<'b>= 
+cbeId v is 'a -> asyncFunction<either<'a>> = 
+    do cb: cb (Some v) done;
+
+cbBind fn cbfn 
+    is ('a -> asyncFunction<'b>) -> asyncFunction<'a> -> asyncFunction<'b>= 
     do cb:
         cbfn do a: (fn a) cb done
     done;
 
+cbeBind fn cbfn
+    is ('a -> eitherAsyncFunction<'b>) -> eihterAsyncFunction<'a> 
+        -> eitherAsyncFunction<'b> =
+    do cb:
+        cbfn \case of
+            Exception str: cb (Exception str);
+            Some a: (fn a) cb;
+            esac;
+    done;
+    
+
 cbFlatten cbfn is asyncFunction<asyncFunction<'a>> -> asyncFunction<'a> = 
     cbBind id cbfn;
+
+cbeFlatten cbfn 
+    is eitherAsyncFunction<eitherAsyncFunction<'a>> -> eitherAsyncFunction<'a> =
+    cbeBind id cbfn;
 
 cbMap fn cbfn is ('a -> 'b) -> asyncFunction<'a> -> asyncFunction<'b>=
     do cb:
         cbfn do a: cb (fn a) done
     done;
 
+cbeMap fn cbfn is ('a -> 'b) -> eitherAsyncFunction<'a> 
+                -> eitherAsyncFunction<'b> =
+    do cb:
+        cbfn \case of
+            Exception str: cb (Exception str);
+            Some a: cb (fn a)
+            esac
+    done
+
+
 cbLift fn a cb is ('a -> 'b) -> ('a -> asyncFunction<'b>)=
     cb (fn a);
+
+cbeLift fn a cb is ('a -> 'b) -> ('a -> eitherAsyncFunction<'b>) =
+    cb (fn (Some a))
     
 cbSeq cbfns cb is list?<asyncFunction<'a>> -> callback<list<'a>> -> ()=
     (res = array [];
@@ -90,6 +123,28 @@ cbSeq cbfns cb is list?<asyncFunction<'a>> -> callback<list<'a>> -> ()=
             fi
         done;
     done);
+cbeSeq cbfns cb 
+    is list?<eitherasyncFunctiona<'a>> -> callback<either<list<'a>>> -> () =
+    (res = array [];
+    var handled = false;
+    for cbfns do c:
+        c \case of
+            Exception str: 
+                if not handled then
+                    handled := true;
+                    cb (Exception str);
+                fi;
+            Some a:
+                if not handled then
+                    push res a;
+                    if length res == length cbfns then
+                        handled := true;
+                        cb (list res);
+                    fi
+                fi
+            esac;
+    done);
+
 
 cbStruTH = threadLocal none;
 
@@ -104,7 +159,7 @@ cbSet cbfn is asyncFunction<'a> -> (() -> 'a) =
     cbfn do a:
         res := Some a;
         if not hasReceived then
-            ctr.hasReceived();
+            ctr.hasReceived (Some ());
             hasReceived := true
         fi;
     done;
@@ -113,7 +168,37 @@ cbSet cbfn is asyncFunction<'a> -> (() -> 'a) =
         Some v: v
       esac));    
 
-cbCol inex cb is (() -> 'a) -> asyncFunction<'a>=
+
+cbeSet cbfn is eitherAsyncFunction<'a> -> (() -> 'a) =
+    (ctr = case cbStruTH.value of
+        None _ : failWith "cbSet must only be used directly in cbCol";
+        Some r: r;
+        esac;
+    ctr.starting();
+    var hasReceived = false;
+    var res = NotSet ();
+    cbfn \case of
+        Exception str: 
+            if not hasReceived then
+                res := Exception str;
+                ctr.hasReceived (Exception str);
+                hasReveived := true;
+            fi;
+        Some a:
+            res := Some a;
+            if not hasReceived then
+                ctr.hasReceived (Some ());
+                hasReceived := true
+            fi;
+    esac;
+    \(case res of
+        NotSet (): failWith "Not set";
+        Exception str: failWith str;
+        Some v: v
+      esac));    
+
+
+cbeCol inex cb is (() -> 'a) -> eihterAsyncFunction<'a>=
     (var called = false;
      var requests = 0;
      var received = 0;
@@ -121,18 +206,24 @@ cbCol inex cb is (() -> 'a) -> asyncFunction<'a>=
      ctr = {
         starting () = 
             requests := requests + 1,
-        hasReceived () =
-            received := received + 1;
-            if not called then
-                case result of
-                None _ : ();
-                Some v: 
-                    if received == requests then
-                        called := true;
-                        cb v;
-                    fi;
-                esac;
-            fi,
+        hasReceived ex =
+            case ex of
+            Exception str :
+                called := true;
+                cb (Exception str);
+            Some _ :
+                received := received + 1;
+                if not called then
+                    case result of
+                    None _ : ();
+                    Some v: 
+                        if received == requests then
+                            called := true;
+                            cb v;
+                        fi;
+                    esac;
+                fi;
+            esac,
     };
     oCtr = cbStruTH.value;
     try 
@@ -147,6 +238,7 @@ cbCol inex cb is (() -> 'a) -> asyncFunction<'a>=
     catch Exception ex:
         if not called then
             called := true;
+            cb (Exception (string ex));
         fi
     finally
         cbStruTH.value := oCtr;
@@ -472,7 +564,7 @@ createHttpServerWithHandler handler =
 closeHttpServer server handler =
     (server is ~HttpServer)#close(toSimpleHandler handler);
 
-routeMatcher () =
+newRouteMatcher () =
    (import org.vertx.java.core.http:RouteMatcher;
    _rm = new RouteMatcher();
    toHa h = toHandler (h . (unsafely_as ~HttpServerRequest));
@@ -502,7 +594,56 @@ routeMatcher () =
         rm = _rm,
         handle req = _rm#handle(req is ~HttpServerRequest),
         createServer () = 
-            (getVertx())#createHttpServer()#requestHandler(_rm)
+            (getVertx())#createHttpServer()#requestHandler(_rm),
+
+        route fullpattern handler =
+            ({regex,methodPattern} =
+                if strStarts? fullpattern "regex:" then
+                    {regex = true, 
+                    methodPattern = strRight fullpattern 6}
+                else
+                    {regex = false,
+                     methodPattern = fullpattern}
+                fi;
+            {method, pattern} =
+                (cut = strIndexOf methodPattern ":" 0;
+                if cut < 0 then
+                    {method = "", pattern = methodPattern}
+                else
+                    {method = strUpper(strLeft methodPattern cut),
+                    pattern = strRight methodPattern (cut + 1)}
+                fi);
+            h = toHa handler;
+            if regex then
+                case method of
+                "ALL" : _rm#allWithRegEx(pattern,h);
+                "CONNECT" : _rm#connectWithRegEx(pattern,h);
+                "DELETE" : _rm#deleteWithRegEx(pattern,h);
+                "GET" : _rm#getWithRegEx(pattern,h);
+                "HEAD" : _rm#headWithRegEx(pattern,h);
+                "OPTIONS": _rm#optionsWithRegEx(pattern,h);
+                "PATCH" : _rm#patchWithRegEx(pattern,h);
+                "POST" : _rm#postWithRegEx(pattern,h);
+                "PUT" : _rm#putWithRegEx(pattern,h);
+                "TRACE" : _rm#traceWithRegEx(pattern,h);
+                _ : _rm#allWithRegex(fullpattern, h);
+                esac;
+            else
+                case method of
+                "ALL" : _rm#all(pattern,h);
+                "CONNECT" : _rm#connect(pattern,h);
+                "DELETE" : _rm#delete(pattern,h);
+                "GET" : _rm#get(pattern,h);
+                "HEAD" : _rm#head(pattern,h);
+                "OPTIONS": _rm#options(pattern,h);
+                "PATCH" : _rm#patch(pattern,h);
+                "POST" : _rm#post(pattern,h);
+                "PUT" : _rm#put(pattern,h);
+                "TRACE" : _rm#trace(pattern,h);
+                _ : _rm#all(fullpattern, h);
+                esac;
+
+            fi)
     });        
         
  
@@ -676,11 +817,39 @@ closeNetClient client =
 
 
 //bus things
+toEitherJsonMessageHandler fn =
+    (class YvertxEitherMessageHandler extends Handler
+        void handle(Object ob)
+            msg = ob unsafely_as ~Message;
+            body = fromJS (msg#body unsafely_as ~JsonObject);
+            if defined? body.status and body.status == "error" then
+                emg = if defined? body.message then
+                          string body.message
+                      else 
+                          "error but no message" 
+                      fi;
+                fn (Exception msg);
+            else
+                fn  
+                    {message = msg,
+                    handler = this as ~Handler,
+                    get body () = 
+                        fromJS (msg#body unsafely_as ~JsonObject),
+                    get replyAddress () = string msg#replyAddress,
+                    reply v = msg#reply(toJS v),
+                    request v handler = 
+                        msg#reply(toJS v, toEitherJsonMessageHandler handler)
+                   };
+            fi,
+
+    end;
+    new YvertxEitherMessageHandler() as ~Handler);
 toJsonMessageHandler fn =
     (class YvertxMessageHandler extends Handler
         void handle(Object ob)
             msg = ob unsafely_as ~Message;
-            _ = fn  
+            body = fromJS (msg#body unsafely_as ~JsonObject);
+            fn  
                 {message = msg,
                 handler = this as ~Handler,
                 get body () = 
@@ -688,8 +857,9 @@ toJsonMessageHandler fn =
                 get replyAddress () = string msg#replyAddress,
                 reply v = msg#reply(toJS v),
                 request v handler = 
-                    msg#reply(toJS v, toJsonMessageHandler handler)
+                    msg#reply(toJS v, toEitherJsonMessageHandler handler)
                },
+
     end;
     new YvertxMessageHandler() as ~Handler);
 
@@ -699,12 +869,16 @@ publish address msg =
 send address msg =
     (getVertx ())#eventBus()#send(address is string, toJS msg);
 
-request address msg handler =   
+sendWithHandler address msg handler =
     (getVertx ())#eventBus()#send(address is string, toJS msg, 
             toJsonMessageHandler handler);
 
+request address msg handler =   
+    (getVertx ())#eventBus()#send(address is string, toJS msg, 
+            toEitherJsonMessageHandler handler);
+
 requestBody address msg handler =
-    request address msg do {body}: handler body done;
+    (cbeMap (.body) (request address msg)) handler;
     
 registerBusHandler address resultHandler handler =
     (getVertx ())#eventBus()#registerHandler(address is string,
@@ -915,6 +1089,8 @@ fileSystem = ({
     newStringBuffer str = new Buffer(str is string),
     newEncodedBuffer str encoding = 
         new Buffer(str is string, encoding is string),
+    newByteBuffer bytes =
+        new Buffer(bytes is ~byte[]),
     
     createPump readStream writeStream = 
         Pump#createPump(readStream, writeStream), 
@@ -947,7 +1123,7 @@ fileSystem = ({
     createHttpServer,
     createHttpServerWithHandler,
     closeHttpServer,
-    routeMatcher,
+    newRouteMatcher,
     putResponseHeaders,
     putResponseTrailers,
     params,
@@ -1014,6 +1190,14 @@ fileSystem = ({
         yrt),
     vertxThreadLocal,
     containerThreadLocal,
+
+    maybeDefined wrongFn rightFn value =
+        if defined? value then rightFn value else wrongFn () fi,
+
+    onDefined fn v = if defined? v then Some (fn v) else none fi,
+    isString x = x ^ "",
+    isNumber x = x + 0,
+    isBoolean x = if x then x else x fi,
 
     //recordparser
     fixedRecordParser size handler = 
