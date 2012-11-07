@@ -375,10 +375,46 @@ fromJS object is ~JsonObject -> 'a =
 fromJSArray ar is ~JsonArray -> list<'a> =
     (_fromJS ar) unsafely_as list<'a>;    
 
+blend v1 v2 is 'a -> 'b -> 'a =
+    (import yeti.lang:Struct,
+                      GenericStruct;
+    import java.util.HashMap;
+
+    o1 = v1 unsafely_as ~Object;
+    o2 = v2 unsafely_as ~Object;
+    if defined? v1 and defined? v2 and 
+       o1 instanceof ~Struct and o2 instanceof ~Struct then
+
+        s1 = o1 unsafely_as ~Struct;
+        s2 = o2 unsafely_as ~Struct;
+        jmap = new HashMap();
+        for [0..(s1#count - 1)] do i:
+            na = s1#name(i);
+            va = s1#get(i);
+            _ = jmap#put(na,va);
+        done;
+        for [0..(s2#count - 1)] do i:
+            na = s1#name(i);
+            va = s1#get(i);
+            ov = jmap#get(na);
+            va2 = if defined? ov then
+                    blend ov va
+                  else 
+                      va;
+                  fi;
+            _ = jmap#put(na,va2);
+        done;
+        (new GenericStruct(jmap)) unsafely_as 'a;
+    else
+        v1
+    fi);
+
 hostAndPort hostPort =
    (i = strIndexOf hostPort ":" 0;
     if i < 0 then 
         {port = 80, host = hostPort}
+    elif i == 0 then
+        {hostPort = "localhost", port = int (number (strRight hostPort 1))}
     else
        {host = strLeft hostPort i,
         port = int (number (strRight hostPort (i+1)))}
