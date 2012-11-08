@@ -58,24 +58,16 @@ import org.vertx.java.deploy.impl:VertxLocator;
 
 
 //callback functions
-typedef either<a> = Exception string | Some a; 
 typedef callback<a> = a -> ();
 typedef asyncFunction<a> = callback<a> -> ();
+typedef either<a> = Exception ~Exception | Some a; 
 typedef eitherAsyncFunction<a> = asyncFunction<either<a>>;
-
-cbId v is 'a -> asyncFunction<'a> = do cb: cb v done;
 
 cbeId v is 'a -> asyncFunction<either<'a>> = 
     do cb: cb (Some v) done;
 
-cbBind fn cbfn 
-    is ('a -> asyncFunction<'b>) -> asyncFunction<'a> -> asyncFunction<'b>= 
-    do cb:
-        cbfn do a: (fn a) cb done
-    done;
-
 cbeBind fn cbfn
-    is ('a -> eitherAsyncFunction<'b>) -> eihterAsyncFunction<'a> 
+    is ('a -> eitherAsyncFunction<'b>) -> eitherAsyncFunction<'a> 
         -> eitherAsyncFunction<'b> =
     do cb:
         cbfn \case of
@@ -84,18 +76,9 @@ cbeBind fn cbfn
             esac;
     done;
     
-
-cbFlatten cbfn is asyncFunction<asyncFunction<'a>> -> asyncFunction<'a> = 
-    cbBind id cbfn;
-
 cbeFlatten cbfn 
     is eitherAsyncFunction<eitherAsyncFunction<'a>> -> eitherAsyncFunction<'a> =
     cbeBind id cbfn;
-
-cbMap fn cbfn is ('a -> 'b) -> asyncFunction<'a> -> asyncFunction<'b>=
-    do cb:
-        cbfn do a: cb (fn a) done
-    done;
 
 cbeMap fn cbfn is ('a -> 'b) -> eitherAsyncFunction<'a> 
                 -> eitherAsyncFunction<'b> =
@@ -104,27 +87,13 @@ cbeMap fn cbfn is ('a -> 'b) -> eitherAsyncFunction<'a>
             Exception str: cb (Exception str);
             Some a: cb (fn a)
             esac
-    done
-
-
-cbLift fn a cb is ('a -> 'b) -> ('a -> asyncFunction<'b>)=
-    cb (fn a);
+    done;
 
 cbeLift fn a cb is ('a -> 'b) -> ('a -> eitherAsyncFunction<'b>) =
-    cb (fn (Some a))
+    cb (fn (Some a));
     
-cbSeq cbfns cb is list?<asyncFunction<'a>> -> callback<list<'a>> -> ()=
-    (res = array [];
-     for cbfns do c:
-        c do a:
-            push res a;
-            if length res == length cbfns then
-                cb (list res);
-            fi
-        done;
-    done);
 cbeSeq cbfns cb 
-    is list?<eitherasyncFunctiona<'a>> -> callback<either<list<'a>>> -> () =
+    is list?<eitherAsyncFunction<'a>> -> callback<either<list<'a>>> -> () =
     (res = array [];
     var handled = false;
     for cbfns do c:
@@ -139,12 +108,43 @@ cbeSeq cbfns cb
                     push res a;
                     if length res == length cbfns then
                         handled := true;
-                        cb (list res);
+                        cb (Some(list res));
                     fi
                 fi
             esac;
     done);
 
+cbId v is 'a -> asyncFunction<'a> = do cb: cb v done;
+
+
+cbBind fn cbfn 
+    is ('a -> asyncFunction<'b>) -> asyncFunction<'a> -> asyncFunction<'b>= 
+    do cb:
+        cbfn do a: (fn a) cb done
+    done;
+
+
+cbFlatten cbfn is asyncFunction<asyncFunction<'a>> -> asyncFunction<'a> = 
+    cbBind id cbfn;
+
+cbMap fn cbfn is ('a -> 'b) -> asyncFunction<'a> -> asyncFunction<'b>=
+    do cb:
+        cbfn do a: cb (fn a) done
+    done;
+
+cbLift fn a cb is ('a -> 'b) -> ('a -> asyncFunction<'b>)=
+    cb (fn a);
+
+cbSeq cbfns cb is list?<asyncFunction<'a>> -> callback<list<'a>> -> ()=
+    (res = array [];
+     for cbfns do c:
+        c do a:
+            push res a;
+            if length res == length cbfns then
+                cb (list res);
+            fi
+        done;
+    done);
 
 cbStruTH = threadLocal none;
 
@@ -168,7 +168,6 @@ cbSet cbfn is asyncFunction<'a> -> (() -> 'a) =
         Some v: v
       esac));    
 
-
 cbeSet cbfn is eitherAsyncFunction<'a> -> (() -> 'a) =
     (ctr = case cbStruTH.value of
         None _ : failWith "cbSet must only be used directly in cbCol";
@@ -182,7 +181,7 @@ cbeSet cbfn is eitherAsyncFunction<'a> -> (() -> 'a) =
             if not hasReceived then
                 res := Exception str;
                 ctr.hasReceived (Exception str);
-                hasReveived := true;
+                hasReceived := true;
             fi;
         Some a:
             res := Some a;
@@ -193,12 +192,11 @@ cbeSet cbfn is eitherAsyncFunction<'a> -> (() -> 'a) =
     esac;
     \(case res of
         NotSet (): failWith "Not set";
-        Exception str: failWith str;
+        Exception str: throw (str is ~Exception);
         Some v: v
       esac));    
 
-
-cbeCol inex cb is (() -> 'a) -> eihterAsyncFunction<'a>=
+cbeCol inex cb is (() -> 'a) -> eitherAsyncFunction<'a>=
     (var called = false;
      var requests = 0;
      var received = 0;
@@ -238,7 +236,7 @@ cbeCol inex cb is (() -> 'a) -> eihterAsyncFunction<'a>=
     catch Exception ex:
         if not called then
             called := true;
-            cb (Exception (string ex));
+            cb (Exception ex);
         fi
     finally
         cbStruTH.value := oCtr;
@@ -383,21 +381,22 @@ blend v1 v2 is 'a -> 'b -> 'a =
     o1 = v1 unsafely_as ~Object;
     o2 = v2 unsafely_as ~Object;
     if defined? v1 and defined? v2 and 
-       o1 instanceof ~Struct and o2 instanceof ~Struct then
+       o1 instanceof Struct and o2 instanceof Struct then
 
         s1 = o1 unsafely_as ~Struct;
         s2 = o2 unsafely_as ~Struct;
         jmap = new HashMap();
-        for [0..(s1#count - 1)] do i:
+        for [0..(s1#count() - 1)] do i:
             na = s1#name(i);
             va = s1#get(i);
             _ = jmap#put(na,va);
         done;
-        for [0..(s2#count - 1)] do i:
+        for [0..(s2#count() - 1)] do i:
             na = s1#name(i);
             va = s1#get(i);
             ov = jmap#get(na);
-            va2 = if defined? ov then
+            va2 = if defined? ov 
+                    and (ov unsafely_as ~Object) instanceof Struct then
                     blend ov va
                   else 
                       va;
@@ -414,7 +413,7 @@ hostAndPort hostPort =
     if i < 0 then 
         {port = 80, host = hostPort}
     elif i == 0 then
-        {hostPort = "localhost", port = int (number (strRight hostPort 1))}
+        {host = "localhost", port = int (number (strRight hostPort 1))}
     else
        {host = strLeft hostPort i,
         port = int (number (strRight hostPort (i+1)))}
@@ -662,7 +661,7 @@ newRouteMatcher () =
                 "POST" : _rm#postWithRegEx(pattern,h);
                 "PUT" : _rm#putWithRegEx(pattern,h);
                 "TRACE" : _rm#traceWithRegEx(pattern,h);
-                _ : _rm#allWithRegex(fullpattern, h);
+                _ : _rm#allWithRegEx(fullpattern, h);
                 esac;
             else
                 case method of
@@ -853,8 +852,10 @@ closeNetClient client =
 
 
 //bus things
+
 toEitherJsonMessageHandler fn =
-    (class YvertxEitherMessageHandler extends Handler
+    (import yeti.lang:FailureException;
+    class YvertxEitherMessageHandler extends Handler
         void handle(Object ob)
             msg = ob unsafely_as ~Message;
             body = fromJS (msg#body unsafely_as ~JsonObject);
@@ -864,9 +865,9 @@ toEitherJsonMessageHandler fn =
                       else 
                           "error but no message" 
                       fi;
-                fn (Exception msg);
+                fn (Exception (new FailureException(emg)));
             else
-                fn  
+                fn (Some 
                     {message = msg,
                     handler = this as ~Handler,
                     get body () = 
@@ -875,11 +876,12 @@ toEitherJsonMessageHandler fn =
                     reply v = msg#reply(toJS v),
                     request v handler = 
                         msg#reply(toJS v, toEitherJsonMessageHandler handler)
-                   };
+                   });
             fi,
 
     end;
     new YvertxEitherMessageHandler() as ~Handler);
+
 toJsonMessageHandler fn =
     (class YvertxMessageHandler extends Handler
         void handle(Object ob)
@@ -893,7 +895,7 @@ toJsonMessageHandler fn =
                 get replyAddress () = string msg#replyAddress,
                 reply v = msg#reply(toJS v),
                 request v handler = 
-                    msg#reply(toJS v, toEitherJsonMessageHandler handler)
+                    msg#reply(toJS v, toJsonMessageHandler handler)
                },
 
     end;
@@ -911,11 +913,11 @@ sendWithHandler address msg handler =
 
 request address msg handler =   
     (getVertx ())#eventBus()#send(address is string, toJS msg, 
-            toEitherJsonMessageHandler handler);
-
+            toJsonMessageHandler handler);
+/*
 requestBody address msg handler =
     (cbeMap (.body) (request address msg)) handler;
-    
+*/    
 registerBusHandler address resultHandler handler =
     (getVertx ())#eventBus()#registerHandler(address is string,
                             toJsonMessageHandler handler,
@@ -1081,6 +1083,19 @@ fileSystem = ({
 
  
 {
+    //eitherCallbackFunctions
+    cbeId,
+    cbeBind,
+    cbeFlatten,
+    cbeMap,
+    cbeLift,
+    cbeSeq,
+    cbeSet,
+    cbeCol,
+    (->) cbfn fn =  cbeMap fn cbfn,
+    (->>) cbfn fn = cbeBind fn cbfn,
+    noex,
+
     //callback functions
     cbId,
     cbBind,
@@ -1089,11 +1104,9 @@ fileSystem = ({
     cbLift,
     cbSeq,
     cbSet,
-    cbCol,
-    (->) cbfn fn =  cbMap fn cbfn,
-    (->>) cbfn fn = cbBind fn cbfn,
+    (-->) cbfn fn =  cbMap fn cbfn,
+    (-->>) cbfn fn = cbBind fn cbfn,
     ($) a b = a b,
-    noex,
 
     get context () =  Context#getContext(),
     addCloseHook key fn = 
@@ -1199,7 +1212,7 @@ fileSystem = ({
     publish,
     send,
     request,
-    requestBody,
+    //requestBody,
     registerBusHandler,
     registerLocalBusHandler,
     unregisterBusHandler,
@@ -1234,6 +1247,7 @@ fileSystem = ({
     isString x = x ^ "",
     isNumber x = x + 0,
     isBoolean x = if x then x else x fi,
+    blend,
 
     //recordparser
     fixedRecordParser size handler = 
