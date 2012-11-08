@@ -17,7 +17,8 @@
 module clientExample;
  
 load yvertx;
- 
+
+import java.lang.Exception;
 import org.vertx.java.core.Handler;
 import org.vertx.java.core.buffer.Buffer;
 import org.vertx.java.core.http.HttpClientResponse;
@@ -29,8 +30,10 @@ verticle do :
         client
         "/" 
         [:] 
-        do {resp, buffer}:
-            _ = println (string buffer)
-        done;
+        \case of
+            Some {resp, buffer}:
+                _ = println (string buffer);
+            Exception ex: throw (ex is ~Exception);
+        esac;
     \()
 done;

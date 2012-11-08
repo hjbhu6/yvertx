@@ -26,10 +26,10 @@ verticle do :
              #setSSL(true)
              #setTrustAll(true);
              
-    getHttpBodyNow client "/" [:] do {buffer, resp}:
+    getHttpBodyNow client "/" [:] (noex do {buffer, resp}:
             println "length: \((buffer is ~Buffer)#length())";
             println (string buffer);
-          done;
+          done);
     \();
 done;
 

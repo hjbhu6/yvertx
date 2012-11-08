@@ -135,7 +135,7 @@ cbMap fn cbfn is ('a -> 'b) -> eitherAsyncFunction<'a>
     do cb:
         cbfn \case of
             Exception str: cb (Exception str);
-            Some a: cb (fn a)
+            Some a: cb (Some (fn a));
             esac
     done;
 
@@ -148,7 +148,7 @@ cbMap fn cbfn is ('a -> 'b) -> eitherAsyncFunction<'a>
  * fn - function to transform
  */
 cbLift fn a cb is ('a -> 'b) -> ('a -> eitherAsyncFunction<'b>) =
-    cb (fn (Some a));
+    cb (Some (fn a));
 
 /**
  * Group: async
@@ -205,14 +205,14 @@ cbSet cbfn is eitherAsyncFunction<'a> -> (() -> 'a) =
         Exception str: 
             if not hasReceived then
                 res := Exception str;
-                ctr.hasReceived (Exception str);
                 hasReceived := true;
+                ctr.hasReceived (Exception str);
             fi;
         Some a:
-            res := Some a;
             if not hasReceived then
+                hasReceived := true;
+                res := Some a;
                 ctr.hasReceived (Some ());
-                hasReceived := true
             fi;
     esac;
     \(case res of
@@ -260,7 +260,7 @@ cbCollect inex cb is (() -> 'a) -> eitherAsyncFunction<'a>=
                     Some v: 
                         if received == requests then
                             called := true;
-                            cb v;
+                            cb (Some v);
                         fi;
                     esac;
                 fi;
@@ -273,7 +273,7 @@ cbCollect inex cb is (() -> 'a) -> eitherAsyncFunction<'a>=
         result := Some r;
         if not called and received == requests then
             called := true;
-            cb r
+            cb (Some r)
         fi;
             
     catch Exception ex:
@@ -309,6 +309,8 @@ done;
  */
 emptyJS is json<()>= {json = ()};
 
+_sameObj = new Object();
+
 _toJS object = 
    (import yeti.lang:Num, FloatNum, RatNum,AList, ByKey, Struct, Tag;
     import java.util:ArrayList,Map, HashMap;
@@ -342,11 +344,9 @@ _toJS object =
         dbo = new HashMap();
         for [0 .. st#count() - 1] do i:
             name = st#name(i);
-            v = st#get(i);
-            //check for js marker parameter
-            if not (name == "json" and (nullptr? v or not defined? v)) then
-                value = _toJS (v unsafely_as 'a);
-                _ = dbo#put(name, value);
+            v = _toJS (st#get(i) unsafely_as 'a);
+            if (not nullptr? v) or  same? _sameObj v then
+                _ = dbo#put(name,v);
             fi;
         done;
         new JsonObject(dbo);
@@ -356,6 +356,8 @@ _toJS object =
             _toJS (t#value unsafely_as 'a);
         elif t#name == "None" then
             () as ~Object;
+        elif t#name == "Null" then
+            _sameObj;
         else
             failWith "Can not serialize \(o)"
         fi
@@ -435,11 +437,7 @@ _fromJS object =
             if not nullptr? value then
                 ma#put(string e#getKey(), value);
             fi);
-        if ma#size() == 0 then
-            emptyJS as ~Object;
-        else
-            new HashStruct(ma);
-        fi
+        new HashStruct(ma);
     else
         o
     fi);

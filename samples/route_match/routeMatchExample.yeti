@@ -18,7 +18,7 @@ module routeMatchExample;
 load yvertx;
 
 verticle do :
-    rm = routeMatcher ();
+    rm = newRouteMatcher ();
     rm._get "/details/:user/:id" do req:
         p = params req;
         req#response#end("User: \(p.['user']) ID: \(p.['id'])");

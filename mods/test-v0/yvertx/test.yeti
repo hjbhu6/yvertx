@@ -222,36 +222,46 @@ done,
 done,
 
 "cb:Id" : do rs:
-   (cbId 2) do v: rs.assure "" (2 == v) done;
+   (cbId 2) do v: rs.assure "" ((Some 2) == v) done;
 done,
 
 "cb:Bind" : do rs:
-    (do cb: cb 1 done) 
-    -->> do x: 
+    (do cb: cb (Some 1) done) 
+    ->> do x: 
         rs.assert "" (x == 1);
-        do cb: cb "hier" done;
+        do cb: cb (Some "hier") done;
         done
-        $do v:
+        $(noex do v:
             rs.assure "" (v == "hier")
-        done
+        done)
+done,
+
+"cb:Map" : do rs:
+    mfn = ((do cb: cb (Some 1) done) -> string);
+    mfn (noex do s:
+        rs.assure "" (s == "1")
+    done)
 done,
 
 "cb:flatten" : do rs:
-    (cbFlatten (cbId (cbId 1))) do v: rs.assure "" (v == 1) done;
+    (cbFlatten (cbId (cbId 1))) 
+        do v: rs.assure "" (v == Some 1) done;
 done,
 
 "cb:lift" : do rs:
-    ((cbLift do x: string x done) 1) do st:
-        rs.assure "" (st == "1")
-    done;
+    ((cbLift do x: string x done) 1) 
+        (noex do st:
+            rs.assure "" (st == "1")
+        done);
 done,
 
-"cb:Seq" : do rs:
+"cb:Sequence" : do rs:
     //make services 
     adresses = [1..10] |> map (("adr"^) . string);
     for adresses do adr:
         registerBusHandler adr \() do {reply, handler}:
-            reply {value = 1};
+            reply {value = 1, 
+                   json=()};
             unregisterBusHandler adr handler \();
         done
     done;
@@ -259,37 +269,39 @@ done,
         request adr emptyJS -> 
             do {body} : body.value done
     done;
-    cbSeq handlers do res:
-        rs.assure "\(res)" true //(10 == fold (+) 0 res);
-    done
+    fns = cbSequence handlers; 
+    fns (noex do res:
+        rs.assure "\(res)" (10 == fold (+) 0 res);
+    done)
 done,
 
-"cb:Col" : do rs:
+"cb:Colllect" : do rs:
     register adr =
         registerBusHandler adr \() do {reply, handler} :
-            reply {value = adr ^ "foo"};
+            reply {value = adr ^ "foo", json=()};
             unregisterBusHandler adr handler \();
         done;
     
     for [1..2] (register . ("adr"^) . string);
 
-    cbCol \{
+    cfn = cbCollect \{
          a = cbSet
             (requestBody "adr1" emptyJS -> (.value)),
          b = cbSet
             (requestBody "adr2" emptyJS -> (.value)),
-        }
-        do r :
+        };
+        
+    cfn (noex do r :
             rs.assure "\(r)" (r.a() == "adr1foo" 
                               and r.b() == "adr2foo");
-        done;
+        done);
 done,
 
 
 
 
 "eventbus:simple" : do rs:
-    msg = {address = "foo-address", price=23.45};
+    msg = {address = "foo-address", price=23.45, json=()};
     rs.setTimeout(2000);
     address = "foo-some";
     var handled = false;
@@ -315,7 +327,7 @@ done,
 
 "eventbus:unregister" : do rs:
     var handled = false;
-    msg = {count = 1, foo = "foo"};
+    msg = {count = 1, foo = "foo", json=()};
     var assertion = true;
     registerBusHandler "foo" \() do {body,handler}:
         assertion := assertion and (body == msg and not handled);
@@ -333,8 +345,8 @@ done,
 
 "eventbus:withReply" : do rs:
     var handled = false;
-    msg = {count=1, foo = "foo2"};
-    repl = {reply = true};
+    msg = {count=1, foo = "foo2", json=()};
+    repl = {reply = true, json=()};
     var asserts = true;
     registerBusHandler "foo" \() do {body,handler, reply}:
         asserts := asserts and (not handled and msg == body);
@@ -343,32 +355,32 @@ done,
         reply repl;
     done;
 
-    request "foo" msg do {body}:
+    request "foo" msg (noex do {body}:
         rs.assure "\(body)" (asserts and (body == repl));
-    done;
+    done);
 done,
 
 "eventbus:replyOfReplyOfReply" : do rs:
     adr = "foo";
-    msg = {msg = "message"};
-    repl = {msg = "repl"};
-    repl2 = {msg = "repl2"};
-    repl3 = {msg = "repl3"};
+    msg = {msg = "message", json=()};
+    repl = {msg = "repl", json=()};
+    repl2 = {msg = "repl2", json=()};
+    repl3 = {msg = "repl3", json=()};
     registerBusHandler adr \() do {body, handler, request}:
         rs.assert "" (msg == body);
-        request repl do {body, reply}:
+        request repl (noex do {body, reply}:
             rs.assert "" (repl2 == body);
             reply repl3;
             unregisterBusHandler adr handler \();
-        done
+        done)
     done;
 
-    request adr msg do {body,request}:
+    request adr msg (noex do {body,request}:
         rs.assert "" (body == repl);
-        request repl2 do {body}:
+        request repl2 (noex do {body}:
             rs.assure "" (body == repl3);
-        done
-    done;
+        done)
+    done);
 done,
 
 "eventbus:emptyReply" : do rs:
@@ -382,9 +394,9 @@ done,
         handled := true;
         reply emptyJS;
     done;
-    request adr msg do {body, reply}:
+    request adr msg (noex do {body, reply}:
         rs.assure "" true;
-    done;
+    done);
 done,
 
 "filesystem:copy" : do rs:
@@ -481,7 +493,7 @@ done,
 done,
 
 "http:hostport" : do rs:
-    {host,port} = helper.hostAndPort "localhost:8080";
+    {host,port} = hostAndPort "localhost:8080";
     rs.assure "" (host == "localhost" and port == 8080);
 done,
 
@@ -502,11 +514,11 @@ done,
             client
             "/" 
             [:] 
-            do {resp, buffer}:
+            (noex do {resp, buffer}:
                 closeHttpServer server do:
                     rs.assure (string buffer) true;
                 done;
-            done;
+            done);
     done;
 done,
     
