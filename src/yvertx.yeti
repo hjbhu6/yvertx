@@ -1375,13 +1375,51 @@ closedWebSocket socket handler =
 
 //sockjs functions
 
+/**
+ * Group: sockjs (sockjs functions)
+ * creates a sockjs server
+ *
+ * calls Vertx#createSockJSServer
+ *
+ * Arguments:
+ * server - httpServer
+ */
 createSockJSServer server =
     (getVertx())#createSockJSServer(server);
 
+/**
+ * Group: sockjs
+ * install SockJSApp
+ *
+ * calls SockJSServer#installApp
+ *
+ * Arguments:
+ * server - SockJSServer
+ * config - sockjs application configuration
+ * sockHandler - handler that will be called when new SockJS sockets are 
+ * created;
+ */
 installSockJSApp server config handler =
     (server is ~SockJSServer)#installApp(toJS config, 
                  toHandler (handler . (unsafely_as ~SockJSSocket)));  
 
+/**
+ * Group: sockjs
+ * Intall an app wich bridges the SockJS server to the event bus
+ *
+ * calls SockJSServer#bridge
+ *
+ * Arguments:
+ * server - SockJSServer
+ * opts - list of auth options
+ *        AuthTimeout authentication time ms default is 5 minutes
+ *        AuthAddress authentication addres default is 
+ *        vertx.basicauthmanager.athorise
+ * sjsConfig - the config for the app
+ * inboundPermitted - list of structs which is transformed to json and
+ *                    have to mathc the inbound permitted message
+ * outboundPermitted - like inboundPermitted for traffic out
+ */
 bridgeSockJS server opts sjsConfig inboundPermitted outboundPermitted =
    (var authTimeout = 5 * 60 * 1000;
     var authAddress = "vertx.basicauthmanager.athorise";
@@ -1399,12 +1437,41 @@ bridgeSockJS server opts sjsConfig inboundPermitted outboundPermitted =
 
 
 //net functions
+
+/**
+ * Group: net
+ * add closedHanlder on a netsocket
+ *
+ * calls NetSocket#closed
+ *
+ * Arguments:
+ * socket - NetSocket
+ * hanlder - closedHanlder
+ */
 netsocketClosed socket handler =
     (socket is ~NetSocket)#closedHandler(toSimpleHandler handler);
-    
+
+/**
+ * Group: net
+ * create a net client
+ *
+ * calls Vertx#createNetClient
+ */
 createNetClient () = 
     (getVertx())#createNetClient();
 
+/**
+ * Group: net
+ * connects the given handler to the given client at the port
+ *
+ * calls NetClient#exceptionHandler and NetClient#connect
+ *
+ * Arguments:
+ * netClient - the NetClient
+ * hostPort - string of form "host:port" see functin hostAndPort
+ * exceptionHandler - the exceptionHandler registeres with #exceptionHandler
+ * netClientHandler - the clientHandler
+ */
 connectNetClient client hostPort exceptionHandler handler =
     ({host,port} = hostAndPort hostPort;
      (client is ~NetClient)#exceptionHandler(
@@ -1413,25 +1480,79 @@ connectNetClient client hostPort exceptionHandler handler =
                 toHandler (handler . (unsafely_as ~NetSocket)));
      ());
 
+/**
+ * Group: net
+ * creats and connects the net client
+ * same as createNetClient and connectNetClient in one operation
+ * 
+ * Arguments:
+ * hostPort - string of form "host:port" see functin hostAndPort
+ * exceptionHandler - the exceptionHandler registeres with #exceptionHandler
+ * netClientHandler - the clientHandler
+ */
 createAndConnectNetClient hostPort settings exceptionHandler handler=
     (client = createNetClient ();
     _ = settings client;
     connectNetClient client hostPort exceptionHandler handler;
     client);
-    
+
+/**
+ * Group: net
+ * creates a net server
+ *
+ * calls Vertx#createNetServer;
+ */
 createNetServer () =
     (getVertx())#createNetServer();
 
+/**
+ * Group: net
+ * connects the handler to the NetServer
+ *
+ * calls NetServer#connectHandler;
+ *
+ * Arguments:
+ * server - the NetServer
+ * hanlder - the NetSocketHandler
+ */
 connectNetServer server handler =
     (server is ~NetServer)#connectHandler(
         toHandler (handler . (unsafely_as ~NetSocket)));
 
+/**
+ * Group: net
+ * creates a NetServer and connects the handler
+ *
+ * Same as createNetServer and connectNetServer in one operation
+ *
+ * Arguments:
+ * handler - the NetSocket hanlder
+ */
 createAndConnectNetServer handler =
     connectNetServer(createNetServer ()) handler;
 
+/**
+ * Group: net
+ * closes the NetServer
+ *
+ * calls NetServer#close
+ *
+ * Arguments:
+ * server - the NetServer
+ * doneHandler - handler called when close is complete
+ */
 closeNetServer server handler =
     (server is ~NetServer)#close(toSimpleHandler handler);
 
+/**
+ * Group: net
+ * closes the NetClient
+ *
+ * calls NetClient#close
+ *
+ * Arguments:
+ * netClinet - the NetClient
+ */
 closeNetClient client =
     (client is ~NetClient)#close();
 
@@ -1486,9 +1607,33 @@ toJsonMessageHandler fn =
     end;
     new YvertxMessageHandler() as ~Handler);
 
+/**
+ * Group: eventbus 
+ * publish a JSON message on the eventbus
+ *
+ * Note only structs can be published here
+ *
+ * calls EventBus#publish
+ *
+ * Arguments:
+ * address - the address to publish to
+ * structMessage - the struct which will be posted as Json
+ */
 publish address msg = 
     (getVertx ())#eventBus()#publish(address is string, toJS msg);
 
+/**
+ * Group: eventbus
+ * send a JsON message on the eventbus
+ *
+ * Note only struct can be send as message here
+ *
+ * calls EventBus#send
+ *
+ * Arguments:
+ * address - the address to send to
+ * structMessage - the struct which will be send as JSON
+ */
 send address msg =
     (getVertx ())#eventBus()#send(address is string, toJS msg);
 
@@ -1496,22 +1641,82 @@ sendWithHandler address msg handler =
     (getVertx ())#eventBus()#send(address is string, toJS msg, 
             toJsonMessageHandler handler);
 
+/**
+ * Group: eventbus
+ * send a JSON message and receive a response
+ *
+ * Note only strcut can be send as message here
+ *
+ * Arguments:
+ * address - the address to send to
+ * structMessage - the struct whill will be send as JSON
+ * responseHanlder - the handler which gets the response
+ */
 request address msg handler =   
     (getVertx ())#eventBus()#send(address is string, toJS msg, 
             toEitherJsonMessageHandler handler);
+
+/**
+ * Group: eventbus
+ * send a Json message and recieve the response body directly
+ *
+ * Note only struct can be sent as message here.
+ *
+ * Arguments:
+ *
+ * address - the address to send to
+ * structMessage - the struct which will be sind as JSON
+ * responseHandler - the handler which gets the response struct
+ */
 requestBody address msg handler =
     (cbMap (.body) (request address msg)) handler;
 
+/**
+ * Group: eventbus
+ * register a JSON message handler on the eventbus
+ *
+ * Note only JsonMessages can be handled this way
+ *
+ * calls EventBus#registerHandler
+ *
+ * Arguments:
+ * address - the bus address to register to
+ * readyHandler - is informed when the message handler is registered in
+ * the whole cluster
+ * messageHandler - the handler which receives the messages
+ */
 registerBusHandler address resultHandler handler =
     (getVertx ())#eventBus()#registerHandler(address is string,
                             toJsonMessageHandler handler,
                             toAsyncResultHandler resultHandler);
-    
+
+/**
+ * Group: eventbus
+ * registers a local handler on the eventubs
+ *
+ * Note only JsonMessage can be handled this way
+ *
+ * calls EventBus#registerLocalHandler
+ *
+ * Arguments:
+ * address - the address to regsiter to
+ * handler - the message handeler
+ */
 registerLocalBusHandler address handler =
     (getVertx ())#eventBus()#registerLocalHandler(address is string,
                    toJsonMessageHandler handler);
         
-
+/**
+ * Group: eventbus
+ * deregisters the given handler
+ *
+ * calls EventBus#unregisterHandler
+ *
+ * Arguments:
+ * id - the handler id
+ * handler - the hanlder to deregister 
+ *      (it is given to the handler on each call)
+ */
 unregisterBusHandler id handler resultHandler =
     (getVertx ())#eventBus()#unregisterHandler(id is string, handler, 
                           toAsyncResultHandler resultHandler);
@@ -1536,6 +1741,11 @@ fsHelper = {
                                    toAsyncResultHandler handler),
 };
 
+/**
+ * group: file
+ * Wrapper around all the async method of FileSystem. The functionality
+ * and arguments are the same as there
+ */
 fileSystem = ({
     get fs () = ((getVertx ())#fileSystem()),
     chmod path perms handler =
@@ -1676,14 +1886,50 @@ fileSystem = ({
     cbSequence,
     cbSet,
     cbCollect,
+    /**
+     * Group: async
+     * operator for map but with changed parameters
+     */
     (->) cbfn fn =  cbMap fn cbfn,
+    
+    /**
+     * Group: async
+     * operator for cbBind with changed paramters
+     */
     (->>) cbfn fn = cbBind fn cbfn,
+    
+    /**
+     * Group: helper
+     * operator for sperating arguments
+     */
     ($) a b = a b,
     noex,
 
+    /**
+     * Group: container
+     * context property calls Context#getContext
+     */
     get context () =  Context#getContext(),
+    
+    /**
+     * Group: container
+     * adds a close hook on context
+     *
+     * calls Context#putCloseHook
+     *
+     * Arguments:
+     * key - the hook key
+     * fn - the hook function
+     */
     addCloseHook key fn = 
         Context#getContext()#putCloseHook(key is string, runnable fn),
+    
+    /**
+     * Groupt: container
+     * executes the given fn on a worker
+     *
+     * calls Context#executeOnWorker
+     */
     executeOnWorker fn = 
         Context#getContext()#executeOnWorker(runnable fn),
     
@@ -1707,21 +1953,63 @@ fileSystem = ({
     wsExceptionHandler,
     
     verticle,
+    /**
+     * Group: buffer
+     * creates a new Buffer of the given size
+     */
     newBuffer size = new Buffer(size is number),
+    
+    /**
+     * Group: buffer
+     * creates a new Buffer from the given string
+     */
     newStringBuffer str = new Buffer(str is string),
+    
+    /**
+     * Group: buffer
+     * create a new Buffer from the given string with the given encoding
+     */
     newEncodedBuffer str encoding = 
         new Buffer(str is string, encoding is string),
+    
+    /**
+     * Group: buffer
+     * creates a new Buffer from the given byte-array
+     */
     newByteBuffer bytes =
         new Buffer(bytes is ~byte[]),
     
+    /**
+     * Group: pump
+     * creates a pump between a read and a write stream
+     *
+     * calls Pump#create
+     *
+     * Arguments:
+     * readStream - the stream to read from
+     * writeStream - the stream to write to
+     */
     createPump readStream writeStream = 
         Pump#createPump(readStream, writeStream), 
 
     runOnLoop, 
     setPeriodic, 
     setTimer, 
+
+    /**
+     * Group: container
+     * property for the logger from the container
+     *
+     * calls Container#getLogger()
+     */
     get logger () = (getContainer ())#getLogger(),
     
+    /**
+     * Group: vertx
+     * property of shardData
+     *
+     * calls Vertx#sharedData()
+     */
     get sharedData ()= 
         (getVertx ())#sharedData(),
     
@@ -1730,6 +2018,13 @@ fileSystem = ({
     deployModule, 
     deployVerticle, 
     config, 
+
+    /**
+     * Group: container
+     * property of the containers enviroment as hash<string,string>
+     * 
+     * calls Container#getEnviroment
+     */
     get enviroment () = _enviroment (),
     undeployModule, 
     undeployVerticle,
@@ -1800,8 +2095,29 @@ fileSystem = ({
 
     getContainer,
     getVertx,
+    /**
+     * Group: container
+     * property for the current container 
+     * 
+     * calls function getContainer () see there for better description
+     */
     get container () = getContainer(),
+    
+    /**
+     * Group: vertx
+     * property for the current vertx
+     *
+     * calls function getVertx () see there for better description
+     */
     get vertx () = getVertx(),
+    
+    
+    /**
+     * Group: vertx
+     * sets the current Vertx on the vertxThreadLocal
+     * noramlly not used because in a container the vertx is given
+     * only used when vertx is used as an api
+     */
     withVertx vertx fn =
         (ov = vertxThreadLocal.value;
         vertxThreadLocal.value := (vertx is ~Vertx);
@@ -1813,21 +2129,72 @@ fileSystem = ({
     vertxThreadLocal,
     containerThreadLocal,
 
+    /**
+     * Group: helper
+     * if the value is defined execute right function esl wrong function
+     *
+     * Arguments:
+     * wrongFn - invoked with unit if not defined
+     * rightFn - invoked with value if value is defined
+     * value - the value which is defined or not
+     */
     maybeDefined wrongFn rightFn value =
         if defined? value then rightFn value else wrongFn () fi,
 
+    /**
+     * Group: helper
+     * if the value is defined return Some (fn value) else none
+     *
+     * Arguments:
+     * fn - the function to execute with the value if defined
+     * value - the value which is defined or not
+     */
     onDefined fn v = if defined? v then Some (fn v) else none fi,
+    
+    /**
+     * Group: json
+     * makes sure that the value is a string (and checks that at runtime)
+     */
     isString x = x ^ "",
+    
+    /**
+     * makes sure hat the value is a number (and checks taht at runtime)
+     */
     isNumber x = x + 0,
+    
+    /** 
+     * makes sure that the value is a boolean (and checks that at runtime)
+     */
     isBoolean x = if x then x else x fi,
     blend,
 
     //recordparser
+
+    /**
+     * Group: recordparser
+     * creates a fixed RecordParser
+     *
+     * calls RecordParser#newFixed
+     *
+     * Arguments:
+     * size - record length
+     * handler - bufferHandler which gets each record
+     */
     fixedRecordParser size handler = 
        (parser = RecordParser#newFixed(size is number, 
                                        toBufferHandler handler);
         do buffer: parser#handle(buffer is ~Buffer) done),
-        
+    
+    /**
+     * Group: recordparser
+     * creates a delimited RecordParser
+     *
+     * calls RecordParser#newDelimited
+     *
+     * Arguments:
+     * delimiter - the delimieter
+     * hanlder - the bufferhander
+     */
     delimitedRecordParser delimiter handler = 
        (parser = RecordParser#newDelimited(delimiter is string, 
                                        toBufferHandler handler);
