@@ -70,7 +70,7 @@ typedef eitherAsyncFunction<a> = asyncFunction<either<a>>;
  * Arguments:
  *  value - value to which the created function will pass in the reciever
  */
-cbeId v is 'a -> asyncFunction<either<'a>> = 
+cbId v is 'a -> asyncFunction<either<'a>> = 
     do cb: cb (Some v) done;
 
 /**
@@ -83,7 +83,7 @@ cbeId v is 'a -> asyncFunction<either<'a>> =
  * returns the second callback funcion
  * asyncFunction - the first callback function in the sequence
  */
-cbeBind fn cbfn
+cbBind fn cbfn
     is ('a -> eitherAsyncFunction<'b>) -> eitherAsyncFunction<'a> 
         -> eitherAsyncFunction<'b> =
     do cb:
@@ -102,9 +102,9 @@ cbeBind fn cbfn
  * Arguments:
  * stackedAsyncFunction - the asyncFunction which wrapps another AsyncFunction
  */
-cbeFlatten cbfn 
+cbFlatten cbfn 
     is eitherAsyncFunction<eitherAsyncFunction<'a>> -> eitherAsyncFunction<'a> =
-    cbeBind id cbfn;
+    cbBind id cbfn;
 
 /**
  * Group: async
@@ -114,7 +114,7 @@ cbeFlatten cbfn
  * mappingFunction - function which mapps the original value to the new one
  * asyncFunction - originalAsyncFunction
  */
-cbeMap fn cbfn is ('a -> 'b) -> eitherAsyncFunction<'a> 
+cbMap fn cbfn is ('a -> 'b) -> eitherAsyncFunction<'a> 
                 -> eitherAsyncFunction<'b> =
     do cb:
         cbfn \case of
@@ -131,19 +131,19 @@ cbeMap fn cbfn is ('a -> 'b) -> eitherAsyncFunction<'a>
  * Arguments:
  * fn - function to transform
  */
-cbeLift fn a cb is ('a -> 'b) -> ('a -> eitherAsyncFunction<'b>) =
+cbLift fn a cb is ('a -> 'b) -> ('a -> eitherAsyncFunction<'b>) =
     cb (fn (Some a));
 
 /**
  * Group: async
- * Executes a sequence of asyncFunctions and calls the callback with either
- * a list of results or the first exception which occured
+ * Executes a sequence of asyncFunctions in parallel and calls the callback 
+ * with either a list of results or the first exception which occured
  *
  * Arguments:
  * asycnFunctions - the list of asyncFunctions to execute
  * callback - the callbac function which gets called with the result
  */
-cbeSeq cbfns cb 
+cbSequence cbfns cb 
     is list?<eitherAsyncFunction<'a>> -> callback<either<list<'a>>> -> () =
     (res = array [];
     var handled = false;
@@ -165,59 +165,7 @@ cbeSeq cbfns cb
             esac;
     done);
 
-cbId v is 'a -> asyncFunction<'a> = do cb: cb v done;
-
-
-cbBind fn cbfn 
-    is ('a -> asyncFunction<'b>) -> asyncFunction<'a> -> asyncFunction<'b>= 
-    do cb:
-        cbfn do a: (fn a) cb done
-    done;
-
-
-cbFlatten cbfn is asyncFunction<asyncFunction<'a>> -> asyncFunction<'a> = 
-    cbBind id cbfn;
-
-cbMap fn cbfn is ('a -> 'b) -> asyncFunction<'a> -> asyncFunction<'b>=
-    do cb:
-        cbfn do a: cb (fn a) done
-    done;
-
-cbLift fn a cb is ('a -> 'b) -> ('a -> asyncFunction<'b>)=
-    cb (fn a);
-
-cbSeq cbfns cb is list?<asyncFunction<'a>> -> callback<list<'a>> -> ()=
-    (res = array [];
-     for cbfns do c:
-        c do a:
-            push res a;
-            if length res == length cbfns then
-                cb (list res);
-            fi
-        done;
-    done);
-
 cbStruTH = threadLocal none;
-
-cbSet cbfn is asyncFunction<'a> -> (() -> 'a) =
-    (ctr = case cbStruTH.value of
-        None _ : failWith "cbSet must only be used directly in cbCol";
-        Some r: r;
-        esac;
-    ctr.starting();
-    var hasReceived = false;
-    var res = NotSet ();
-    cbfn do a:
-        res := Some a;
-        if not hasReceived then
-            ctr.hasReceived (Some ());
-            hasReceived := true
-        fi;
-    done;
-    \(case res of
-        NotSet (): failWith "Not set";
-        Some v: v
-      esac));    
 
 /**
  * Group: async
@@ -229,7 +177,7 @@ cbSet cbfn is asyncFunction<'a> -> (() -> 'a) =
  * Arguments:
  * asyncFunction - the asyncFunction from which to take the value
  */
-cbeSet cbfn is eitherAsyncFunction<'a> -> (() -> 'a) =
+cbSet cbfn is eitherAsyncFunction<'a> -> (() -> 'a) =
     (ctr = case cbStruTH.value of
         None _ : failWith "cbSet must only be used directly in cbCol";
         Some r: r;
@@ -1038,7 +986,7 @@ request address msg handler =
     (getVertx ())#eventBus()#send(address is string, toJS msg, 
             toEitherJsonMessageHandler handler);
 requestBody address msg handler =
-    (cbeMap (.body) (request address msg)) handler;
+    (cbMap (.body) (request address msg)) handler;
 
 registerBusHandler address resultHandler handler =
     (getVertx ())#eventBus()#registerHandler(address is string,
@@ -1205,30 +1153,19 @@ fileSystem = ({
 
  
 {
-    //eitherCallbackFunctions
-    cbeId,
-    cbeBind,
-    cbeFlatten,
-    cbeMap,
-    cbeLift,
-    cbeSeq,
-    cbeSet,
-    cbCollect,
-    (->) cbfn fn =  cbeMap fn cbfn,
-    (->>) cbfn fn = cbeBind fn cbfn,
-    noex,
-
     //callback functions
     cbId,
     cbBind,
     cbFlatten,
     cbMap,
     cbLift,
-    cbSeq,
+    cbSequence,
     cbSet,
-    (-->) cbfn fn =  cbMap fn cbfn,
-    (-->>) cbfn fn = cbBind fn cbfn,
+    cbCollect,
+    (->) cbfn fn =  cbMap fn cbfn,
+    (->>) cbfn fn = cbBind fn cbfn,
     ($) a b = a b,
+    noex,
 
     get context () =  Context#getContext(),
     addCloseHook key fn = 
