@@ -63,9 +63,26 @@ typedef asyncFunction<a> = callback<a> -> ();
 typedef either<a> = Exception ~Exception | Some a; 
 typedef eitherAsyncFunction<a> = asyncFunction<either<a>>;
 
+/**
+ * Group: async (Functions to combine asyncFunctions)
+ * Transforms a value in an eitherAsyncFunction
+ *
+ * Arguments:
+ *  value - value to which the created function will pass in the reciever
+ */
 cbeId v is 'a -> asyncFunction<either<'a>> = 
     do cb: cb (Some v) done;
 
+/**
+ * Group: async
+ * Joins two callbackFunctions in sequenc.
+ * see also the (->) operator for a shorthand and exmples 
+ *
+ * Arguments:
+ * mappingFunction - is given the value of the first asyncFunction and should
+ * returns the second callback funcion
+ * asyncFunction - the first callback function in the sequence
+ */
 cbeBind fn cbfn
     is ('a -> eitherAsyncFunction<'b>) -> eitherAsyncFunction<'a> 
         -> eitherAsyncFunction<'b> =
@@ -75,11 +92,28 @@ cbeBind fn cbfn
             Some a: (fn a) cb;
             esac;
     done;
-    
+
+/**
+ * Group: async
+ * Transform an asyncFunction which holds an asyncFunction to an asyncFunction
+ * which of the parameter of the second asyncfunction. Used to flatten stacked
+ * asyncFunctions
+ *
+ * Arguments:
+ * stackedAsyncFunction - the asyncFunction which wrapps another AsyncFunction
+ */
 cbeFlatten cbfn 
     is eitherAsyncFunction<eitherAsyncFunction<'a>> -> eitherAsyncFunction<'a> =
     cbeBind id cbfn;
 
+/**
+ * Group: async
+ * Transforms the callback of an asyncFunction to another value.
+ * 
+ * Arguments:
+ * mappingFunction - function which mapps the original value to the new one
+ * asyncFunction - originalAsyncFunction
+ */
 cbeMap fn cbfn is ('a -> 'b) -> eitherAsyncFunction<'a> 
                 -> eitherAsyncFunction<'b> =
     do cb:
@@ -89,9 +123,26 @@ cbeMap fn cbfn is ('a -> 'b) -> eitherAsyncFunction<'a>
             esac
     done;
 
+/**
+ * Group: async
+ * Transforms any function to return as a result the an AsyncFunction of 
+ * the resultvalue.
+ *
+ * Arguments:
+ * fn - function to transform
+ */
 cbeLift fn a cb is ('a -> 'b) -> ('a -> eitherAsyncFunction<'b>) =
     cb (fn (Some a));
-    
+
+/**
+ * Group: async
+ * Executes a sequence of asyncFunctions and calls the callback with either
+ * a list of results or the first exception which occured
+ *
+ * Arguments:
+ * asycnFunctions - the list of asyncFunctions to execute
+ * callback - the callbac function which gets called with the result
+ */
 cbeSeq cbfns cb 
     is list?<eitherAsyncFunction<'a>> -> callback<either<list<'a>>> -> () =
     (res = array [];
@@ -168,6 +219,16 @@ cbSet cbfn is asyncFunction<'a> -> (() -> 'a) =
         Some v: v
       esac));    
 
+/**
+ * Group: async
+ * Only used inside a function given to 'cbColllect'. Executes the given
+ * asyncFunction and returns a function containin the value
+ *
+ * For an example see cbCollect
+ *
+ * Arguments:
+ * asyncFunction - the asyncFunction from which to take the value
+ */
 cbeSet cbfn is eitherAsyncFunction<'a> -> (() -> 'a) =
     (ctr = case cbStruTH.value of
         None _ : failWith "cbSet must only be used directly in cbCol";
@@ -196,7 +257,25 @@ cbeSet cbfn is eitherAsyncFunction<'a> -> (() -> 'a) =
         Some v: v
       esac));    
 
-cbeCol inex cb is (() -> 'a) -> eitherAsyncFunction<'a>=
+/**
+ * Group: async
+ * Used to collect the results asyncFunctions which get executed in parrallel.
+ *
+ * Arguments:
+ * prepareFunction - function to setup the asyncFunctions to execute
+ * callback - callback which receives the result of the prepare function
+ * or the exception of the first not succesful result
+ *
+ * Examples:
+ * :cbCollect \{
+ * :   name = cbSet (request "mongodb" {search="some"}),
+ * :   image = cbSet (request "imageService" {search="someid"})}
+ * :   \case of
+ * :         Exception ex: throw ex;
+ * :         Some {name, image}: //handle result
+ * :     esac;
+ */
+cbCollect inex cb is (() -> 'a) -> eitherAsyncFunction<'a>=
     (var called = false;
      var requests = 0;
      var received = 0;
@@ -243,8 +322,15 @@ cbeCol inex cb is (() -> 'a) -> eitherAsyncFunction<'a>=
     yrt;
     ());
 
-cbRun exfn = exfn \();
-
+/**
+ * Group async:
+ * transfers any function an either callback function. In case the callback
+ * recevies an Exception the exception is thrown. Otherwise the value is
+ * given to the argument function
+ *
+ * Arguments:
+ * fn - function to execute in case the callback gets a value
+ */
 noex fn = do cb:
     case cb of
     Exception ex: throw (ex is ~Exception);
@@ -252,7 +338,11 @@ noex fn = do cb:
     esac;
 done;
 
-
+/**
+ * Group: json (transforming jsonobjects to structs and viceversa)
+ * Empty json element (should repsenet an empty struct as this is not
+ * possible in yeti
+ */
 emptyJS = {´_´ = ()};
 
 _toJS object = 
@@ -304,14 +394,39 @@ _toJS object =
     else
         o
     fi);
-    
-toJS stru is 'a -> ~JsonObject =
-    _toJS stru unsafely_as ~JsonObject;
 
-toJSArray ls is list<'a> -> ~JsonArray =
+/**
+ * Group: json
+ * Transforms a yeti struct to a ~JsonObject. Note this functions
+ * takes any value but only structs are supported otherwise an exception
+ * is throw. The function is therefore not threadsafe.
+ *
+ * Arguments:
+ * struct - structure to transform to JsonObject
+ *
+ * Exceptions:
+ * java.lang.RuntimeException - if the given argument is no struct
+ */
+toJS stru is 'a -> ~JsonObject =
+    (import yeti.lang:Struct;
+    if (stru unsafely_as ~Object) instanceof Struct then
+        _toJS stru unsafely_as ~JsonObject;
+    else
+        failWith "no Struct only structs can be transfered to json"
+    fi);
+
+/**
+ * Group: json
+ * Transforms yeti list to a JsonArray. The elements can be any values
+ * supported by json
+ *
+ * Arguments:
+ * ls - the list to transform
+ */
+toJSArray ls is list?<'a> -> ~JsonArray =
    (ar = new JsonArray();
     for ls do e:
-        _ = ar#add(toJS e)
+        _ = ar#add(_toJS e)
     done;
     ar);
     
@@ -366,7 +481,15 @@ _fromJS object =
         o
     fi);
 
-    
+/**
+ * Group: json
+ * Transforms a JsonObject to a struct. The result will always be a 
+ * polymorphic value which represents the JsonObject as struct. So no
+ * typechecking is performed on the result but it can be used as a struct.
+ *
+ * Arguments:
+ * jsonObject - the object to transfer as struct
+ */
 fromJS object is ~JsonObject -> 'a =
     (_fromJS object) unsafely_as 'a;
 
@@ -865,7 +988,7 @@ toEitherJsonMessageHandler fn =
                       else 
                           "error but no message" 
                       fi;
-                fn (Exception (new FailureException(emg)));
+                fn (Exception ((new FailureException(emg)) as ~Exception));
             else
                 fn (Some 
                     {message = msg,
@@ -914,10 +1037,9 @@ sendWithHandler address msg handler =
 request address msg handler =   
     (getVertx ())#eventBus()#send(address is string, toJS msg, 
             toEitherJsonMessageHandler handler);
-/*
 requestBody address msg handler =
     (cbeMap (.body) (request address msg)) handler;
-*/
+
 registerBusHandler address resultHandler handler =
     (getVertx ())#eventBus()#registerHandler(address is string,
                             toJsonMessageHandler handler,
@@ -1091,7 +1213,7 @@ fileSystem = ({
     cbeLift,
     cbeSeq,
     cbeSet,
-    cbeCol,
+    cbCollect,
     (->) cbfn fn =  cbeMap fn cbfn,
     (->>) cbfn fn = cbeBind fn cbfn,
     noex,

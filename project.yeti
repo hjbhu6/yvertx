@@ -44,7 +44,7 @@ _ = load ybuilder.core.vertxBase [];
 deployRepository.url :="file:///${basedir}/../../chrisis-maven-repo/snapshots/";
 
 //yeti dependency
-dependency "org.yeti" "yeti" "0.9.7" [];
+dependency "org.yeti" "yeti" "0.9.7-SNAPSHOT" [];
 dependency "org.vert-x" "vertx-platform" "1.3.0.final" [ProvidedScope ()];
 dependency "org.vert-x" "vertx-testframework" "1.3.0.final" [ProvidedScope ()];
 ////////////////////////////////////////////////////////////////////////////////
