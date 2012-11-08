@@ -27,7 +27,7 @@ verticle do :
         dataHandler socket do buffer:
             it = connections#iterator();
             it#hasNext() loop
-                 publish (string it#next()) buffer;
+                 eventBus#publish(string it#next(), buffer);
         done;
         netsocketClosed socket do:
             _ = connections#remove(socket#writeHandlerID)
