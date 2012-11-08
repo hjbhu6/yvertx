@@ -56,7 +56,7 @@ import org.vertx.java.deploy:Verticle,
 import org.vertx.java.deploy.impl:VertxLocator;
 
 
-typedef json<a> = {.js is a};
+typedef json<a> = {.json is a};
 //callback functions
 typedef callback<a> = a -> ();
 typedef asyncFunction<a> = callback<a> -> ();
@@ -307,7 +307,7 @@ done;
  * Empty json element (should repsenet an empty struct as this is not
  * possible in yeti
  */
-emptyJS = {js = ()};
+emptyJS is json<()>= {json = ()};
 
 _toJS object = 
    (import yeti.lang:Num, FloatNum, RatNum,AList, ByKey, Struct, Tag;
@@ -344,7 +344,7 @@ _toJS object =
             name = st#name(i);
             v = st#get(i);
             //check for js marker parameter
-            if not (name == "js" and (nullptr? v or not defined? v)) then
+            if not (name == "json" and (nullptr? v or not defined? v)) then
                 value = _toJS (v unsafely_as 'a);
                 _ = dbo#put(name, value);
             fi;
