@@ -227,7 +227,7 @@ done,
 
 "cb:Bind" : do rs:
     (do cb: cb 1 done) 
-    ->> do x: 
+    -->> do x: 
         rs.assert "" (x == 1);
         do cb: cb "hier" done;
         done
