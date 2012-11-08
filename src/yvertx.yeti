@@ -436,14 +436,40 @@ _fromJS object =
  * typechecking is performed on the result but it can be used as a struct.
  *
  * Arguments:
- * jsonObject - the object to transfer as struct
+ * jsonObject - the object to transfer 
  */
 fromJS object is ~JsonObject -> 'a =
     (_fromJS object) unsafely_as 'a;
 
+/**
+ * Group: json
+ * Transrom a JsonArray to a yeti list. The result will alwys be a
+ * polymphric value which represnte the JsonObject. So no typechecking is
+ * preformed on the values of the list
+ *
+ * Arguments:
+ * jsonArray - the JsonArray object to transfer
+ */
 fromJSArray ar is ~JsonArray -> list<'a> =
     (_fromJS ar) unsafely_as list<'a>;    
 
+/**
+ * Group: json
+ * Replaces in the struct the fiels of v1 with the fields of v2 if presten.
+ * Works only on struct arguments if either argument is not a struct then
+ * the first argument is returen.
+ *
+ * This is useful when transforming getting a Json struct fom "fromJS" and
+ * prefilling it with default values
+ *
+ * Arguments:
+ * v1 - the strcut which is the basis
+ * v2 - the strcut which replaces in v1
+ *
+ * Examples:
+ * :defaultV = {ssl=true, port=8080}
+ * :withDefaults = blend defaultV (toJson someJsonObject);
+ */
 blend v1 v2 is 'a -> 'b -> 'a =
     (import yeti.lang:Struct,
                       GenericStruct;
@@ -479,18 +505,46 @@ blend v1 v2 is 'a -> 'b -> 'a =
         v1
     fi);
 
+/**
+ * group: helpers (general helper functions)
+ * Splits a string of the format "hostname:port" in it's host and port parts.
+ * if there is : the whole name is considered the hostname and the port is by
+ * default 80. If the string starts with : than the hostname is default
+ * localhost and the port is the rest of the sting. If the string is empty
+ * the localhost:80 is assumed.
+ *
+ * Arguments:
+ * hostPort - string of format "hostname:port"
+ */
 hostAndPort hostPort =
-   (i = strIndexOf hostPort ":" 0;
-    if i < 0 then 
-        {port = 80, host = hostPort}
-    elif i == 0 then
-        {host = "localhost", port = int (number (strRight hostPort 1))}
+   (if not defined? hostPort or hostPort == "" then
+        {port = 80, host = "localhost"};
     else
-       {host = strLeft hostPort i,
-        port = int (number (strRight hostPort (i+1)))}
+        i = strIndexOf hostPort ":" 0;
+        if i < 0 then 
+            {port = 80, host = hostPort}
+        elif i == 0 then
+            {host = "localhost", port = int (number (strRight hostPort 1))}
+        else
+           {host = strLeft hostPort i,
+            port = int (number (strRight hostPort (i+1)))}
+        fi
     fi);
 
-
+/**
+ * group: toHandler (gnerates vertx Handler objects from functions)
+ * new vertx Handler from function
+ * 
+ * Arguments:
+ * fn - the handler function
+ *
+ * Examples:
+ * :handler = toHandler do ob: 
+ * :     buffer = ob unsafely_as ~Buffer;
+ * :     ...
+ * :done;
+ * :(req is ~HttpServerRequest)#bodyHandler(handler);
+ */
 toHandler fn is (~Object -> ()) -> ~Handler = 
    (class IYetiHandler extends Handler
         void handle(Object ob)
@@ -498,14 +552,35 @@ toHandler fn is (~Object -> ()) -> ~Handler =
     end;
     new IYetiHandler());
 
+/** 
+ * Group: toHandler
+ * A handler wich gets no value takes 
+ *
+ * Arguments:
+ * handler - handler function is () -> ()
+ */
 toSimpleHandler fn =
     toHandler (fn . \());
 
+/**
+ * Group: toHandler
+ * creates a handler for long values and transforms them to a yeti number
+ *
+ * Arguments:
+ * handler - function taking a number argument
+ */
 toLongHandler fn =
     toHandler do ob: fn (ob unsafely_as ~Long)#longValue() done;
         
-
-
+/**
+ * Group: toHandler
+ * Creates an AsyncResultHandler. If the asyncResult has an Exception
+ * than the function is called with Exception exception, otherwise with
+ * Some value.
+ *
+ * Arguments:
+ * handler - funciton taking either Exception ex or Value v
+ */
 toAsyncResultHandler fn =
        (class IYetiAsyncResultHandler extends AsyncResultHandler
             void handle(Object o)
@@ -518,6 +593,15 @@ toAsyncResultHandler fn =
         end;
         new IYetiAsyncResultHandler());
 
+/**
+ * Group: toHanlder
+ * Typed version of AsyncResultHandler
+ *
+ * Arguments:
+ * castFunction - types the value if there is one
+ * handlerFucntion - either gets the value (casted by castFunction) or
+ * Exception ex
+ */
 toTypedAsyncResultHandler tfn fn 
     is (~Object -> 'a) -> ((Some 'a | Exception ~Exception ) -> 'b) 
         -> ~AsyncResultHandler =
@@ -531,36 +615,108 @@ toTypedAsyncResultHandler tfn fn
                 fi,
         end;
         new IYetiAsyncResultHandler());
-        
+
+/**
+ * Group: toHandler
+ * Creates a handler for ~Buffer class
+ */
 toBufferHandler fn =
         toHandler (fn . (unsafely_as ~Buffer));
 
-    
+
+/**
+ * Group: toHandler
+ * Creates a handler for ~Exceptions
+ */
 toExceptionHandler fn =
         toHandler (fn . (unsafely_as ~Exception));
-        
+
+/**
+ * Group: toHandler
+ * Creates a Handler for ~String
+ */
 toStringHandler fn =
         toHandler (fn . (as string) .(unsafely_as ~String));
 
+/**
+ * Group: stream
+ * Adds a dataHandler to a ~ReadStream
+ *
+ * Arguments:
+ * stream - the stream to add the handler
+ * handlerFunction - the function which takes a buffer
+ */
 dataHandler rs handler =
     (rs is ~ReadStream)#dataHandler(toBufferHandler handler);
 
+/**
+ * Group: stream
+ * Adds an endHandler to a ~ReadStream
+ *
+ * Arguments:
+ * stream - the stream to add the handler
+ * handlerFunction - the function which gets called on end
+ */
 endHandler rs handler =
     (rs is ~ReadStream)#endHandler(toSimpleHandler handler);
 
+/**
+ * Group: stream
+ * Adds an exceptionHandler to a ~ReadStream
+ *
+ * Arguments:
+ * stream - the stream to add the handler
+ * handlerFunction - the function which gets called on exception
+ */
 exceptionHandler rs handler =
     (rs is ~ReadStream)#exceptionHandler(toExceptionHandler handler);
 
+/**
+ * Group: stream
+ * Adds a drainHandler to a ~WriteStream
+ *
+ * Arguments:
+ * stream - the stream to add the handler
+ * handlerFunction - the function which gets called on drain of the writeStream
+ */
 drainHandler ws handler =
     (ws is ~WriteStream)#drainHandler(toSimpleHandler handler);
 
+/**
+ * Group: stream
+ * Adds an exceptionHandler to a ~WriteStream
+ *
+ * Arguments:
+ * stream - the stream to add the handler
+ * handlerFunction - the function which gets called on exception
+ */
 wsExceptionHandler ws handler =
     (ws is ~WriteStream)#exceptionHandler(toExceptionHandler handler);
 
+/**
+ * Group: helper
+ * Thread local to store a Vertx instance if no default is set. See getVertx 
+ * for a description
+ */
 vertxThreadLocal = threadLocal VertxLocator#vertx;
 
+/** 
+ * Group: helper
+ * ThreadLocal to store a container instance if no default is set.
+ * See getContainer for a description
+ */
 containerThreadLocal = threadLocal VertxLocator#container;
 
+/**
+ * Group: helper
+ * Some functions (ie createHttpServer etc) need a vertx instance. Because in
+ * a vert.x deployment the right Vertx instance is store in the 
+ * VertxLocator class the instance does not alwys have to be given as an 
+ * argument. Instead this function first looks it up in vertxThreadLocal and
+ * if this is not set (default it is not set) it takes it from the VertxLocator 
+ * class. So if you want to set your own Vertx instance or do not use Vertx from
+ * a deployment set you vertx instance on the verxtThreadLocal.
+ */
 getVertx () = 
     (loc = vertxThreadLocal.value;
     if not defined? loc then
@@ -569,6 +725,11 @@ getVertx () =
         loc
     fi);
 
+/**
+ * Group: helper
+ * Same as getVertx but for Container. The corresponding ThreadLocal is
+ * containerThreadLocal
+ */
 getContainer () =
     (loc = containerThreadLocal.value;
     if not defined? loc then
@@ -577,20 +738,113 @@ getContainer () =
         loc;
     fi);
 
+/**
+ * Group: vertx (wrapper around methods of org.vertx.java.core.Vertx)
+ * Put the handler on the event queue for this loop so it will be run 
+ * asynchronously ASAP after this event has been processed
+ *
+ * Same as Vertx#runOnLoop
+ *
+ * Arguments:
+ * handler - function to run on one of the nex ticks
+ */
 runOnLoop handler = 
     (getVertx ())#runOnLoop(toSimpleHandler handler);
 
+/**
+ * Group: vertx
+ * Set a periodic timer to fire every delay milliseconds, at which point 
+ * handler will be called with the id of the timer.
+ *
+ * returns the timer-id.
+ *
+ * Just calls Vertx#setPeriodic
+ *
+ * Arguments:
+ * delay - timer delay in milliseconds
+ * handler - handler to call each dellay
+ */
 setPeriodic  delay handler = 
     (getVertx ())#setPeriodic(delay, 
         toLongHandler handler);
-
+/**
+ * Group: vertx
+ * Set a one-shot timer to fire after delay milliseconds, at which point
+ * handler will be called with the id of the timer.
+ * 
+ * returns the timer-id. 
+ *
+ * Just calls Vertx#setTimer
+ *
+ * Arguments:
+ * delay - time in millis
+ * handler - handler called after time is given the timer-id
+ */
 setTimer delay handler =
     (getVertx ())#setTimer(delay, 
         toLongHandler handler);
-
+/**
+ * Group: vertx
+ * Cancels the timer for the given id
+ *
+ * Calls Vertx#cancelTimer
+ *
+ * Arguments:
+ * timerid - the id of the timer
+ */
 cancelTimer timerId =
     (getVertx ())#cancelTimer(timerId);
-    
+
+/**
+ * Group: container
+ * Function to create a function with creates a verticle. Such a function
+ * is the function expected by the YetiVerticleFactory which is used to run
+ * yeti verticles.
+ *
+ * It is not necessary to use this function to create a yeti Verticle. You can
+ * as well create your own function (() -> ~Verticle). Or your can straigth
+ * implement your onw Verticle Subclass and run it like a normal Java Verticle.
+ *
+ * This function is just a helper function.
+ *
+ * Arguments:
+ * startFunction - function which correspondents to the start method of 
+ * Veritcle. The function is given a {vertx, container} struct. And the function
+ * must retun a stop function, which is when clalled also given the 
+ * a {vertx, container} struct
+ *
+ * Examples:
+ * : module myverticle
+ * :
+ * : load yvertx;
+ * :
+ * : verticle do {vertx, container}:
+ * :     //do all the start work
+ * :     createHttpServerWithHandler .....;
+ * :     
+ * :     //return stop function
+ * :     do:
+ * :        ... do cleanup
+ * :     done;
+ * : done;
+ *
+ * However most of the time verxt and conatiner is not need, because
+ * it can be gotten as properties of the vertx module and stop
+ * is not needed as well
+ * 
+ * : module myverticle
+ * :
+ * : load yvertx;
+ * :
+ * : verticle do:
+ * :     //do all the start work
+ * :     createHttpServerWithHandler .....;
+ * :     
+ * :     //return stop function
+ * :     \()
+ * :     done;
+ * : done;
+ */
 verticle runFn 
         is ({vertx is ~Vertx, container is ~Container} 
             -> ({vertx is ~Vertx, container is ~Container} -> 'a)) 
@@ -606,19 +860,46 @@ verticle runFn
     end;
     \(new IYetiVerticle() as ~Verticle));
 
- 
+/**
+ * Group: container
+ * Deploy a module programmatically
+ *
+ * Calls ~Container#deployModule
+ *
+ * Arguments:
+ * moduleName - name of the module to deploy
+ * config - JSON config to provide to the module (given as struct)
+ * instances - number of instances to deploy
+ * doneHandler - handler called when the module is succesful deployed
+ */
 deployModule name config instances handler = 
     (getContainer ())#deployModule(name is string, 
                                             toJS config, 
                                             instances is number, 
                                             toStringHandler handler);
-
+/**
+ * Group: container
+ * Deploy a verticle progammatically
+ *
+ * Calls ~Container#deployVerticle
+ *
+ * Arguments:
+ * verticleName - name of the verticle to deploy
+ * config - JSON config to provide to the verticle (given as struct)
+ * instances - number of instances
+ * handler - called when succesful deploid. The handler is given the uniqueid
+ */
 deployVerticle name config instances handler= 
     (getContainer ())#deployVerticle(name is string, 
                                                 toJS config, 
                                                 instances is number, 
                                                 toStringHandler handler);
-    
+/**
+ * Group: container
+ * The config given to this verticle
+ *
+ * Calls ~Container#getConfig()
+ */
 config () = fromJS ((getContainer ())#getConfig());
 
 
@@ -630,10 +911,29 @@ _enviroment () =
     ret);
 
 
+/**
+ * Group: container
+ * undeploys the module with the given moduleId
+ *
+ * calls Container#undeployModule
+ *
+ * Arguments:
+ * moduleId - the id of the module
+ * hanlder - called when succesful undeployed
+ */
 undeployModule deploymentID handler =
     (getContainer ())#undeployModule(deploymentID, 
                                     toSimpleHandler handler);
-    
+/**
+ * Group: container
+ * undeploys a verticle
+ *
+ * calls Container#undeployVerticle
+ *
+ * Arguments:
+ * verticleId - deploymentId of the verticle
+ * handler - called when undeployment is complete
+ */
 undeployVerticle deploymentID handler =
     (getContainer ())#undeployVerticle(deploymentID, 
                                     toHandler handler);
@@ -655,21 +955,65 @@ timeout time tofn fn =
         fi
     done);
 //http server things
+
+/**
+ * Group: http-server
+ * sets the requestHandler on http server
+ *
+ * calls HttpServer#requestHandler
+ *
+ * Arguments:
+ * server - the HttpServer
+ * handlerFunction - function which gets the HttpServerRequests
+ */
 httpServerRequestHandler server handler =
    (server is ~HttpServer)#requestHandler(
         toHandler (handler . (unsafely_as ~HttpServerRequest)));
         
-
+/**
+ * Group: http-server
+ * create an HttpServer
+ *
+ * calls Vertx#createHttpServer;
+ *
+ */
 createHttpServer () = 
     (getVertx())#createHttpServer();
 
+/**
+ * Group: http-server
+ * Creates an HttpServer and sets the given handler as requestHandler
+ *
+ * Same as
+ * : server = createHttpServer ()
+ * : httpServerRequestHandler handler
+ * : server
+ *
+ * Arguments:
+ * handler - the request handler set on the newly created http server
+ */
 createHttpServerWithHandler handler = 
     (getVertx())#createHttpServer()#requestHandler(
         toHandler (handler . (unsafely_as ~HttpServerRequest)));
-    
+
+/**
+ * Group: http-server
+ * Closes the HttpServer
+ *
+ * Calls server#close(handler)
+ *
+ * Arguments:
+ * server - the http server to close
+ * doneHandler - called when server close is complete
+ */
 closeHttpServer server handler =
     (server is ~HttpServer)#close(toSimpleHandler handler);
 
+/**
+ * Group: http-server
+ * Creates a new RouteMatcher and wraps it with custom functions 
+ * which do the same as the correspondending methods of RouteMatcher
+ */
 newRouteMatcher () =
    (import org.vertx.java.core.http:RouteMatcher;
    _rm = new RouteMatcher();
@@ -699,9 +1043,26 @@ newRouteMatcher () =
         noMatch h = _rm#noMatch(toHa h),
         rm = _rm,
         handle req = _rm#handle(req is ~HttpServerRequest),
+        /**
+         * create a server and set this routemachter as handler
+         */
         createServer () = 
             (getVertx())#createHttpServer()#requestHandler(_rm),
 
+        /**
+         * add a route as string only the pattern is
+         * "regex:"method:pattern
+         * The constant string "regex:" is optional and marks that pattern is
+         * a regex (otherwise it is a normal rout pattern)
+         * The method is also optional and defines one of post, put, get etc.
+         * The default method is all
+         * Finally the pattern must be provided.
+         *
+         * Arguments:
+         * route - a route pattern of the from ("regex:")?(method:)?pattern
+         * see above description
+         * handler - the handler for the argument
+         */
         route fullpattern handler =
             ({regex,methodPattern} =
                 if strStarts? fullpattern "regex:" then
@@ -752,24 +1113,57 @@ newRouteMatcher () =
             fi)
     });        
         
- 
+/**
+ * Group: http-server
+ * set the given headers as response headers on the requests response
+ * 
+ * Arguments:
+ * serverRequest - the serverRequest object which holds the response
+ * headers - hash headers
+ */
 putResponseHeaders request headers =
    ((request is ~HttpServerRequest)#response#headers()#putAll(
         (headers is hash<string,string>) as ~Map);
     ());
 
+/**
+ * Group: http-server
+ * set the given response trailers
+ *
+ * Arguments:
+ * serverRequest - the serverReqeust object which holds the response
+ * trailers - hash of trailers
+ */
 putResponseTrailers request trailers =
     ((request is ~HttpServerRequest)#response#trailers()#putAll(
         (trailers is hash<string,string>) as ~Map);
     ());
 
+/**
+ * Group: http-server
+ * the parameters of this request as hash
+ *
+ * Will always create a new hash for the parameters
+ *
+ * Arguments:
+ * serverRequest - the request from which the parameters are taken
+ */
 params req =
    (ret = [:];
     forJavaMap (req is ~HttpServerRequest)#params() do key value:
         ret.[string key] := if defined? value then string value else "" fi;
     done;
     ret);
-    
+
+/**
+ * Group: http-server
+ * the headers of the HttpServerRequest
+ *
+ * Will always create a new hash for the headers
+ *
+ * Arguments:
+ * serverReqeust - the request from which the headers are taken
+ */
 requestHeaders req =
     (ret = [:];
     forJavaMap (req is ~HttpServerRequest)#headers() do key value:
@@ -778,20 +1172,51 @@ requestHeaders req =
     ret);
 
 //http client things
+
+/**
+ * Group: http (http server and client things)
+ * Add a bodyHandler to HttpServerReqeust or HttpClientResponse
+ *
+ * Arguments:
+ * httpStream - the HttpReadStreamBase
+ * handler - the handler getting a buffer
+ */
 bodyHandler response handler =
    (import org.vertx.java.core.http.impl:HttpReadStreamBase; 
    (response is ~HttpReadStreamBase)#bodyHandler(
         toBufferHandler handler));
-   
+
+/**
+ * Group: http-client (http client function)
+ * creates an http client for the given host:port
+ *
+ * Arguments:
+ * hostPort - a string giving host:port (see hostAndPort function)
+ */
 createHttpClient hostPort = 
    ({port,host} = hostAndPort hostPort; 
     (getVertx())#createHttpClient()#setPort(port)#setHost(host));
 
+/**
+ * Group: http-client
+ * put the given headers on the client request
+ *
+ * Arguments:
+ * request - the request to put the headers on
+ * headers - a hash of headers where each is put on the client
+ */
 putRequestHeaders request headers =
    ((request is ~HttpClientRequest)#headers()#putAll(
         (headers is hash<string,string>) as ~Map);
     request);
 
+/**
+ * Group: http-client
+ * get the headers from the HttpClientResponse
+ *
+ * Arguments:
+ * clientResponse - the http response
+ */
 responseHeaders resp =
     (ret = [:];
     forJavaMap (resp is ~HttpClientResponse)#headers() do k v:
@@ -799,13 +1224,46 @@ responseHeaders resp =
     done;
     ret);
 
+/**
+ * Group: http-client
+ * get the trailers from the HttpClientResponse as hash
+ *
+ * Arguments:
+ * clientResponse - the http response
+ */
 responseTrailers resp =
     (ret = [:];
     forJavaMap (resp is ~HttpClientResponse)#trailers() do k v:
         ret.[string k] := if defined? v then string v else "" fi;
     done;
     ret);
-    
+
+/**
+ * Group: http-client
+ * create an http reqeust for the given client and headers
+ *
+ * Calls - depending on the muri - one of the HttpClient request mehtod (get, put,
+ * post, delete etc)
+ *
+ * than sets the given headers and retruns the request.
+ *
+ * The request is not yet executed (same as teh HttpClient request methods)
+ *
+ * Arguments:
+ * client - the httpclient
+ * muri - the uri with the method in as a Tag (Post, Get, Delete etc)
+ * the Request Tag takes a {method, uri} struct to 
+ * handler - the reqeusthandler
+ *
+ * Examples:
+ * : req = httpRequest (createHttpClient "foo.org:8080") 
+ * :                   (Get "some/url")
+ * :                   ["header":"value"]
+ * :                   do res:
+ * :   ...
+ * : done;
+ * : req#end();
+ */
 httpRequest client muri headers handler =
     (h = toHandler (handler . (unsafely_as ~HttpClientResponse));
     req = case muri of
@@ -832,11 +1290,35 @@ httpRequest client muri headers handler =
     esac;
     putRequestHeaders req headers);
 
+/**
+ * Group: http-client
+ * quick version for http get
+ *
+ * same as HttpClient#getNow()
+ *
+ * Arguments:
+ * httpClient - the client
+ * uri - the uri string
+ * headers - headers hash
+ * handler - the response handler
+ */
 getHttpNow client uri headers handler =
    (client is ~HttpClient)#getNow(uri is string, 
                                   headers is hash<string,string>,
                     toHandler (handler . (unsafely_as ~HttpClientResponse)));
-                                   
+
+/**
+ * Gropt: http-client
+ * quick version for http get, where the handler is directly a bodyHandler
+ *
+ * like getHttpNow but the handler is drectly registered as bodyHandler
+ * 
+ * Arguments:
+ * httpClient - the client
+ * uri - the uri string
+ * headers - headers hash
+ * handler - the response handler
+ */
 getHttpBodyNow client uri headers handler =
    getHttpNow client uri headers 
                 do resp:
@@ -845,16 +1327,48 @@ getHttpBodyNow client uri headers handler =
                     done
                 done;
 //websocket functions
+
+/**
+ * Group: websocket (websocket functions)
+ * sets the handler as websocketHandler on the given http server
+ *
+ * calls HttpServer#websocketHandler
+ *
+ * Arguments:
+ * server - HttpServer
+ * websocketHanlder - handler for handling the ServerWebSocket
+ */
 connectWebSocketServer server fn =
     ((server is ~HttpServer)#websocketHandler(
             toHandler (fn . (unsafely_as ~ServerWebSocket)));
     ());
 
+/**
+ * Group: websocket 
+ * connects the websocket handler to the HttpClient.
+ *
+ * calls HttpClient#connectWebSocket
+ *
+ * Arguments:
+ * client - HttpClient
+ * uri - the uri for the websocket
+ * handler - the function which gets the WebSocket
+ */
 connectWebSocketClient client uri handler =
     (client is ~HttpClient)
         #connectWebsocket(uri is string,
                           toHandler (handler .(unsafely_as ~WebSocket)));
 
+/**
+ * Group: websocket
+ * adds a closedHandler on the Websocket
+ * 
+ * calls WebSocket#closedHandler
+ *
+ * Arguments:
+ * socket - the WebSocket
+ * handler - the closedHandler
+ */
 closedWebSocket socket handler =
    (socket is ~WebSocket)#closedHandler(toSimpleHandler handler);
 
