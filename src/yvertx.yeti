@@ -913,11 +913,11 @@ sendWithHandler address msg handler =
 
 request address msg handler =   
     (getVertx ())#eventBus()#send(address is string, toJS msg, 
-            toJsonMessageHandler handler);
+            toEitherJsonMessageHandler handler);
 /*
 requestBody address msg handler =
     (cbeMap (.body) (request address msg)) handler;
-*/    
+*/
 registerBusHandler address resultHandler handler =
     (getVertx ())#eventBus()#registerHandler(address is string,
                             toJsonMessageHandler handler,
