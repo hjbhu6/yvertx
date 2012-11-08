@@ -327,7 +327,8 @@ _toJS object =
         for [0 .. st#count() - 1] do i:
             name = st#name(i);
             v = st#get(i);
-            if not (name == js and not nullptr? v and defined? v) then
+            //check for js marker parameter
+            if not (name == "js" and (nullptr? v or not defined? v)) then
                 value = _toJS (v unsafely_as 'a);
                 _ = dbo#put(name, value);
             fi;
@@ -1307,23 +1308,47 @@ getHttpNow client uri headers handler =
 
 /**
  * Group: httpClient
- * quick version for http get, where the handler is directly a bodyHandler
+ * quick version for http get, where the handler is directly a bodyHandler and
+ * exception handler.
+ *
+ * If either the request or the response emit an exceptino (exceptionHandler)
+ * than the handler gets an Exception ex. Otherwise it gets  Some body
  *
  * like getHttpNow but the handler is drectly registered as bodyHandler
  * 
  * Arguments:
  * httpClient - the client
- * uri - the uri string
+ * uri - uri as string
  * headers - headers hash
  * handler - the response handler
  */
 getHttpBodyNow client uri headers handler =
-   getHttpNow client uri headers 
+    (var handled = false;
+    exh ex =
+        if not handled then
+            handled := true;
+            handler (Exception (ex is ~Exception));
+        fi;
+    req = httpRequest client (Get uri) headers do resp:
+        exceptionHandler resp exh;
+        bodyHandler resp do buffer:
+            if not handled then
+                handled := true;
+                handler (Some {buffer, resp});
+            fi;
+        done
+    done;
+    wsExceptionHandler req exh;
+    req#end());
+/*
+    done;
+    getHttpNow client uri headers 
                 do resp:
                     bodyHandler resp do buffer:
                         handler {buffer, resp}
                     done
                 done;
+*/
 //websocket functions
 
 /**
