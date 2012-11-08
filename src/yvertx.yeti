@@ -73,6 +73,22 @@ typedef eitherAsyncFunction<a> = asyncFunction<either<a>>;
 cbId v is 'a -> asyncFunction<either<'a>> = 
     do cb: cb (Some v) done;
 
+/** 
+ * Group: async 
+ * Transforms a normal asyncFunction to an eitherAsyncFunction.
+ *
+ * EiterhAsyncFunctions can be used in all the cb.. methods
+ *
+ * Arguments:
+ * asyncFunction - the asyncFunction to transform
+ */
+cbTo asfn is asyncFunction<'a> -> eitherAsyncFunction<'a> =
+    do cb:
+        asfn do v:
+            cb (Some v)
+        done
+    done;
+
 /**
  * Group: async
  * Joins two callbackFunctions in sequenc.
