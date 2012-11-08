@@ -895,7 +895,7 @@ toJsonMessageHandler fn =
                 get replyAddress () = string msg#replyAddress,
                 reply v = msg#reply(toJS v),
                 request v handler = 
-                    msg#reply(toJS v, toJsonMessageHandler handler)
+                    msg#reply(toJS v, toEitherJsonMessageHandler handler)
                },
 
     end;
