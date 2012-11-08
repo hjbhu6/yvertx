@@ -2117,10 +2117,19 @@ fileSystem = ({
     publish,
     send,
     request,
-    //requestBody,
+    requestBody,
     registerBusHandler,
     registerLocalBusHandler,
     unregisterBusHandler,
+    
+    /**
+     * Group: eventbus
+     * property for the eventbus object from vertx
+     *
+     * primarly used to send other values than json objects
+     */
+    get eventBus () =
+        (getVertx ())#eventBus(),
 
     //filesystem
     fileSystem,

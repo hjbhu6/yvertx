@@ -22,7 +22,8 @@ verticle do :
     bridgeSockJS 
          (createSockJSServer server)
          [] 
-         {prefix = "/eventbus"} 
+         {prefix = "/eventbus",
+         json=()} 
          permitted permitted;
     server#listen(8080);
     \()
