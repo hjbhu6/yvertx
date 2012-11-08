@@ -56,7 +56,7 @@ import org.vertx.java.deploy:Verticle,
 import org.vertx.java.deploy.impl:VertxLocator;
 
 
-
+typedef json<a> = {.js is a};
 //callback functions
 typedef callback<a> = a -> ();
 typedef asyncFunction<a> = callback<a> -> ();
@@ -291,7 +291,7 @@ done;
  * Empty json element (should repsenet an empty struct as this is not
  * possible in yeti
  */
-emptyJS = {´_´ = ()};
+emptyJS = {js = ()};
 
 _toJS object = 
    (import yeti.lang:Num, FloatNum, RatNum,AList, ByKey, Struct, Tag;
@@ -326,8 +326,11 @@ _toJS object =
         dbo = new HashMap();
         for [0 .. st#count() - 1] do i:
             name = st#name(i);
-            value = _toJS (st#get(i) unsafely_as 'a);
-            _ = dbo#put(name, value);
+            v = st#get(i);
+            if not (name == js and not nullptr? v and defined? v) then
+                value = _toJS (v unsafely_as 'a);
+                _ = dbo#put(name, value);
+            fi;
         done;
         new JsonObject(dbo);
     elif o instanceof Tag then
@@ -355,13 +358,8 @@ _toJS object =
  * Exceptions:
  * java.lang.RuntimeException - if the given argument is no struct
  */
-toJS stru is 'a -> ~JsonObject =
-    (import yeti.lang:Struct;
-    if (stru unsafely_as ~Object) instanceof Struct then
-        _toJS stru unsafely_as ~JsonObject;
-    else
-        failWith "no Struct only structs can be transfered to json"
-    fi);
+toJS stru is json<'a> -> ~JsonObject =
+    _toJS stru unsafely_as ~JsonObject;
 
 /**
  * Group: json
