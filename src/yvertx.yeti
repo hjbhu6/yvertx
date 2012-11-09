@@ -91,8 +91,25 @@ cbTo asfn is asyncFunction<'a> -> eitherAsyncFunction<'a> =
 
 /**
  * Group: async
- * Joins two callbackFunctions in sequenc.
- * see also the (->) operator for a shorthand and exmples 
+ * Transforms a callback function to an eitherCallback function
+ * giving in the defaultValue if an exception is found
+ *
+ * Arguments:
+ * defaultValue - the defaultValue
+ * callback - the function which is transfromed to an eitherFunction
+ */
+cbDefault defaultV cb =
+    \case of
+    Exception ex: cb defaultV;
+    Some v: cb v;
+    esac;
+
+/**
+ * Group: async
+ * Joins two eitherAsyncFunctions in sequenc, where the second function
+ * is dependent on the result of the first.
+ *
+ * see also the (->>) operator for a shorthand and exmples 
  *
  * Arguments:
  * mappingFunction - is given the value of the first asyncFunction and should
@@ -111,6 +128,25 @@ cbBind fn cbfn
 
 /**
  * Group: async
+ * Joins two callbackFunctions in sequenc.
+ * see also the (-->>) operator for a shorthand and examples 
+ *
+ * Arguments:
+ * mappingFunction - is given the value of the first asyncFunction and should
+ * returns the second callback funcion
+ * asyncFunction - the first callback function in the sequence
+ */
+cbeBind fn cbfn
+    is ('a -> asyncFunction<'b>) -> asyncFunction<'a> 
+        -> asyncFunction<'b> =
+    do cb:
+        cbfn do a:
+            (fn a) cb
+        done
+    done;
+
+/**
+ * Group: async
  * Transform an asyncFunction which holds an asyncFunction to an asyncFunction
  * which of the parameter of the second asyncfunction. Used to flatten stacked
  * asyncFunctions
@@ -124,8 +160,10 @@ cbFlatten cbfn
 
 /**
  * Group: async
- * Transforms the callback of an asyncFunction to another value.
+ * Transforms the callback of an eitherAsyncFunction to another value.
  * 
+ * See also the -> operator
+ *
  * Arguments:
  * mappingFunction - function which mapps the original value to the new one
  * asyncFunction - originalAsyncFunction
@@ -137,6 +175,23 @@ cbMap fn cbfn is ('a -> 'b) -> eitherAsyncFunction<'a>
             Exception str: cb (Exception str);
             Some a: cb (Some (fn a));
             esac
+    done;
+
+/**
+ * Group: async
+ * Transforms the callback of an asyncFunction to another value.
+ *
+ * See also the --> operator
+ * 
+ * Arguments:
+ * mappingFunction - function which mapps the original value to the new one
+ * asyncFunction - originalAsyncFunction
+ */
+cbeMap fn cbfn is ('a -> 'b) -> asyncFunction<'a> -> asyncFunction <'b> =
+    do cb:
+        cbfn do a:
+            cb (fn a);
+        done
     done;
 
 /**
@@ -986,20 +1041,35 @@ undeployVerticle deploymentID handler =
     (getContainer ())#undeployVerticle(deploymentID, 
                                     toHandler handler);
 
-timeout time tofn fn = 
+class TimeOutException(long time) extends RuntimeException("Timedout \(time)")
+     long getTime()
+        time,
+end;
+/**
+ * Group: async
+ * Wraps an async callback function with timeout behauviour.
+ *
+ * If the callback is not invoke within the given timeoutMs than
+ * an TimeOutException is passed in Excepition.
+ *
+ * Arguments:
+ * timeoutMs - the timouout in Ms
+ * callback - the callback function
+ */
+timeout time cb = 
     (var handled = false;
 
-    _ = setTimer time do:
+    _ = setTimer (time is number) do:
         if not handled then
             handled := true;
-            tofn time;
+            cb (Exception ((new TimeOutException(time)) as ~Exception));
         fi
     done;
     
     do arg:
         if not handled then
             handled := true;
-            fn Some;
+            cb arg;
         fi
     done);
 //http server things
@@ -1958,9 +2028,11 @@ fileSystem = ({
     cbSequence,
     cbSet,
     cbCollect,
+    cbeMap,
+    cbeBind,
     /**
      * Group: async
-     * operator for map but with changed parameters
+     * operator for cbMap but with changed parameters
      */
     (->) cbfn fn =  cbMap fn cbfn,
     
@@ -1969,6 +2041,18 @@ fileSystem = ({
      * operator for cbBind with changed paramters
      */
     (->>) cbfn fn = cbBind fn cbfn,
+    
+    /**
+     * Group: async
+     * operator for cbeMap but with changed parameters
+     */
+    (-->) cbfn fn =  cbeMap fn cbfn,
+    
+    /**
+     * Group: async
+     * operator for cbeBind with changed paramters
+     */
+    (-->>) cbfn fn = cbeBind fn cbfn,
     
     /**
      * Group: helper
