@@ -56,7 +56,7 @@ import org.vertx.java.deploy:Verticle,
 import org.vertx.java.deploy.impl:VertxLocator;
 
 
-typedef json<a> = {.json is a};
+typedef json<a> = {.for_json is a};
 //callback functions
 typedef callback<a> = a -> ();
 typedef asyncFunction<a> = callback<a> -> ();
@@ -307,19 +307,30 @@ done;
  * Empty json element (should repsenet an empty struct as this is not
  * possible in yeti
  */
-emptyJS is json<()>= {json = ()};
+emptyJS is json<E()>= {for_json = E()};
 
-_sameObj = new Object();
 
 _toJS object = 
    (import yeti.lang:Num, FloatNum, RatNum,AList, ByKey, Struct, Tag;
     import java.util:ArrayList,Map, HashMap;
-   
+  
+    nullTag ob = 
+        (o = ob as ~Object;
+        if o instanceof Tag then
+            t = o unsafely_as ~Tag;
+            t#name == "E" and nullptr? t#value;
+        else
+            false
+        fi);
+
+        
     o = object as ~Object;
     if nullptr? o then
         o
     elif same? o (emptyJS as ~Object) then
-        new JsonObject() 
+        new JsonObject()
+    elif nullTag o then
+        () as ~Object;
     elif (o instanceof FloatNum) 
          or (o instanceof RatNum) then
         (o unsafely_as ~Num)#toBigDecimal();
@@ -328,7 +339,9 @@ _toJS object =
     elif o instanceof AList then
         jl = new JsonArray();
         for (o unsafely_as list<'a>) do v:
-            _ = jl#add(_toJS v);
+            if not nullTag v then
+                _ = jl#add(_toJS v);
+            fi;
         done;
         jl as ~Object;
     elif o instanceof ByKey then
@@ -337,16 +350,19 @@ _toJS object =
         i#hasNext() loop
             (e = i#next() unsafely_as ~java.util.Map$Entry;
              key = string (e#getKey());
-             _ = dbo#put(key, _toJS (e#getValue() unsafely_as 'a)));
+             v = e#getValue();
+             if not nullTag v then
+                 _ = dbo#put(key, _toJS (v unsafely_as 'a));
+             fi);
         new JsonObject(dbo);
     elif o instanceof Struct then
         st = o unsafely_as ~Struct;
         dbo = new HashMap();
         for [0 .. st#count() - 1] do i:
             name = st#name(i);
-            v = _toJS (st#get(i) unsafely_as 'a);
-            if (not nullptr? v) or  same? _sameObj v then
-                _ = dbo#put(name,v);
+            v = st#get(i);
+            if not nullTag v then
+                _ = dbo#put(name, _toJS (v unsafely_as 'a));
             fi;
         done;
         new JsonObject(dbo);
@@ -356,8 +372,6 @@ _toJS object =
             _toJS (t#value unsafely_as 'a);
         elif t#name == "None" then
             () as ~Object;
-        elif t#name == "Null" then
-            _sameObj;
         else
             failWith "Can not serialize \(o)"
         fi
@@ -367,9 +381,30 @@ _toJS object =
 
 /**
  * Group: json
- * Transforms a yeti struct to a ~JsonObject. Note this functions
- * takes any value but only structs are supported otherwise an exception
- * is throw. The function is therefore not threadsafe.
+ * Transforms a yeti struct to a ~JsonObject. 
+ * 
+ * Each struct must have the field json. If the value of the field is
+ * E() than it is not serialized.
+ *
+ * The filed-types of the struct maybe:
+ * - number - becomes either a bigdecimal or a biginteger
+ * - string - becomes a string
+ * - boolean - becomes a Boolean
+ * - None x - becomes null x is ignored
+ * - Some x - becomes the value of x, where x must be one of the allowed values
+ * - null - becomes null
+ * - list?<x> - becomes JsonArray. Note the remmarks for empty lists
+ * - struct<x> - another struct which must have the same form as this
+ * - hash<x,y> - the key is transfered to a string the value must be one of
+ *   this types
+ * - E() - means that the value and filed is not included in struct and hash
+ *   or list
+ *
+ * As empty lists [] in yeti are represtend as null it is necessary to give in
+ * [E()] if there must be an empty list instead of a null in the corresponding
+ * json. 
+ *
+ * If a certain field should be excluded give it the value N().
  *
  * Arguments:
  * struct - structure to transform to JsonObject
