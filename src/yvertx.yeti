@@ -56,7 +56,7 @@ import org.vertx.java.deploy:Verticle,
 import org.vertx.java.deploy.impl:VertxLocator;
 
 
-typedef json<a> = {.json is a};
+typedef json<a> = {.for_json is a};
 //callback functions
 typedef callback<a> = a -> ();
 typedef asyncFunction<a> = callback<a> -> ();
@@ -307,7 +307,7 @@ done;
  * Empty json element (should repsenet an empty struct as this is not
  * possible in yeti
  */
-emptyJS is json<N()>= {json = N()};
+emptyJS is json<E()>= {for_json = E()};
 
 
 _toJS object = 
@@ -318,7 +318,7 @@ _toJS object =
         (o = ob as ~Object;
         if o instanceof Tag then
             t = o unsafely_as ~Tag;
-            t#name == "N" and nullptr? t#value;
+            t#name == "E" and nullptr? t#value;
         else
             false
         fi);
@@ -384,7 +384,7 @@ _toJS object =
  * Transforms a yeti struct to a ~JsonObject. 
  * 
  * Each struct must have the field json. If the value of the field is
- * N() than it is not serialized.
+ * E() than it is not serialized.
  *
  * The filed-types of the struct maybe:
  * - number - becomes either a bigdecimal or a biginteger
@@ -397,11 +397,11 @@ _toJS object =
  * - struct<x> - another struct which must have the same form as this
  * - hash<x,y> - the key is transfered to a string the value must be one of
  *   this types
- * - N() - means that the value and fieled is not included in struct and hash
+ * - E() - means that the value and filed is not included in struct and hash
  *   or list
  *
  * As empty lists [] in yeti are represtend as null it is necessary to give in
- * [N()] if there must be an empty list instead of a null in the corresponding
+ * [E()] if there must be an empty list instead of a null in the corresponding
  * json. 
  *
  * If a certain field should be excluded give it the value N().

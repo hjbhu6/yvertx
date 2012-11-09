@@ -23,7 +23,7 @@ verticle do :
          (createSockJSServer server)
          [] 
          {prefix = "/eventbus",
-         json=()} 
+         for_json=E()} 
          permitted permitted;
     server#listen(8080);
     \()

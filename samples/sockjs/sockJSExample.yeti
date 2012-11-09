@@ -25,7 +25,7 @@ verticle do :
     done;
     installSockJSApp 
         (createSockJSServer server)
-        {prefix = "/testapp", json=()} 
+        {prefix = "/testapp", for_json=E()} 
         do sock:
             dataHandler sock do buffer:
                 _ = sock#writeBuffer(buffer); //Echo it back

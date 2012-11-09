@@ -261,7 +261,7 @@ done,
     for adresses do adr:
         registerBusHandler adr \() do {reply, handler}:
             reply {value = 1, 
-                   json=()};
+                   for_json=E()};
             unregisterBusHandler adr handler \();
         done
     done;
@@ -278,7 +278,7 @@ done,
 "cb:Colllect" : do rs:
     register adr =
         registerBusHandler adr \() do {reply, handler} :
-            reply {value = adr ^ "foo", json=()};
+            reply {value = adr ^ "foo", for_json=E()};
             unregisterBusHandler adr handler \();
         done;
     
@@ -301,7 +301,7 @@ done,
 
 
 "eventbus:simple" : do rs:
-    msg = {address = "foo-address", price=23.45, json=()};
+    msg = {address = "foo-address", price=23.45, for_json=E()};
     rs.setTimeout(2000);
     address = "foo-some";
     var handled = false;
@@ -327,7 +327,7 @@ done,
 
 "eventbus:unregister" : do rs:
     var handled = false;
-    msg = {count = 1, foo = "foo", json=()};
+    msg = {count = 1, foo = "foo", for_json=E()};
     var assertion = true;
     registerBusHandler "foo" \() do {body,handler}:
         assertion := assertion and (body == msg and not handled);
@@ -345,8 +345,8 @@ done,
 
 "eventbus:withReply" : do rs:
     var handled = false;
-    msg = {count=1, foo = "foo2", json=()};
-    repl = {reply = true, json=()};
+    msg = {count=1, foo = "foo2", for_json=E()};
+    repl = {reply = true, for_json=E()};
     var asserts = true;
     registerBusHandler "foo" \() do {body,handler, reply}:
         asserts := asserts and (not handled and msg == body);
@@ -362,10 +362,10 @@ done,
 
 "eventbus:replyOfReplyOfReply" : do rs:
     adr = "foo";
-    msg = {msg = "message", json=()};
-    repl = {msg = "repl", json=()};
-    repl2 = {msg = "repl2", json=()};
-    repl3 = {msg = "repl3", json=()};
+    msg = {msg = "message", for_json=E()};
+    repl = {msg = "repl", for_json=E()};
+    repl2 = {msg = "repl2", for_json=E()};
+    repl3 = {msg = "repl3", for_json=E()};
     registerBusHandler adr \() do {body, handler, request}:
         rs.assert "" (msg == body);
         request repl (noex do {body, reply}:
