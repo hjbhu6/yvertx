@@ -1,10 +1,12 @@
 module yvertx.webServer;
 
 import java.io:File;
-import org.yvertx.java.core.http:HttpServerRequest,
+import org.vertx.java.core.http:HttpServerRequest,
                                  RquestMatcher;
-import org.yvertx.java.deploy.Verticle;
-import org.yvertx.java.busmods.BusModBase;
+import org.vertx.java.core.http.impl:HttpReadStreamBase;
+import org.vertx.java.core.file.impl.PathAdjuster;
+import org.vertx.java.deploy.Verticle;
+import org.vertx.java.busmods.BusModBase;
 
 load yvertx;
 
@@ -14,8 +16,8 @@ staticFileConf = {
     index_page = "index",
 };
 serveStaticFileAtPath conf req path =
-    (webRootPrefix = conf.web_root ^ File#separator,
-    indexPage = webRootPrefix ^ conf.index_page,
+    (webRootPrefix = conf.web_root ^ File#separator;
+    indexPage = webRootPrefix ^ conf.index_page;
     
     headers = requestHeaders req;
     acceptEncodingGzip = if "accept-encoding" in headers then
@@ -27,7 +29,7 @@ serveStaticFileAtPath conf req path =
     if path == "/" then
         req#response#sendFile(indexPage);
     elif strIndexOf path ".." 0 < 0 then
-        if conf.gzip_files and acceptEncodingZip then
+        if conf.gzip_files and acceptEncodingGzip then
             file = new File(PathAdjuster#adjust(fileName ^ ".gz"));
             if file#exists() then
                 req#response#putHeader("content-encoding", "gzip");
@@ -39,7 +41,7 @@ serveStaticFileAtPath conf req path =
             req#response#sendFile(fileName);
         fi
     else
-        req#response#statusCode = 404;
+        req#response#statusCode := 404;
         req#response#end();
     fi);
 
@@ -48,34 +50,41 @@ serveStaticFile conf req =
 
 
 
-bridgeRequest bustarget reqO =
-    bodyHandler reqO do buffer:
+bridgeRequest conf bustarget reqO =
+    bodyHandler (reqO is ~HttpServerRequest) do buffer:
         req = {
-            headers = requestHeaders reqO,
+            headers = requestHeaders (reqO is ~HttpServerRequest),
             method = reqO#method,
             path = reqO#path,
             query = reqO#query,
             uri = reqO#uri,
             params = params reqO,
-            body = buffer#getBytes()};
-        requestBody bustarget req do resp:
-            rsqO#response#statusCode := maybeDefined? \200 isNumber res.status;
-            
-            if defined? res.statusMessage then
-                reqO#response#statusMessage := string res.statusMessage
-            fi;
-            
-            if defined? res.headers then
-                putResponseHeaders reqO res.headers
-            fi;
-            
-            if defined? res.file then
-                handleStaticFile (string res.file);
-            elif defined? res.body then
-                reqO#response#write(newByteBuffer res.body);
-            fi;
-            reqO#response#end()
-        done
+            body = buffer#getBytes(),
+            for_json = E()};
+        
+        requestBody bustarget req \case of
+            Exception ex:
+                reqO#response#statusCode := 404;
+                reqO#response#end();
+            Some res:
+                reqO#response#statusCode := 
+                    maybeDefined \200 isNumber res.status;
+                
+                if defined? res.statusMessage then
+                    reqO#response#statusMessage := string res.statusMessage
+                fi;
+                
+                if defined? res.headers then
+                    putResponseHeaders reqO res.headers
+                fi;
+                
+                if defined? res.file then
+                    serveStaticFileAtPath conf reqO (string res.file);
+                elif defined? res.body then
+                    reqO#response#write(newByteBuffer res.body);
+                    reqO#response#end();
+                fi;
+        esac;
     done;
 
 
