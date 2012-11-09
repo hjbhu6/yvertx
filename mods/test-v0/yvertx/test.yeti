@@ -255,7 +255,7 @@ done,
         done);
 done,
 
-"cb:Sequence" : do rs:
+"cb:Parallel" : do rs:
     //make services 
     adresses = [1..10] |> map (("adr"^) . string);
     for adresses do adr:
@@ -269,7 +269,7 @@ done,
         request adr emptyJS -> 
             do {body} : body.value done
     done;
-    fns = cbSequence handlers; 
+    fns = cbParallel handlers; 
     fns (noex do res:
         rs.assure "\(res)" (10 == fold (+) 0 res);
     done)

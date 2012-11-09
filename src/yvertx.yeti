@@ -214,7 +214,7 @@ cbLift fn a cb is ('a -> 'b) -> ('a -> eitherAsyncFunction<'b>) =
  * asycnFunctions - the list of asyncFunctions to execute
  * callback - the callbac function which gets called with the result
  */
-cbSequence cbfns cb 
+cbParallel cbfns cb 
     is list?<eitherAsyncFunction<'a>> -> callback<either<list<'a>>> -> () =
     (res = array [];
     var handled = false;
@@ -2025,7 +2025,7 @@ fileSystem = ({
     cbFlatten,
     cbMap,
     cbLift,
-    cbSequence,
+    cbParallel,
     cbSet,
     cbCollect,
     cbeMap,
