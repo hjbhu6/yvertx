@@ -129,11 +129,10 @@ serverConf = staticFileConf with {
     bridge = false,
     inbound_permitted = [],
     outbound_permitted = [],
-    sjs_config = {prefix = "/eventbus", for_json = E()},
+    sjs_config = {prefix = "/eventbus"},
     auth_timeout = 5 * 60 * 1000,
     auth_address = "vertx.basicauthmanager.authorise",
     routes = [],
-    for_json=E(),
 };
 
 startServer conf =
@@ -167,7 +166,7 @@ startServer conf =
         sjsServer = createSockJSServer server; 
         bridgeSockJS sjsServer [AuthTimeout conf.auth_timeout,
                           AuthAddress conf.auth_address]
-                        conf.sjs_config 
+                        (conf.sjs_config with emptyJS)
                         conf.inbound_permitted 
                         conf.outbound_permitted;
     fi;
