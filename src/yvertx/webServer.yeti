@@ -43,7 +43,8 @@ serveStaticFileAtPath conf req path =
     else
         req#response#statusCode := 404;
         req#response#end();
-    fi);
+    fi;
+    ());
 
 serveStaticFile conf req =
     serveStaticFileAtPath conf req req#path;
@@ -62,15 +63,18 @@ bridgeRequest conf bustarget reqO =
             body = buffer#getBytes(),
             for_json = E()};
         
-        requestBody bustarget req \case of
+        requestBody bustarget req 
+            \case of
             Exception ex:
-                reqO#response#statusCode := 404;
-                reqO#response#end();
-            Some res:
+                (reqO#response#statusCode := 404;
+                _ = reqO#response#end();
+                ());
+            Some body:
+                (res = body;
                 reqO#response#statusCode := 
                     maybeDefined \200 isNumber res.status;
                 
-                if defined? res.statusMessage then
+                _ = if defined? res.statusMessage then
                     reqO#response#statusMessage := string res.statusMessage
                 fi;
                 
@@ -84,14 +88,15 @@ bridgeRequest conf bustarget reqO =
                     reqO#response#write(newByteBuffer res.body);
                     reqO#response#end();
                 fi;
-        esac;
+                ());
+            esac;
     done;
 
 
 proxyRequest proxyTo = 
     (client = createHttpClient proxyTo;
     do req:
-        cReq = httpRequest client;
+        cReq = httpRequest client
             (Request {method = (req is ~HttpServerRequest)#method, 
                       uri = req#uri}) 
             [:]
@@ -124,34 +129,31 @@ serverConf = staticFileConf with {
     bridge = false,
     inbound_permitted = [],
     outbound_permitted = [],
-    sjs_config = {prefix = "/eventbus"},
+    sjs_config = {prefix = "/eventbus", for_json = E()},
     auth_timeout = 5 * 60 * 1000,
     auth_address = "vertx.basicauthmanager.authorise",
     routes = [],
+    for_json=E(),
 };
 
 startServer conf =
     (server = createHttpServer ();
-    conf = conf with {
-            webRootPrefix = con.webRoot ^ File#separator,
-            indexPage = con.webRoot ^ File#separator ^ index,
-        };
     if not empty? conf.routes or conf.static_files then
-        rm = new RouteMatcher();
+        rm = newRouteMatcher();
 
         //add the static file handler
         if conf.static_files then
-            _ = rm.noMatch (handleStatic conf);
+            _ = rm.noMatch (serveStaticFile conf);
         fi;
         for conf.routes do route:
             handler = case route.type of
             "proxy":
-                handleProxy route.host_port;
+                proxyRequest route.host_port;
             "request" : 
-                handleReq conf route.bus_target;
-            x : failWith "unknown type \(x) on route \(pattern)";
+                bridgeRequest conf route.bus_target;
+            x : failWith "unknown type \(x) on route \(route.pattern)";
             esac;
-            rm.route pattern handler;
+            rm.route route.pattern handler;
         done;
     fi;
 
@@ -162,12 +164,12 @@ startServer conf =
     fi;
 
     if conf.bridge then
-        
-        bridge sjsServer [AuthTimeout conf.auth_timeout,
+        sjsServer = createSockJSServer server; 
+        bridgeSockJS sjsServer [AuthTimeout conf.auth_timeout,
                           AuthAddress conf.auth_address]
                         conf.sjs_config 
                         conf.inbound_permitted 
-                        conf.outbound_Permitted;
+                        conf.outbound_permitted;
     fi;
     _ = server#listen(conf.port,conf.host));
 
@@ -177,14 +179,14 @@ class WebServer extends Verticle
 
     void start()
         conf = blend serverConf (config ());
-        startServer conf,
+        startServer serverConf,
 end;
 
 {
     staticFileConf,
     serveStaticFileAtPath,
-    serveStaticFile
-    bridgeRequest
+    serveStaticFile,
+    bridgeRequest,
     proxyRequest,
     serverConf,
     startServer,

@@ -573,14 +573,14 @@ fromJSArray ar is ~JsonArray -> list<'a> =
  * :defaultV = {ssl=true, port=8080}
  * :withDefaults = blend defaultV (toJson someJsonObject);
  */
-blend v1 v2 is 'a -> 'b -> 'a =
+blend vin1 vin2 =
     (import yeti.lang:Struct,
                       GenericStruct;
     import java.util.HashMap;
 
-    o1 = v1 unsafely_as ~Object;
-    o2 = v2 unsafely_as ~Object;
-    if defined? v1 and defined? v2 and 
+    o1 = (vin1 is 'a) unsafely_as ~Object;
+    o2 = (vin2 is 'b) unsafely_as ~Object;
+    if defined? o1 and defined? o2 and 
        o1 instanceof Struct and o2 instanceof Struct then
 
         s1 = o1 unsafely_as ~Struct;
@@ -597,7 +597,7 @@ blend v1 v2 is 'a -> 'b -> 'a =
             ov = jmap#get(na);
             va2 = if defined? ov 
                     and (ov unsafely_as ~Object) instanceof Struct then
-                    blend ov va
+                    blend (ov unsafely_as 'a) (va unsafely_as 'b)
                   else 
                       va;
                   fi;
@@ -605,7 +605,7 @@ blend v1 v2 is 'a -> 'b -> 'a =
         done;
         (new GenericStruct(jmap)) unsafely_as 'a;
     else
-        v1
+        (o1 unsafely_as 'a);
     fi);
 
 /**
