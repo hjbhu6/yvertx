@@ -556,24 +556,7 @@ fromJS object is ~JsonObject -> 'a =
 fromJSArray ar is ~JsonArray -> list<'a> =
     (_fromJS ar) unsafely_as list<'a>;    
 
-/**
- * Group: json
- * Replaces in the struct the fiels of v1 with the fields of v2 if presten.
- * Works only on struct arguments if either argument is not a struct then
- * the first argument is returen.
- *
- * This is useful when transforming getting a Json struct fom "fromJS" and
- * prefilling it with default values
- *
- * Arguments:
- * v1 - the strcut which is the basis
- * v2 - the strcut which replaces in v1
- *
- * Examples:
- * :defaultV = {ssl=true, port=8080}
- * :withDefaults = blend defaultV (toJson someJsonObject);
- */
-blend vin1 vin2 =
+_blend vin1 vin2 is 'a -> 'b -> 'c=
     (import yeti.lang:Struct,
                       GenericStruct;
     import java.util.HashMap;
@@ -597,16 +580,36 @@ blend vin1 vin2 =
             ov = jmap#get(na);
             va2 = if defined? ov 
                     and (ov unsafely_as ~Object) instanceof Struct then
-                    blend (ov unsafely_as 'a) (va unsafely_as 'b)
+                    _blend (ov unsafely_as 'a) (va unsafely_as 'b)
                   else 
                       va;
                   fi;
             _ = jmap#put(na,va2);
         done;
-        (new GenericStruct(jmap)) unsafely_as 'a;
+        (new GenericStruct(jmap)) unsafely_as 'c;
     else
-        (o1 unsafely_as 'a);
+        o1 unsafely_as 'c;
     fi);
+
+/**
+ * Group: json
+ * Replaces in the struct the fiels of v1 with the fields of v2 if presten.
+ * Works only on struct arguments if either argument is not a struct then
+ * the first argument is returen.
+ *
+ * This is useful when transforming getting a Json struct fom "fromJS" and
+ * prefilling it with default values
+ *
+ * Arguments:
+ * v1 - the strcut which is the basis
+ * v2 - the strcut which replaces in v1
+ *
+ * Examples:
+ * :defaultV = {ssl=true, port=8080}
+ * :withDefaults = blend defaultV (toJson someJsonObject);
+ */
+blend v1 v2 is 'a -> 'b -> 'c =
+    (blend v1 v2) unsafely_as 'c;
 
 /**
  * Group: helper (UTIL)

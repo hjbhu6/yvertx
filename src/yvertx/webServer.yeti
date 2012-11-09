@@ -179,7 +179,7 @@ class WebServer extends Verticle
 
     void start()
         conf = blend serverConf (config ());
-        startServer serverConf,
+        startServer conf,
 end;
 
 {
