@@ -1,0 +1,183 @@
+module yvertx.webServer;
+
+import java.io:File;
+import org.yvertx.java.core.http:HttpServerRequest,
+                                 RquestMatcher;
+import org.yvertx.java.deploy.Verticle;
+import org.yvertx.java.busmods.BusModBase;
+
+load yvertx;
+
+staticFileConf = {
+    web_root = "web",
+    gzip_files = false,
+    index_page = "index",
+};
+serveStaticFileAtPath conf req path =
+    (webRootPrefix = conf.web_root ^ File#separator,
+    indexPage = webRootPrefix ^ conf.index_page,
+    
+    headers = requestHeaders req;
+    acceptEncodingGzip = if "accept-encoding" in headers then
+            strIndexOf headers.["accept-encoding"] "gzip" 0 > -1;
+        else
+            false
+        fi;
+    fileName = webRootPrefix ^ path;
+    if path == "/" then
+        req#response#sendFile(indexPage);
+    elif strIndexOf path ".." 0 < 0 then
+        if conf.gzip_files and acceptEncodingZip then
+            file = new File(PathAdjuster#adjust(fileName ^ ".gz"));
+            if file#exists() then
+                req#response#putHeader("content-encoding", "gzip");
+                req#response#sendFile(fileName ^ ".gz");
+            else
+                req#response#sendFile(fileName);
+            fi
+        else
+            req#response#sendFile(fileName);
+        fi
+    else
+        req#response#statusCode = 404;
+        req#response#end();
+    fi);
+
+serveStaticFile conf req =
+    serveStaticFileAtPath conf req req#path;
+
+
+
+bridgeRequest bustarget reqO =
+    bodyHandler reqO do buffer:
+        req = {
+            headers = requestHeaders reqO,
+            method = reqO#method,
+            path = reqO#path,
+            query = reqO#query,
+            uri = reqO#uri,
+            params = params reqO,
+            body = buffer#getBytes()};
+        requestBody bustarget req do resp:
+            rsqO#response#statusCode := maybeDefined? \200 isNumber res.status;
+            
+            if defined? res.statusMessage then
+                reqO#response#statusMessage := string res.statusMessage
+            fi;
+            
+            if defined? res.headers then
+                putResponseHeaders reqO res.headers
+            fi;
+            
+            if defined? res.file then
+                handleStaticFile (string res.file);
+            elif defined? res.body then
+                reqO#response#write(newByteBuffer res.body);
+            fi;
+            reqO#response#end()
+        done
+    done;
+
+
+proxyRequest proxyTo = 
+    (client = createHttpClient proxyTo;
+    do req:
+        cReq = httpRequest client;
+            (Request {method = (req is ~HttpServerRequest)#method, 
+                      uri = req#uri}) 
+            [:]
+            do cRes:
+                req#response#statusCode := cRes#statusCode;
+                req#response#headers()#putAll(cRes#headers());
+                req#response#setChunked(true);
+                dataHandler cRes do data:
+                    _ = req#response#write(data);
+                done;
+                endHandler cRes do:
+                    req#response#end()
+                done;
+            done;
+        cReq#headers()#putAll(req#headers());
+        cReq#setChunked(true);
+        dataHandler req do buffer:
+            _ = cReq#write(buffer);
+        done;
+        endHandler req do: cReq#end() done;
+    done);
+
+serverConf = staticFileConf with {
+    port = 80,
+    host = "0.0.0.0",
+    ssl = false,
+    key_store_password = "wibble",
+    key_store_path = "server-keystore.jks",
+    static_files = true,
+    bridge = false,
+    inbound_permitted = [],
+    outbound_permitted = [],
+    sjs_config = {prefix = "/eventbus"},
+    auth_timeout = 5 * 60 * 1000,
+    auth_address = "vertx.basicauthmanager.authorise",
+    routes = [],
+};
+
+startServer conf =
+    (server = createHttpServer ();
+    conf = conf with {
+            webRootPrefix = con.webRoot ^ File#separator,
+            indexPage = con.webRoot ^ File#separator ^ index,
+        };
+    if not empty? conf.routes or conf.static_files then
+        rm = new RouteMatcher();
+
+        //add the static file handler
+        if conf.static_files then
+            _ = rm.noMatch (handleStatic conf);
+        fi;
+        for conf.routes do route:
+            handler = case route.type of
+            "proxy":
+                handleProxy route.host_port;
+            "request" : 
+                handleReq conf route.bus_target;
+            x : failWith "unknown type \(x) on route \(pattern)";
+            esac;
+            rm.route pattern handler;
+        done;
+    fi;
+
+    if conf.ssl then
+        _ = server#setSSL(true)
+            #setKeyStorePassword(conf.key_store_password)
+            #setKeyStorePath(conf.key_store_path);
+    fi;
+
+    if conf.bridge then
+        
+        bridge sjsServer [AuthTimeout conf.auth_timeout,
+                          AuthAddress conf.auth_address]
+                        conf.sjs_config 
+                        conf.inbound_permitted 
+                        conf.outbound_Permitted;
+    fi;
+    _ = server#listen(conf.port,conf.host));
+
+    
+
+class WebServer extends Verticle
+
+    void start()
+        conf = blend serverConf (config ());
+        startServer conf,
+end;
+
+{
+    staticFileConf,
+    serveStaticFileAtPath,
+    serveStaticFile
+    bridgeRequest
+    proxyRequest,
+    serverConf,
+    startServer,
+    verticle () = new WebServer()
+}
