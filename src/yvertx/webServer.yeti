@@ -53,12 +53,20 @@ serveStaticFile conf req =
 
 bridgeRequest conf bustarget reqO =
     bodyHandler (reqO is ~HttpServerRequest) do buffer:
+        headers = 
+            (ret = [:];
+            forHash (requestHeaders (reqO is ~HttpServerRequest)) do k v:
+                ret.[k] := [v];
+            done;
+            ret);
+                
         req = {
-            headers = requestHeaders (reqO is ~HttpServerRequest),
+            remoteAddr, ///implmenet
+            headers,
+            uri = reqO#uri,
             method = reqO#method,
             path = reqO#path,
             query = reqO#query,
-            uri = reqO#uri,
             params = params reqO,
             body = buffer#getBytes(),
             for_json = E()};
