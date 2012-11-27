@@ -70,9 +70,17 @@ typedef eitherAsyncFunction<a> = asyncFunction<either<a>>;
  * Arguments:
  *  value - value to which the created function will pass in the reciever
  */
-cbId v is 'a -> asyncFunction<either<'a>> = 
+cbReturn v is 'a -> asyncFunction<either<'a>> = 
     do cb: cb (Some v) done;
 
+/**
+ * Group: async (ASYNC)
+ * Transforms a value in an asyncFunction
+ *
+ * Arguments:
+ *  value - value to which the created function will pass in the reciever
+ */
+cbeReturn v cb = cb v;
 /** 
  * Group: async 
  * Transforms a normal asyncFunction to an eitherAsyncFunction.
@@ -82,7 +90,7 @@ cbId v is 'a -> asyncFunction<either<'a>> =
  * Arguments:
  * asyncFunction - the asyncFunction to transform
  */
-cbTo asfn is asyncFunction<'a> -> eitherAsyncFunction<'a> =
+cbEither asfn is asyncFunction<'a> -> eitherAsyncFunction<'a> =
     do cb:
         asfn do v:
             cb (Some v)
@@ -116,8 +124,8 @@ cbDefault defaultV cb =
  * returns the second callback funcion
  * asyncFunction - the first callback function in the sequence
  */
-cbBind fn cbfn
-    is ('a -> eitherAsyncFunction<'b>) -> eitherAsyncFunction<'a> 
+cbBind cbfn fn
+    is  eitherAsyncFunction<'a> -> ('a -> eitherAsyncFunction<'b>) 
         -> eitherAsyncFunction<'b> =
     do cb:
         cbfn \case of
@@ -136,8 +144,8 @@ cbBind fn cbfn
  * returns the second callback funcion
  * asyncFunction - the first callback function in the sequence
  */
-cbeBind fn cbfn
-    is ('a -> asyncFunction<'b>) -> asyncFunction<'a> 
+cbeBind cbfn fn
+    is  asyncFunction<'a> -> ('a -> asyncFunction<'b>)
         -> asyncFunction<'b> =
     do cb:
         cbfn do a:
@@ -156,7 +164,7 @@ cbeBind fn cbfn
  */
 cbFlatten cbfn 
     is eitherAsyncFunction<eitherAsyncFunction<'a>> -> eitherAsyncFunction<'a> =
-    cbBind id cbfn;
+    cbBind cbfn id;
 
 /**
  * Group: async
@@ -236,7 +244,6 @@ cbParallel cbfns cb
             esac;
     done);
 
-cbStruTH = threadLocal none;
 
 /**
  * Group: async
@@ -248,12 +255,8 @@ cbStruTH = threadLocal none;
  * Arguments:
  * asyncFunction - the asyncFunction from which to take the value
  */
-cbSet cbfn is eitherAsyncFunction<'a> -> (() -> 'a) =
-    (ctr = case cbStruTH.value of
-        None _ : failWith "cbSet must only be used directly in cbCol";
-        Some r: r;
-        esac;
-    ctr.starting();
+cbSet ctr cbfn is 'b -> eitherAsyncFunction<'a> -> (() -> 'a) =
+    (ctr.starting();
     var hasReceived = false;
     var res = NotSet ();
     cbfn \case of
@@ -294,7 +297,7 @@ cbSet cbfn is eitherAsyncFunction<'a> -> (() -> 'a) =
  * :         Some {name, image}: //handle result
  * :     esac;
  */
-cbCollect inex cb is (() -> 'a) -> eitherAsyncFunction<'a>=
+cbCollect inex cb is ('b -> 'a) -> eitherAsyncFunction<'a>=
     (var called = false;
      var requests = 0;
      var received = 0;
@@ -321,10 +324,8 @@ cbCollect inex cb is (() -> 'a) -> eitherAsyncFunction<'a>=
                 fi;
             esac,
     };
-    oCtr = cbStruTH.value;
     try 
-        cbStruTH.value := Some ctr;
-        r = inex (); 
+        r = inex ctr; 
         result := Some r;
         if not called and received == requests then
             called := true;
@@ -336,8 +337,6 @@ cbCollect inex cb is (() -> 'a) -> eitherAsyncFunction<'a>=
             called := true;
             cb (Exception ex);
         fi
-    finally
-        cbStruTH.value := oCtr;
     yrt;
     ());
 
@@ -2023,7 +2022,8 @@ fileSystem = ({
  
 {
     //callback functions
-    cbId,
+    cbReturn,
+    cbeReturn,
     cbBind,
     cbFlatten,
     cbMap,
@@ -2043,7 +2043,7 @@ fileSystem = ({
      * Group: async
      * operator for cbBind with changed paramters
      */
-    (->>) cbfn fn = cbBind fn cbfn,
+    (>>=) cbfn fn = cbBind fn cbfn,
     
     /**
      * Group: async
@@ -2055,7 +2055,7 @@ fileSystem = ({
      * Group: async
      * operator for cbeBind with changed paramters
      */
-    (-->>) cbfn fn = cbeBind fn cbfn,
+    (>>==) cbfn fn = cbeBind fn cbfn,
     
     /**
      * Group: helper
