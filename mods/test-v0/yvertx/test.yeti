@@ -222,12 +222,12 @@ done,
 done,
 
 "cb:Id" : do rs:
-   (cbId 2) do v: rs.assure "" ((Some 2) == v) done;
+   (cbReturn 2) do v: rs.assure "" ((Some 2) == v) done;
 done,
 
 "cb:Bind" : do rs:
     (do cb: cb (Some 1) done) 
-    ->> do x: 
+    >>= do x: 
         rs.assert "" (x == 1);
         do cb: cb (Some "hier") done;
         done
@@ -244,7 +244,7 @@ done,
 done,
 
 "cb:flatten" : do rs:
-    (cbFlatten (cbId (cbId 1))) 
+    (cbFlatten (cbReturn (cbReturn 1))) 
         do v: rs.assure "" (v == Some 1) done;
 done,
 
@@ -284,12 +284,12 @@ done,
     
     for [1..2] (register . ("adr"^) . string);
 
-    cfn = cbCollect \{
-         a = cbSet
+    cfn = cbCollect do s:{
+         a = cbSet s
             (requestBody "adr1" emptyJS -> (.value)),
-         b = cbSet
+         b = cbSet s
             (requestBody "adr2" emptyJS -> (.value)),
-        };
+        }done;
         
     cfn (noex do r :
             rs.assure "\(r)" (r.a() == "adr1foo" 

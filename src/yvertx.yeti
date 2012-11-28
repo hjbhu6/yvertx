@@ -2043,7 +2043,7 @@ fileSystem = ({
      * Group: async
      * operator for cbBind with changed paramters
      */
-    (>>=) cbfn fn = cbBind fn cbfn,
+    (>>=) cbfn fn = cbBind cbfn fn,
     
     
     /**
