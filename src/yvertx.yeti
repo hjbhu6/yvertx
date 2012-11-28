@@ -2045,17 +2045,6 @@ fileSystem = ({
      */
     (>>=) cbfn fn = cbBind fn cbfn,
     
-    /**
-     * Group: async
-     * operator for cbeMap but with changed parameters
-     */
-    (-->) cbfn fn =  cbeMap fn cbfn,
-    
-    /**
-     * Group: async
-     * operator for cbeBind with changed paramters
-     */
-    (>>==) cbfn fn = cbeBind fn cbfn,
     
     /**
      * Group: helper
