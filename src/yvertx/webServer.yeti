@@ -61,7 +61,6 @@ bridgeRequest conf bustarget reqO =
             ret);
                 
         req = {
-            remoteAddr, ///implmenet
             headers,
             uri = reqO#uri,
             method = reqO#method,
