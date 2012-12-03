@@ -1,0 +1,544 @@
+/*
+ * Copyright 2011 Christian Essl
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions
+ * and limitations under the License.
+ */
+
+module yeb.mvc.webutils;
+
+import java.lang:Character,
+                 Long;
+import java.util:Locale;
+import java.net:URLEncoder, 
+        URLDecoder;
+
+
+import org.owasp.esapi:ESAPI,HTTPUtilitiess;
+
+
+
+    
+
+load yeb.std;
+load yeb.validation;
+
+typedef cookie = {
+    name is string,
+    comment is string,
+    domain is string,
+    maxage is number,
+    path is string,
+    secure is boolean,
+    value is string,
+    version is number,
+    delete is boolean,
+};
+
+
+typedef response = {
+    var statusCode is number,
+    headers is hash<string,string>,
+    var body is Bytes ~byte[] | String string | None (),
+    session is hash<string,~Object>,
+    cookies is array<cookie>
+};
+
+typedef request = {
+    headers is hash<string, string>,
+    uri is string,
+    path is string,
+    method is string,
+    query is string,
+    locales is list<~Locale>,
+    body is Bytes ~byte[] 
+            | None () 
+            | Parts list<File string | Bytes ~byte[]>,
+    params is hash<string,list<string>>,
+    sessionId is string,
+    cookies is list<cookie>,
+    res is {
+        header is hash<string,list<string>>,
+        cookies is array<cookie>,
+        session is hash<string,~Object>
+    },
+    respond is response -> (),
+};
+
+
+typedef handler = request -> boolean;
+
+typedef handlerAdapter = handler -> handler;
+
+request {method,uri,headers} =
+    (import java.net:URI;
+    uriO = new URI(uri is string); 
+    {
+    headers,
+    uri,
+    path = string uriO#getPath(),
+    method,
+    query = string uriO#getRawQuery(),
+    locales = [Locale#getDefault()],
+    body = none,
+    params = [:],
+    sessionId = "",
+    res = {
+        headers = [:],
+        session = [:],
+        cookies = array []},
+    cookies = [],
+    respond res = ()} is request);
+        
+cookie opts name value = 
+    (var _comment = undef_str;
+    var _domain = undef_str;
+    var _maxage = Long#MAX_VALUE;
+    var _path = undef_str;
+    var _secure = false;
+    var _version = 0;
+    var _delete = false;
+    for opts do opt:
+        case opt of
+        Comment str: _comment := str;
+        Domain str : _domain := str;
+        Maxage n : _maxage := n;
+        Path str : _path := str;
+        Secure b: _secure := b;
+        Version v : _version := v;
+        Delete b: _delete := b;
+        esac;
+    done;
+
+    {
+        name is string,
+        value is string,
+        comment = _comment,
+        domain = _domain,
+        maxage = _maxage,
+        path = _path,
+        secure = _secure,
+        version = _version,
+        delete = _delete
+    } is cookie);
+
+response req statusCode headers body =
+    {var statusCode = statusCode, 
+     headers = 
+        (insertHash req.res.headers headers;
+        req.res.headers),
+     var body = body, 
+     session = req.res.session,
+     cookies = req.res.cookies} is response;
+    
+
+params name req =
+    if name in (req.params) then
+        req.params.[name];
+    else
+        [] is list<string>
+    fi;
+
+maybeParam name falseFn valiFn ctxt =
+    (ls = params name ctxt;
+    if empty? ls then
+        valiFn (head ls);
+    else
+        falseFn ();
+    fi);
+
+param name ctx = 
+   (ls = params name ctx;
+   if not empty? ls then
+       head ls;
+    else
+        failWithValidation 
+            (message "noparam" "No request-parameter for name %1$s" [obj name]) 
+            "";
+    fi);
+
+addHeader name value req =
+    (hs = req.res.headers;
+    if name in hs then
+        hs.[name is string] := hs.[name] ^","^ value;
+    else
+        hs.[name] := value;
+    fi);    
+maybeHeader name req =
+    if name in req.headers then
+        Some req.headers.[name]
+    else 
+        none
+    fi;
+
+isAjax req = 
+    case maybeHeader "X-Requested-With" req of
+    None (): false;
+    Some v: (strLower v) == "xmlhttprequest"
+    esac;
+
+escape text =
+    (escapeT s =
+         "&#\(Character#codePointAt(s.[0] is string, 0));";
+     strJoin '' (matchAll '[<>&"]' escapeT id "\(text)"));
+
+//"     
+    
+redirectView path req = 
+   (response req 301 ["Location":path] none);
+
+statusView status req = 
+    response req status [:] none;
+
+
+okView req =
+    statusView 200 req;
+
+write req contentType content =
+    response req 200 ["Content-Type":contentType^"; charset=utf-8"]
+        (String content);
+
+newWriter () =
+    (import java.lang.StringBuilder;
+    stb = new StringBuilder();
+    {
+        write str = stb#append(escape str),
+        echo str = stb#append(str is string),
+        stringBuilder = stb,
+        get value () = string stb#toString()
+    });
+
+writeHtml req content =
+    write req "text/html" content;
+
+//writeJson req json =
+//    write req "application/json" ((load org.yeb.json).write [] json);
+
+cacheForSeconds seconds mustRevalidate res = 
+    (headers = res.headers;
+    if seconds > 0 then
+        //HTTP1.0 header
+        headers.["Expires"]:= 
+            string (System#currentTimeMillis() + (seconds * 1000));
+        //HTTP1.1 header
+        hv = "max-age=\(seconds)\(if mustRevalidate then ", must revalidate" else ""fi)";
+        headers.["Cache-Control"] := hv;
+    else
+        headers.["Pragma"] := "no-cache";
+        headers.["Expires"] := "1";
+        headers.["Cache-Control"]:= "no-cache, no-store";
+    fi);
+
+//+++++++++++++++++++++++Utils ++++++++++++++++++++++++++++
+_date_formatsTH = threadLocal do:
+        import java.util:Locale,
+                         Calendar,
+                         TimeZone;
+        import java.text:SimpleDateFormat;
+        
+        cal = Calendar#getInstance();
+        cal#set(2000, Calendar#JANUARY, 1,0,0);
+        createFormat pattern =
+            (f = new SimpleDateFormat(pattern is string, Locale#US);
+            f#setTimeZone(TimeZone#getTimeZone("GMT"));
+            f#set2DigitYearStart(cal#getTime());
+            f);
+
+        formats = {
+            rfc1123 = createFormat "EEE, dd MMM yyy HH:mm:ss zzz",
+            rfc1036 = createFormat "EEEE, dd-MMM-yy HH:mm:ss zzz",
+            asctime = createFormat "EEE MMM d HH:mm:ss yyyy"
+        };
+        formats;
+    done;
+
+parseHttpDate dateValue =
+    (import java.text:ParseException;
+    dateValue = if strStarts? dateValue "'" and strEnds? dateValue "'" then
+            strSlice dateValue 1 ((strLength dateValue) - 1);
+        else
+            dateValue;
+        fi;
+    formats = _date_formatsTH.value;
+    try
+        Some (formats.asctime#parse(dateValue));
+    catch ParseException ex:
+        try
+            Some (formats.rfc1036#parse(dateValue));
+        catch ParseException ex:
+            try
+                Some (formats.rfc1123#parse(dateValue));
+            catch ParseException ex:
+                none
+            yrt
+        yrt
+    yrt);
+
+formatHttpDate date =
+    (_date_formatsTH.value).rfc1123#format(date);
+
+
+urlEncode str = URLEncoder#encode(str,"UTF-8");
+urlDecode str = URLDecoder#decode(str,"UTF-8");
+
+readBody req =
+    case req.body of
+    Bytes bs:
+        str = new String(bs is ~byte[], "UTF-8");
+        string str;
+    _ : ""
+    esac;
+
+parseQuery query =
+    (ret = [:];
+    _ = matchAll '([^&=]+)(=([^&=]*))?'
+        do ar:
+            name = urlDecode (ar.[1]);
+            value = urlDecode (ar.[3]);
+            ols = if not name in ret then [] else ret.[name] fi;
+            ret.[name] := value :: ols;
+            "";
+        done
+        id
+        query;
+    ret);
+
+readFormData req =
+    case maybeHeader "Content-Type" req of
+    None (): ();
+    Some v:
+        if strStarts? v "application/x-www-form-urlencoded" then
+            insertHash req.params (parseQuery (readBody req));
+        else
+            ()
+        fi
+    esac;
+
+url strList = 
+    (if empty? strList then
+        ""
+    else
+        strb = new java.lang.StringBuilder();
+        var hasQuestion = false;
+        var isName = false;
+        var isFirstName = false;
+        for strList do str:
+            if (not hasQuestion) then
+                cut = strIndexOf str "?" 0;
+                if cut == ((strLength str )- 1) then
+                    if strb#length() > 0 then
+                        strb#append("/")
+                    fi;
+                    strb#append(str);
+                    hasQuestion := true;
+                    isName := true;
+                    isFirstName := true;
+                elif cut == 0 then
+                    strb#append(str);
+                    if not (strEnds? str "=") then
+                        strb#append("=");
+                    fi;
+                    hasQuestion := true;
+                    isName := false;
+                elif cut > 0 then
+                    if strb#length() > 0 then
+                        strb#append("/")
+                    fi;
+                    strb#append(str);
+                    if not (strEnds? str "=") then
+                        strb#append("=");
+                    fi;
+                    hasQuestion := true;
+                    isName := false;
+                else
+                    if strb#length() > 0 then
+                        strb#append("/")
+                    fi;
+                    strb#append(str);();
+                fi
+            else
+                if isName then
+                    if not isFirstName then strb#append("&"); fi;
+                    strb#append(str);
+                    strb#append("=");
+                    isName := false;
+                else
+                    r = urlEncode str;
+                    strb#append(r);
+                    isName := true;
+                fi
+           fi
+       done;
+       strb#toString();
+   fi);
+
+urlParam str name value = 
+    (hasQuestion = (strIndexOf str "?" 0) > -1;
+    strb = new java.lang.StringBuilder(str);
+    if hasQuestion then
+        strb#append("&");
+    else
+        strb#append("?");
+    fi;
+    strb#append(name)#append("=")#append(urlEncode value);
+    string strb);
+
+
+ptag name params content 
+        is string -> hash<string,string> -> list<string> -> string = 
+    (var strb = new java.lang.StringBuilder();
+    strb := strb#append("<")#append(escape name);
+    forHash params do k v:
+        strb := strb#append(" ")
+            #append(escape k)
+            #append('="')
+            #append(escape v)
+            #append('"');
+    done;
+    if empty? content then
+        strb := strb#append("/>");
+    else
+        strb := strb#append(">")
+            #append(strJoin "\n" content)
+            #append("</")
+            #append(name)
+            #append(">");
+    fi;
+    strb#toString());
+
+oldFlashKey = "org.yeb.session.oldflash";
+flashKey = "org.yeb.session.flash";
+
+getFlash name req =
+    (if oldFlashKey in (req is request).res.session then
+        s = req.res.session.[flashKey] unsafely_as hash<string,~Object>;
+        if name in s then
+            Some s.[name];
+        else
+            none
+        fi
+    elif flashKey in req.res.session then
+        s = req.res.session.[flashKey] unsafely_as hash<string, ~Object>;
+        if name in s then
+            Some s.[name];
+        else
+            none
+        fi
+    else
+        none;
+    fi);
+
+setFlash name value req =
+    (m = if flashKey in (req is request).res.session then
+        (req.res.session.[flashKey]) unsafely_as hash<string, ~Object>
+    else
+        r = [:];
+        req.res.session.[flashKey] := (r as ~Object);
+        r
+    fi;
+    m.[name] := value as ~Object);
+
+addCookie co req =
+    push (req.res.cookies) co;
+
+setCookie cookie req is cookie -> request -> () =
+    (ns = array (filter ((!= cookie.name) . (.name)) req.res.cookies);
+    clearArray req.res.cookies;
+    for ns (push req.res.cookies);
+    push ns cookie);
+
+getCookies name req =
+    filter ((== name) . (.name)) req.cookies;
+
+killCookie name res is string -> request -> () =
+    setCookie (cookie [Delete true] name "") res;
+
+{
+
+    HEADER_PRAGMA = "Pragma",
+    HEADER_EXPIRES = "Expires",
+    HEADER_CACHE_CONTROL = "Cache-Control",
+
+    cookie,
+    request,
+    response,
+    params,
+    param,
+    maybeParam,
+
+    addHeader,
+    maybeHeader,
+
+    addCookie,
+    setCookie,
+    getCookies,
+    killCookie,
+
+    isAjax,
+    escape,
+    redirectView,
+    statusView,
+    okView,
+    write,
+    newWriter,
+    writeHtml,
+    //writeJson,
+    cacheForSeconds,
+    parseHttpDate,
+    formatHttpDate,
+    urlEncode,
+    urlDecode,
+    readBody,
+    parseQuery,
+    readFormData,
+    url,
+    urlParam,
+    ptag,
+    flashKey,
+    oldFlashKey,
+    getFlash,
+    setFlash,
+
+
+    (@) text = escape text,
+
+        
+    decryptHiddenField encrypted = 
+        string (ESAPI#httpUtilities()#decryptHiddenField(encrypted is string)),
+    decryptQueryString encrypted = 
+       (ret = [:];
+        forJavaMap (ESAPI#httpUtilities()#decryptQueryString(encrypted)) do k v:
+            ret.[string k] := string v;
+        done;
+        ret),
+    encryptHiddenField value = 
+        string (ESAPI#httpUtilities()#encryptHiddenField(value is string)),
+    encryptQueryString value = 
+        string (ESAPI#httpUtilities()#encryptQueryString(value is string)),
+
+
+    encodeForBase64 bytes wrap = 
+        string ESAPI#encoder()
+            #encodeForBase64(bytes is ~byte[],wrap is boolean),
+    decodeFromBase64 str = 
+        ESAPI#encoder()#decodeFromBase64(str is string),
+    encodeForCSS str = 
+        ESAPI#encoder()#encodeForCSS(str is string),
+    encodeForHTML str = 
+        ESAPI#encoder()#encodeForHTML(str is string),
+    encodeForHTMAttribute str = 
+        ESAPI#encoder()#encodeForHTMLAttribute(str is string),
+    encodeForURL str = 
+        ESAPI#encoder()#encodeForURL(str is string),
+    encodeForXML str = 
+        ESAPI#encoder()#encodeForXML(str is string)
+}

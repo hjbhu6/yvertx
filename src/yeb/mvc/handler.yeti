@@ -1,0 +1,349 @@
+/*
+ * Copyright 2011 Christian Essl
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions
+ * and limitations under the License.
+ */
+
+module yeb.mvc.handler;
+
+
+
+import java.lang: Thread, System, 
+				  ClassLoader, Character, CharSequence,
+				  Runnable;
+import java.util: Locale, Date, Collection;
+import java.util.regex:Pattern;
+import java.util.concurrent.ConcurrentHashMap;
+import java.text:NumberFormat, DecimalFormat, DateFormat, SimpleDateFormat;
+import java.net: URLEncoder, URLDecoder;
+import java.io:File;
+
+import yeti.lang: Fun, Struct;
+import org.yeb:ValidationException, YebUtils;
+
+load yeb.std;
+load yeb.mvc.webutils;
+load yeb.validation;
+
+
+//HandlerAdapters
+
+
+idHandler handler is handlerAdapter = handler;
+
+
+/**
+ * Transform an url pattern to a regex. Patterns are used in routers to 
+ * specify path pattern which should be handled.
+ *
+ * ie for the pattern:
+ * :/entry/:id/:date
+ * becomes the regex
+ * :/entry/([^/]+)/([^/]+)/(.*)
+ * and the matched parts are exposed as request-parameters
+ *
+ * to specify a custom regex put it between $ $ after the name of the part.
+ * ie to specify that id should only contain digits:
+ * :/entry/:id$d+$
+ */
+urlPatternToRegex pat = 
+   (//:a-z is name
+    //:a-z? is optional
+    //* at end means rest
+    //$marks start regex $ marks end regex
+    
+    import java.util.regex.Pattern;
+    
+    paS = if strEnds? pat "/*" then 
+                    strLeft pat (strLength pat - 2)
+               else
+                    pat;
+               fi;
+               
+    tokens = matchAll '(/?\.?):(\w+)(\$([^\$]+)\$)?(\?)?' (Token . tail) Text paS;
+    
+    names = tokens 
+        |> map do t:
+            case t of
+            Token [leading, name, foo, regex, mark]: Some name;
+            _ : none;
+            esac
+        done
+        |> catSome
+        |> array;
+    
+    reg = tokens
+    |> map do x:
+        case x of
+        Token [leading, name, foo, regex, mark]:
+           (reg = if defined? regex and (strLength regex > 0) then 
+                    regex;
+                  else
+                    '[^/\.]+'
+                  fi;
+            reg2 = "(?<\(name)>\(reg))";
+            
+            if defined? mark then
+                if defined? leading then
+                    "(?:\(Pattern#quote(leading))" ^ reg2 ^ ")?" ;
+                else
+                    reg2 ^ "?";
+                fi;
+            else
+                if defined? leading then
+                    Pattern#quote(leading) ^ reg2
+                else
+                    reg2;
+                fi;
+            fi);
+        Text tx:
+           (Pattern#quote(tx));
+        _ : failWith "should not happen";
+        esac
+    done
+    |> strJoin "";
+    
+    regex = if strEnds? pat "/*" then
+        push names "rest";
+        reg ^ '(?:/(?<rest>.*))?'
+    else
+        reg
+    fi;
+    
+    {
+        names = nub names,
+        regex
+    }
+    );
+
+    
+
+regexHandlerImpl method regexPattern handler 
+    is string -> string -> handlerAdapter = 
+   (import java.util.regex.Pattern;
+    meth = strUpper method;
+    var checkMethod? = meth != "ALL";
+    
+    {names, regex} = urlPatternToRegex regexPattern;
+    pattern = Pattern#compile(regex);
+
+    do req:
+        if checkMethod? and (meth != (strUpper req.method )) then
+            false
+        else
+            matcher = pattern#matcher(req.path is string);
+            if matcher#matches() then
+                //add the paramters
+                params = copy req.params;
+                urlParams = array [];
+                for [0..matcher#groupCount()] do c:
+                    push urlParams matcher#group(c);
+                done;
+                params.["urlPrams"] := list urlParams;
+                
+                //add the named parameters
+                for names do name:
+                    ls = if name in params then
+                            params.[name];
+                         else
+                            []
+                         fi;
+                    params.[name] := (string matcher#group(name)) :: ls;
+                done;
+
+                //set the new pathInfo and servletPath
+                path = if (contains? "rest" names) 
+                    and (defined? matcher#group("rest")) then
+                    string matcher#group("rest");        
+                else
+                    ""
+                fi;
+                nreq = req with { params, path};
+
+                handler nreq
+            else
+                false
+            fi;
+        fi;
+    done;
+);
+
+/**
+ * Handleradapter which takes a request method and path pattern and 
+ * executes on match the given handler. 
+ * Normally this is not used directly but a router is used.
+ * The path pattern is the same as described in urlPatternToRegex.
+ *
+ * to handle the Get request for index:
+ * :regexHandler (Get "index") do ctxt: ....; Completed "" done;
+ */
+regexHandler requestUrl handler = 
+   ({fst = meth , snd = regexPattern} = 
+        case requestUrl of
+        Get us: pair "GET" us;
+        Post us: pair "POST" us;
+        Put us: pair "PUT" us;
+        Delete us: pair "DELETE" us;
+        Options us: pair "OPTIONS" us;
+        Head us: pair "HEAD" us;
+        All us: pair "ALL" us;
+        General {method, pattern} : pair method pattern;
+        esac;
+    regexHandlerImpl meth regexPattern handler);
+    
+runHandlers handlers req is list<handler> -> handler =
+    if empty? handlers then
+        false
+    else
+        if (head handlers) req then
+            true
+        else
+            runHandlers (tail handlers) req;
+        fi
+    fi;
+
+lazyHandler moduleName  is string -> handler =
+   (var myHandler is (Some handler | None () ) = none;
+    loadHandler () = (
+        cl = Thread#currentThread()#getContextClassLoader()#loadClass(moduleName);
+        mod = cl#getMethod(
+            "eval",() as ~Class[])#invoke(() as ~Object, () as ~Object[]);
+        jmod = mod unsafely_as {handler is handler};
+        h = jmod.handler;
+        myHandler := Some h;
+        h;
+    );
+    if not ((load yeb.mvc.config).webDynamicReload?) then
+        loadHandler();
+    else
+        do ctxt:
+            ha = case myHandler of
+                Some h: h;
+                None _ : loadHandler ();
+            esac;
+            ha ctxt;
+        done;
+    fi);
+
+handlersFact oldVhs adapter= 
+   (vhs = array [];
+    {
+		get adapter () = adapter,
+        add handler =
+            push vhs (adapter handler),
+        
+        pattern regex handler = add ((regexHandler regex) handler),
+        _get regex handler = add ((regexHandler (Get regex)) handler),
+        post regex handler = add ((regexHandler (Post regex)) handler),
+        put regex handler = add ((regexHandler (Put regex)) handler),
+        delete regex handler = add ((regexHandler (Delete regex)) handler),        
+        options regex handler = add ((regexHandler (Options regex)) handler),
+        head regex handler = add ((regexHandler (Head regex)) handler),
+        
+        all regex handler = add ((regexHandler (All regex)) handler),        
+
+        lazy regex moduleName = 
+            add $ (regexHandler (All regex)) (lazyHandler moduleName),
+
+        get handler () =
+            runHandlers (vhs ++ oldVhs),
+
+        newSubRouter adapter =
+            handlersFact (vhs ++ oldVhs) adapter,
+    });
+    
+/**
+ * Creates a router. A router is used to handle different requests.
+ *
+ * ie to specify differen request handlings do:
+ * :router = newRouter id;
+ * :router.get "index" do ctxt: //handle get request done
+ * :router.post "someform" do ctxt: //handle post request done
+ * :router.add customHandler; //use to add a handler which is always executed
+ * :
+ * :handler = router.handler; //cunstructs an handler for all the routes
+ *
+ * The router will than try to match any route in the order given and execute
+ * the handlerfunction if it fits.
+ *
+ * Each handler function must return either 
+ * - Completed if the request was handled by this handler and the async Request
+ *   context can be closed 
+ * - NotHandled "" if the reuqest is not handled by this handler and the next 
+ *   routes/handlers should be tried to match
+ * - Handling "" means that the right handler was found but the async RequestContext
+ *   is kept open for further processing by the handler
+ *
+ * The router creates itself a handler with .handler. This handler can be used
+ * directly in yebWebMain.handler or can be given to another router (with .add)
+ * 
+ * The adapter parameter is a function whith transforms each given handler to 
+ * another handler. This adapter can be used to filter each request 
+ *
+ * ie to make sure each request is of a certain locale and has a logged in user:
+ * 
+ * :router = newRouter do handler ctxt:
+ *       userId = (session ctxt)#getAttribute("userid")
+ *       if defined? userId then
+ *          handler (ctxt with {user = loadUserFromDb userId})
+ *       else
+ *          redirectView "login" ctxt
+ *       fi
+ *    done;
+ * :router.get "members"
+ */
+ 
+newRouter adapter = handlersFact [] adapter;
+
+/**
+ * handler apdapter (filter) wich makes use that the local is one of
+ * the specified locals.
+ *
+ * ie that each handler in the router only gets either an US or Italien locale
+ * use:
+ *
+ * :import java.util.Locale;
+ * :router = newRouter (localHandler [Locale#US, Locale#IT]);
+ *
+ */ 
+localeHandler locales handler is list<~Locale> -> handlerAdapter = 
+   (if empty? locales then
+       handler
+    else
+        lh = hash locales;
+        defaultL = [head locales];
+        do req:
+            nlocs = filter (in lh) req.locales;
+            nlocs = if empty? nlocs then
+                    defaultL
+                else
+                    nlocs
+                fi;
+
+            handler (req with {locales = nlocs}); 
+        done;
+    fi);
+
+
+
+(load yeb.mvc.webutils) with {
+
+    idHandler,
+
+    urlPatternToRegex,
+
+    regexHandler,
+    newRouter,
+    localeHandler,
+}
+

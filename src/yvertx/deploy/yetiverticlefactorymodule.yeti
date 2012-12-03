@@ -41,6 +41,7 @@ class YetiVerticleFactory extends VerticleFactory
         or ((strEnds? main "YetiVerticle.class") and (strLength main > 18)),
     
     Verticle createVerticle(String verticleName, ClassLoader loader)
+        import yeb:YetiClassLoader;
         import yeti.lang.compiler:CompileException;
         import java.lang.RuntimeException;
         import yeti.lang:Fun,
