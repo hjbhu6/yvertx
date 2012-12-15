@@ -25,6 +25,8 @@ import java.io: File;
 //import org.yeb.TMap;
 import org.slf4j: Logger, LoggerFactory;
 
+json = load yvertx.json;
+
 
 class Message(String key, String defaultFormat, Object[] params) 
     
@@ -186,6 +188,13 @@ simpleTest testHash ()=
         "FAILURE: Testing done, \(total - bad)/\(total) OK."
     fi);
 
+//json things
+toJson stru = string (json.toJS stru);
+fromJson str = 
+    (import org.vertx.java.core.json:JsonObject;
+    ob = new JsonObject(str is string);
+    json.fromJS ob);
+
 //+++++++++++++++++++++++table things ++++++++++++++++++++++++++++++++
 
 typedef tableType<k,v> = {
@@ -338,6 +347,9 @@ create hash is hash<'k, 'v> -> tableType<'k,'v> =
         Pattern#compile(patstr)),
 
     findCodeAtLine,
+
+    toJson,
+    fromJson,
 
     tableCreate = create,
     tableAddAll = addAll,
