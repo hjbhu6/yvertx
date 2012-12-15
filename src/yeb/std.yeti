@@ -136,25 +136,12 @@ listStarts? start l =
 maybeDefined defaultFn valueFn x =
     if defined? x then valueFn x else defaultFn () fi;
 
-    
 maybe' defaultFn fn opt =
     case opt of
     None x: defaultFn x;
     Some v: fn v;
     esac;
 
-
-require cond msg =
-  if not cond then
-    throw new java.lang.IllegalArgumentException("\(msg)");
-  fi;
-
-ensure cond msg =
-  if not cond then
-    throw new java.lang.IllegalStateException("\(msg)");
-  fi;
-
-  
 findCodeAtLine sourceDirs fileName lineNumber linesSourround =
    (prov = (load yeb.yeticlassloadermodule).sourceReader 
                     sourceDirs false
@@ -321,8 +308,6 @@ create hash is hash<'k, 'v> -> tableType<'k,'v> =
     withThreadLocal,
 
 
-    require,
-    ensure,
     listStarts?,
 
     number',
