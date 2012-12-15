@@ -40,7 +40,7 @@ class DBValue(Object value, int sqlType)
     boolean isNull() nullptr? value,
 end;
 
-logger = println;
+logger = getLogger "yeb.sql";
 
 /**
  * Convinience mehtod to construc a apache commons BasicDataSource
@@ -364,7 +364,7 @@ baseQuery sql params resultSetHandler cp =
 insertStruct  tableName stru cP =
    (import yeti.lang: Struct;
 
-    ist = (stru:!) unsafely_as ~Struct;
+    ist = (stru) unsafely_as ~Struct;
     stb = new StringBuilder();
     stb#append("INSERT INTO \(tableName) (");
 
@@ -385,7 +385,7 @@ insertStruct  tableName stru cP =
     //the values list will be expanded to ? by sql update
     stb#append(") VALUES (?)"); 
 
-    update stb#toString() [(list values):!] cP;
+    update stb#toString() [obj (list values)] cP;
 );
 
 /**
@@ -400,7 +400,7 @@ insertStruct  tableName stru cP =
 updateStruct tableName stru whereClause whereParams db = 
     (import yeti.lang: Struct;
 
-    ist = (stru:!) unsafely_as ~Struct;
+    ist = stru unsafely_as ~Struct;
     stb = new StringBuilder();
     stb#append("UPDATE \(tableName) SET ");
 
@@ -437,13 +437,13 @@ updateStruct tableName stru whereClause whereParams db =
 updateById tableName stru db = 
    (import yeti.lang: Struct;
 
-    ist = (stru:!) unsafely_as ~Struct;
+    ist = (obj stru) unsafely_as ~Struct;
     stb = new StringBuilder();
     stb#append("UPDATE \(tableName) SET ");
 
     values = array [];
     var idField is ( None () | Some string ) = none;
-    var idValue is ~Object = ():!;
+    var idValue is ~Object = obj ();
 
     var first = true;
     for [0 .. ist#count() -1] do i:

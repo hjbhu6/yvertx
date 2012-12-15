@@ -9,6 +9,7 @@ import org.vertx.java.deploy.Verticle;
 import org.vertx.java.busmods.BusModBase;
 
 load yvertx;
+load yeb.std;
 
 staticFileConf = {
     web_root = "web",

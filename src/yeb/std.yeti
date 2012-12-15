@@ -264,7 +264,7 @@ create hash is hash<'k, 'v> -> tableType<'k,'v> =
             development? = case v of Development _ : true; _ : false esac,
         }),
     
-    
+    getLogger name is string -> ~Logger = LoggerFactory#getLogger(name),
 
     (>>) fn1 fn2 = composeToRight fn1 fn2,
     
