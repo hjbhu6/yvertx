@@ -253,7 +253,7 @@ handlersFact oldVhs adapter=
         all regex handler = add ((regexHandler (All regex)) handler),        
 
         lazy regex moduleName = 
-            add $ (regexHandler (All regex)) (lazyHandler moduleName),
+            add ((regexHandler (All regex)) (lazyHandler moduleName)),
 
         get handler () =
             runHandlers (vhs ++ oldVhs),

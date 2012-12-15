@@ -61,19 +61,7 @@ plainMessage text = message "" text [];
 
 failWithMessage msg = throw new MessageException(msg);
 
-
-
-
-
-
-stringWriter () = 
-   (stB = new StringBuilder();
-    {
-        write str = (stB#append("\(str)");()),
-        text () = string stB#toString(),
-    });
-
-objectMaybeNum o is ~Object -> ( None () | Some number ) = 
+number' o is ~Object -> number = 
    (import java.lang: Double, Float,Number;
     import java.math: BigInteger, BigDecimal;
     import yeti.lang:Num,BigNum,IntNum,FloatNum;
@@ -93,38 +81,26 @@ objectMaybeNum o is ~Object -> ( None () | Some number ) =
             new IntNum(nu#longValue());
         else o
         fi;
-    if o2 instanceof Num then Some (o2 unsafely_as number) else none fi);
+    if o2 instanceof Num then o2 unsafely_as number else Double#NaN fi);
 
-number' x is 'a -> number = 
-    maybe Double#NaN id (objectMaybeNum (x as ~Object));
-    
 nan? x = Double#isNaN(x is number);    
-    
-objectMaybeBoolean x is 'a -> (None () | Some boolean) =
-    if x instanceof Boolean then
-        Some (((x unsafely_as ~Object) unsafely_as ~Boolean)#booleanValue())
-    else
-        none
-    fi;
     
 boolean x is 'a -> boolean =
     (import java.lang.Number;
     o = x unsafely_as ~Object;
-    case objectMaybeBoolean o of
-        Some b:b;
-        None _: 
-            if (defined? x)
-               or (nullptr? x)
-               or ((o instanceof String) 
-                    and ((o unsafely_as ~String)#length() == 0)) 
-               or ((o instanceof Number) 
-                   and ((o unsafely_as ~Number)#intValue() == 0))
+    if o instanceof Boolean then
+        (o unsafely_as ~Boolean)#booleanValue();
+    elif defined? x
+           or (nullptr? x)
+           or ((o instanceof String) 
+                and ((o unsafely_as ~String)#length() == 0)) 
+           or ((o instanceof Number) 
+               and ((o unsafely_as ~Number)#intValue() == 0))
             then 
-                false
-            else 
-                true
-            fi;
-    esac);
+        false
+    else 
+        true
+    fi);
 
 withThreadLocal threadLocal newValue ac = 
    (oldV = threadLocal.value;
@@ -135,84 +111,7 @@ withThreadLocal threadLocal newValue ac =
         threadLocal.value := oldV;
     yrt);
 
-
-{exec = defaultExecutor, sexec = _defaultScheduledExecutor} = 
-   (import java.util.concurrent:Executors, ThreadFactory, TimeUnit;
-    import java.lang: Thread, Runnable, Runtime,InterruptedException;
-
-    class MyThF extends ThreadFactory
-        Thread newThread(Runnable r)
-            th = Executors#defaultThreadFactory()#newThread(r);
-            th#setDaemon(true);
-            th,
-    end;
-   
-    thF = new MyThF();
-    
-    exec = Executors#newCachedThreadPool(thF);
-    sexec = Executors#newSingleThreadScheduledExecutor(thF);
-    
-    class ShutDR extends Runnable
-        void run()
-            try
-                exec#shutdown();
-                _ = sexec#awaitTermination(1, TimeUnit#SECONDS);
-                _ = exec#awaitTermination(1, TimeUnit#SECONDS);
-                ()
-            catch InterruptedException ex:
-                ()
-            yrt,
-    end;
-    Runtime#getRuntime()#addShutdownHook(new Thread(new ShutDR()));
-    {exec, sexec});
-
-    
-
-async opts fn   =
-   (import java.util.concurrent:TimeUnit, Callable, ExecutorService,Future;
-    var executor = defaultExecutor as ~ExecutorService;
-    for opts do opt:
-        case opt of
-        Executor ex: executor := ex;
-        esac
-    done;
-    
-    future = executor#submit(runnable fn);
-    future);
-
-schedule opts initialDelay fn =
-   (import java.util.concurrent:TimeUnit, Callable, ExecutorService;
-    executorOpts = array []; 
-    var timeunit = TimeUnit#MILLISECONDS;
-    var schedular = _defaultScheduledExecutor;
-    var period = 0;
-    var delay = 0;
-    for opts do opt:
-        case opt of
-        Executor ex: push executorOpts (Executor ex);
-        Schedular sex: schedular := sex;
-        FixedRate p : period := p;
-        FixedDelay d: delay := d;
-        Timeunit tu : timeunit := tu;
-        esac
-    done;
-    
-    run = runnable \(_ = async executorOpts fn);
-    
-    future = if delay > 0 then
-        schedular#scheduleWithFixedDelay(run, initialDelay
-                ,delay,timeunit);
-    elif period > 0 then
-        schedular#scheduleAtFixedRate(run, initialDelay 
-                    ,period,timeunit);
-    else
-        schedular#schedule(run, initialDelay,timeunit);
-    fi;
-
-    future);
 	
-    
-getLogger name is string -> ~Logger = LoggerFactory#getLogger(name);
 
 
 
@@ -243,19 +142,6 @@ maybe' defaultFn fn opt =
     None x: defaultFn x;
     Some v: fn v;
     esac;
-
-
-
-getSome opt = 
-    case opt of
-    None () : failWith "expects Some but was None";
-    Some v : v;
-    esac;
-
-some v is 'a -> (Some 'a | None () )= Some v;
-
-loadClass name =
-    Thread#currentThread()#getContextClassLoader()#loadClass(name);
 
 
 require cond msg =
@@ -366,7 +252,6 @@ create hash is hash<'k, 'v> -> tableType<'k,'v> =
 
 {       
 
-    emptyStruct = {´_´ = ()},
     enviroment = 
        (var v is Production string 
                   | Development string
@@ -381,54 +266,80 @@ create hash is hash<'k, 'v> -> tableType<'k,'v> =
     
     
 
-    ($) x y = x y,
-    (|>>) fn1 fn2 = composeToRight fn1 fn2,
+    (>>) fn1 fn2 = composeToRight fn1 fn2,
     
-    (:!) x is 'a -> 'b = x as ~Object,
-    (:!!) x is ~Object -> 'a = x unsafely_as 'a,
-    (:!!!) x is 'a -> 'b = x unsafely_as 'b,
 
     message,
     plainMessage,
     failWithMessage,
 
-    getLogger,
     composeToRight fn1 fn2 = do a: fn2 (fn1 a) done,
-    //andThenEither,
     maybeHead,
     maybeAt,
-    maybeDefined,
     maybe',
-    getSome,
-    some,
     
-    defaultExecutor,
-    async,
-    schedule,
-    
+    /**
+     * Group: helper (Various helpers)
+     * if the value is defined execute right function esl wrong function
+     *
+     * Arguments:
+     * wrongFn - invoked with unit if not defined
+     * rightFn - invoked with value if value is defined
+     * value - the value which is defined or not
+     */
+    maybeDefined wrongFn rightFn value =
+        if defined? value then rightFn value else wrongFn () fi,
+
+    /**
+     * Group: helper
+     * if the value is defined return Some (fn value) else none
+     *
+     * Arguments:
+     * fn - the function to execute with the value if defined
+     * value - the value which is defined or not
+     */
     onDefined fn v = if defined? v then Some (fn v) else none fi,
-    isString x = x ^ "",
-    isNumber x = x + 0,
-    isBoolean x = if x then x else x fi,
     
+    /**
+     * Group: json (Helpers for json)
+     * makes sure that the value is a string (and checks that at runtime)
+     */
+    isString x = x ^ "",
+    
+    /**
+     * Group: json
+     * makes sure hat the value is a number (and checks taht at runtime)
+     */
+    isNumber x = x + 0,
+    
+    /** 
+     * Group: json
+     * makes sure that the value is a boolean (and checks that at runtime)
+     */
+    isBoolean x = if x then x else x fi,
     
     withThreadLocal,
 
-    loadClass,
 
     require,
     ensure,
     listStarts?,
 
-    objectMaybeNum,
     number',
-    objectMaybeBoolean,
     boolean,
     nan?,
-    obj a = a as ~Object,
     simpleTest,
 
-    stringWriter,
+    /**
+     * Group: helper
+     * casts value to ~Object
+     *
+     * same as unsafely_as ~Object
+     *
+     * Arguments:
+     * value - value to cast
+     */
+    obj x = x unsafely_as ~Object,
 
     randomList () = (
         import java.util.Random;

@@ -16,8 +16,17 @@
 
 module yeb.sql;
 
-import java.lang: StringBuilder, ThreadLocal,Throwable;
-import java.sql:Connection, SQLException, SQLWarning, Statement,PreparedStatement, Types,ResultSet,Timestamp;
+import java.lang: StringBuilder, 
+                  ThreadLocal,
+                  Throwable;
+import java.sql:Connection, 
+                SQLException, 
+                SQLWarning, 
+                Statement,
+                PreparedStatement, 
+                Types,
+                ResultSet,
+                Timestamp;
 import javax.sql:DataSource;
 import java.util.regex.Pattern;
 
@@ -31,7 +40,7 @@ class DBValue(Object value, int sqlType)
     boolean isNull() nullptr? value,
 end;
 
-logger = getLogger "sql";
+logger = println;
 
 /**
  * Convinience mehtod to construc a apache commons BasicDataSource
@@ -187,7 +196,15 @@ _expandSql sql params is string -> list<~Object> -> string = (
  * values. Incluing maybe for null values.
  */
 _resultSetWrapper rs = 
-   (maybePNum pos = objectMaybeNum (rs is ~ResultSet)#getObject(pos is number);
+   (objectMaybeNum o = 
+        (num = number' o;
+        if nan? num then
+            Some num
+        else
+            none
+        fi);
+    maybePNum pos = 
+        objectMaybeNum (rs is ~ResultSet)#getObject(pos is number);
     maybeNum name = objectMaybeNum rs#getObject(name is string);
     maybePStr pos =
         (s = rs#getString(pos is number);
@@ -257,7 +274,7 @@ withConnection dataSource fn =
                     try
                         ps = con#prepareStatement(esql);
                         try
-                            _ = _setStatementValue ps 1 (params:!);
+                            _ = _setStatementValue ps 1 (obj params);
 
                             r is ~Object = statementHandler ps;
 

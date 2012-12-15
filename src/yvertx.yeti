@@ -1991,16 +1991,6 @@ fileSystem = ({
     //filesystem
     fileSystem,
 
-    /**
-     * Group: helper
-     * casts value to ~Object
-     *
-     * same as unsafely_as ~Object
-     *
-     * Arguments:
-     * value - value to cast
-     */
-    obj x = x unsafely_as ~Object,
 
     timeout,
     cancelTimer,
@@ -2041,45 +2031,6 @@ fileSystem = ({
     vertxThreadLocal,
     containerThreadLocal,
 
-    /**
-     * Group: helper
-     * if the value is defined execute right function esl wrong function
-     *
-     * Arguments:
-     * wrongFn - invoked with unit if not defined
-     * rightFn - invoked with value if value is defined
-     * value - the value which is defined or not
-     */
-    maybeDefined wrongFn rightFn value =
-        if defined? value then rightFn value else wrongFn () fi,
-
-    /**
-     * Group: helper
-     * if the value is defined return Some (fn value) else none
-     *
-     * Arguments:
-     * fn - the function to execute with the value if defined
-     * value - the value which is defined or not
-     */
-    onDefined fn v = if defined? v then Some (fn v) else none fi,
-    
-    /**
-     * Group: json
-     * makes sure that the value is a string (and checks that at runtime)
-     */
-    isString x = x ^ "",
-    
-    /**
-     * Group: json
-     * makes sure hat the value is a number (and checks taht at runtime)
-     */
-    isNumber x = x + 0,
-    
-    /** 
-     * Group: json
-     * makes sure that the value is a boolean (and checks that at runtime)
-     */
-    isBoolean x = if x then x else x fi,
     blend,
 
     //recordparser
