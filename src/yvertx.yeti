@@ -62,7 +62,6 @@ typedef asyncFunction<a> = callback<a> -> ();
 typedef either<a> = Exception ~Exception | Some a; 
 typedef eitherAsyncFunction<a> = asyncFunction<either<a>>;
 
-load yvertx.json;
 
 /**
  * Group: async (ASYNC)
@@ -356,6 +355,262 @@ noex fn = do cb:
     Some v: (fn is 'a -> ()) v;
     esac;
 done;
+
+typedef json<a> = {.for_json is a};
+
+/**
+ * Group: json (JSON)
+ * Empty json element (should repsenet an empty struct as this is not
+ * possible in yeti
+ */
+emptyJS is json<E()>= {for_json = E()};
+
+
+_toJS object = 
+   (import yeti.lang:Num, FloatNum, RatNum,AList, ByKey, Struct, Tag;
+    import java.util:ArrayList,Map, HashMap;
+  
+    nullTag ob = 
+        (o = ob as ~Object;
+        if o instanceof Tag then
+            t = o unsafely_as ~Tag;
+            t#name == "E" and nullptr? t#value;
+        else
+            false
+        fi);
+
+        
+    o = object as ~Object;
+    if nullptr? o then
+        o
+    elif same? o (emptyJS as ~Object) then
+        new JsonObject()
+    elif nullTag o then
+        () as ~Object;
+    elif (o instanceof FloatNum) 
+         or (o instanceof RatNum) then
+        (o unsafely_as ~Num)#toBigDecimal();
+    elif (o instanceof Num) then
+        (o unsafely_as ~Num)#toBigInteger();
+    elif o instanceof AList then
+        jl = new JsonArray();
+        for (o unsafely_as list<'a>) do v:
+            if not nullTag v then
+                _ = jl#add(_toJS v);
+            fi;
+        done;
+        jl as ~Object;
+    elif o instanceof ByKey then
+        dbo = new HashMap();
+        i = (o unsafely_as ~Map)#entrySet()#iterator();
+        i#hasNext() loop
+            (e = i#next() unsafely_as ~java.util.Map$Entry;
+             key = string (e#getKey());
+             v = e#getValue();
+             if not nullTag v then
+                 _ = dbo#put(key, _toJS (v unsafely_as 'a));
+             fi);
+        new JsonObject(dbo);
+    elif o instanceof Struct then
+        st = o unsafely_as ~Struct;
+        dbo = new HashMap();
+        for [0 .. st#count() - 1] do i:
+            name = st#name(i);
+            v = st#get(i);
+            if not nullTag v then
+                _ = dbo#put(name, _toJS (v unsafely_as 'a));
+            fi;
+        done;
+        new JsonObject(dbo);
+    elif o instanceof Tag then
+        t = o unsafely_as ~Tag;
+        if t#name == "Some" then
+            _toJS (t#value unsafely_as 'a);
+        elif t#name == "None" then
+            () as ~Object;
+        else
+            failWith "Can not serialize \(o)"
+        fi
+    else
+        o
+    fi);
+
+/**
+ * Group: json
+ * Transforms a yeti struct to a ~JsonObject. 
+ * 
+ * Each struct must have the field json. If the value of the field is
+ * E() than it is not serialized.
+ *
+ * The filed-types of the struct maybe:
+ * - number - becomes either a bigdecimal or a biginteger
+ * - string - becomes a string
+ * - boolean - becomes a Boolean
+ * - None x - becomes null x is ignored
+ * - Some x - becomes the value of x, where x must be one of the allowed values
+ * - null - becomes null
+ * - list?<x> - becomes JsonArray. Note the remmarks for empty lists
+ * - struct<x> - another struct which must have the same form as this
+ * - hash<x,y> - the key is transfered to a string the value must be one of
+ *   this types
+ * - E() - means that the value and filed is not included in struct and hash
+ *   or list
+ *
+ * As empty lists [] in yeti are represtend as null it is necessary to give in
+ * [E()] if there must be an empty list instead of a null in the corresponding
+ * json. 
+ *
+ * If a certain field should be excluded give it the value N().
+ *
+ * Arguments:
+ * struct - structure to transform to JsonObject
+ *
+ * Exceptions:
+ * java.lang.RuntimeException - if the given argument is no struct
+ */
+toJS stru is json<'a> -> ~JsonObject =
+    _toJS stru unsafely_as ~JsonObject;
+
+/**
+ * Group: json
+ * Transforms yeti list to a JsonArray. The elements can be any values
+ * supported by json
+ *
+ * Arguments:
+ * ls - the list to transform
+ */
+toJSArray ls is list?<'a> -> ~JsonArray =
+   (ar = new JsonArray();
+    for ls do e:
+        _ = ar#add(_toJS e)
+    done;
+    ar);
+    
+_fromJS object = 
+   (import java.util:List,HashMap,Map;
+    import java.lang:Number;
+    import yeb:HashStruct;
+    
+    o = object as ~Object;
+    
+    if nullptr? o then
+         o;
+    elif o instanceof Number then
+       (import java.lang: Double, Float,Number;
+        import java.math: BigInteger, BigDecimal;
+        import yeti.lang:Num,BigNum,IntNum,FloatNum;
+        if (o instanceof Double) or
+             (o instanceof Float) or
+             (o instanceof BigDecimal)
+             then
+                nu = o unsafely_as ~Number;
+                new FloatNum(nu#doubleValue());
+        elif o instanceof BigInteger then
+            nu = o unsafely_as ~BigInteger;
+            new BigNum(nu);
+        elif o instanceof Num then
+            o unsafely_as ~Num;
+        else
+            nu = o unsafely_as ~Number;
+            new IntNum(nu#longValue());
+        fi)
+    elif o instanceof JsonArray then
+        it = (o unsafely_as ~JsonArray)#iterator();
+        ar = array [];
+        (it#hasNext()) loop push ar (_fromJS it#next());
+        (list ar) as ~Object;
+    elif o instanceof JsonObject then
+        ma = new HashMap();
+        i = (o unsafely_as ~JsonObject)#toMap()#entrySet()#iterator();
+        i#hasNext() loop
+           (e = i#next() unsafely_as ~java.util.Map$Entry;
+            value = _fromJS (e#getValue() unsafely_as 'a);
+            if not nullptr? value then
+                ma#put(string e#getKey(), value);
+            fi);
+        new HashStruct(ma);
+    else
+        o
+    fi);
+
+/**
+ * Group: json
+ * Transforms a JsonObject to a struct. The result will always be a 
+ * polymorphic value which represents the JsonObject as struct. So no
+ * typechecking is performed on the result but it can be used as a struct.
+ *
+ * Arguments:
+ * jsonObject - the object to transfer 
+ */
+fromJS object is ~JsonObject -> 'a =
+    (_fromJS object) unsafely_as 'a;
+
+/**
+ * Group: json
+ * Transrom a JsonArray to a yeti list. The result will alwys be a
+ * polymphric value which represnte the JsonObject. So no typechecking is
+ * preformed on the values of the list
+ *
+ * Arguments:
+ * jsonArray - the JsonArray object to transfer
+ */
+fromJSArray ar is ~JsonArray -> list<'a> =
+    (_fromJS ar) unsafely_as list<'a>;    
+
+_blend vin1 vin2 is 'a -> 'b -> 'c=
+    (import yeti.lang:Struct,
+                      GenericStruct;
+    import java.util.HashMap;
+
+    o1 = (vin1 is 'a) unsafely_as ~Object;
+    o2 = (vin2 is 'b) unsafely_as ~Object;
+    if defined? o1 and defined? o2 and 
+       o1 instanceof Struct and o2 instanceof Struct then
+
+        s1 = o1 unsafely_as ~Struct;
+        s2 = o2 unsafely_as ~Struct;
+        jmap = new HashMap();
+        for [0..(s1#count() - 1)] do i:
+            na = s1#name(i);
+            va = s1#get(i);
+            _ = jmap#put(na,va);
+        done;
+        for [0..(s2#count() - 1)] do i:
+            na = s1#name(i);
+            va = s1#get(i);
+            ov = jmap#get(na);
+            va2 = if defined? ov 
+                    and (ov unsafely_as ~Object) instanceof Struct then
+                    _blend (ov unsafely_as 'a) (va unsafely_as 'b)
+                  else 
+                      va;
+                  fi;
+            _ = jmap#put(na,va2);
+        done;
+        (new GenericStruct(jmap)) unsafely_as 'c;
+    else
+        o1 unsafely_as 'c;
+    fi);
+
+/**
+ * Group: json
+ * Replaces in the struct the fiels of v1 with the fields of v2 if presten.
+ * Works only on struct arguments if either argument is not a struct then
+ * the first argument is returen.
+ *
+ * This is useful when transforming getting a Json struct fom "fromJS" and
+ * prefilling it with default values
+ *
+ * Arguments:
+ * v1 - the strcut which is the basis
+ * v2 - the strcut which replaces in v1
+ *
+ * Examples:
+ * :defaultV = {ssl=true, port=8080}
+ * :withDefaults = blend defaultV (toJson someJsonObject);
+ */
+blend v1 v2 is 'a -> 'b -> 'c =
+    (blend v1 v2) unsafely_as 'c;
 
 
 /**
@@ -1836,12 +2091,6 @@ fileSystem = ({
     toExceptionHandler,
     toBufferHandler,
     
-    toJS, 
-    toJSArray,
-    fromJS, 
-    fromJSArray,
-    emptyJS, 
-
     dataHandler,
     endHandler,
     exceptionHandler,
@@ -2031,7 +2280,6 @@ fileSystem = ({
     vertxThreadLocal,
     containerThreadLocal,
 
-    blend,
 
     //recordparser
 
@@ -2065,4 +2313,10 @@ fileSystem = ({
                                        toBufferHandler handler);
         do buffer: parser#handle(buffer is ~Buffer) done),    
     
+    emptyJS,
+    toJS,
+    toJSArray,
+    fromJS,
+    fromJSArray,
+    blend
 }
