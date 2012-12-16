@@ -155,7 +155,12 @@ getCookies headers =
     done);
 
 addCookie headers cookie =
-    setCookies headers (cookie :: getCookies headers);
+    (cs = getCookies headers;
+    ncs = filter (( != cookie.name) . (.name)) cs;
+    setCookies headers (cookie :: ncs));
+
+getCookie headers name =
+    filter (( == name) . (.name)) (getCookies headers);
 
 
 
@@ -486,6 +491,7 @@ setFlash name value req =
     cookie,
     setCookies,
     getCookies,
+    getCookie,
     addCookie,
     continue,
     request,
