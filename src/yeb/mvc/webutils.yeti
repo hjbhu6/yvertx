@@ -47,7 +47,7 @@ typedef cookie = {
 typedef response = {
     statusCode is number,
     headers is hash<string,string>,
-    body is Bytes ~byte[] | String string | None (),
+    body is Bytes ~byte[] | None (),
 };
 
 typedef request = {
@@ -165,14 +165,11 @@ getCookie headers name =
 
 
 response req statusCode headers body =
-    {var statusCode = statusCode, 
+    {statusCode = statusCode, 
      headers = 
-        (insertHash req.res.headers headers;
-        req.res.headers),
-     var body = body, 
-     session = req.res.session,
-     cookies = req.res.cookies} is response;
-    
+        (insertHash req.resHeaders headers;
+        req.resHeaders),
+     body = body} is response; 
 
 params name req =
     if name in (req.params) then
@@ -200,14 +197,14 @@ param name ctx =
     fi);
 
 addHeader name value req =
-    (hs = req.res.headers;
+    (hs = req.resHeaders;
     if name in hs then
         hs.[name is string] := hs.[name] ^","^ value;
     else
         hs.[name] := value;
     fi);    
 maybeHeader name req =
-    if name in req.headers then
+    if name in req.eaders then
         Some req.headers.[name]
     else 
         none
@@ -237,8 +234,8 @@ okView req =
     statusView 200 req;
 
 write req contentType content =
-    response req 200 ["Content-Type":contentType^"; charset=utf-8"]
-        (String content);
+    response  req 200 ["Content-Type":contentType^"; charset=utf-8"]
+        (Bytes (toUTF8 content));
 
 newWriter () =
     (import java.lang.StringBuilder;
