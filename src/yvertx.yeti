@@ -1500,7 +1500,7 @@ sendWithHandler address msg handler =
  * structMessage - the struct whill will be send as JSON
  * responseHanlder - the handler which gets the response
  */
-request address msg handler =   
+requestMessage address msg handler =   
     (getVertx ())#eventBus()#send(address is string, toJS msg, 
             toEitherJsonMessageHandler handler);
 
@@ -1516,7 +1516,7 @@ request address msg handler =
  * structMessage - the struct which will be sind as JSON
  * responseHandler - the handler which gets the response struct
  */
-requestBody address msg handler =
+request address msg handler =
     (load yeb.async;
     (mapAsync (.body) (request address msg)) handler);
 
@@ -1893,7 +1893,7 @@ fileSystem = ({
     publish,
     send,
     request,
-    requestBody,
+    requestMessage,
     registerBusHandler,
     registerLocalBusHandler,
     unregisterBusHandler,
