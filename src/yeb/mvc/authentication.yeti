@@ -8,7 +8,7 @@ import org.owasp.esapi:ESAPI;
 
 load yeb.std;
 load yeb.mvc.webutils;
-
+/*
 typedef principal ={
     name is string,
     email is string,
@@ -33,18 +33,18 @@ withUser user fn = withThreadLocal _currentUser user fn;
 
 userSessionKey = "org.yeb.mvc.authentication.user";
 
-storeInSession user req  =
+storeInSession user session  =
     if user == anonymousUser then
-        delete req.res.session userSessionKey;
+        delete session userSessionKey;
     else
-        req.res.session.[userSessionKey] := (user as ~Object);
+        session[userSessionKey] := (user as ~Object);
     fi;
 
-sessionAuthenticator nextAuthenticator req =
-        if not userSessionKey in req.res.session then
+sessionAuthenticator session nextAuthenticator req =
+        if not userSessionKey in session then
             nextAuthenticator req
         else
-            (req.res.session.[userSessionKey] is ~Object) 
+            (session[userSessionKey] is ~Object) 
                 unsafely_as principal
         fi;
 
@@ -52,18 +52,18 @@ sessionAuthenticator nextAuthenticator req =
 var rememberMeCookieName = "yeb-mec";
 
 storeRememberMe user password maxAge opts ctxt =
-    (killCookie rememberMeCookieName ctxt;
+    (addCookie ctxt.resHeaders (cookie [Maxage 0] rememberMeCookieName "");
 
     if user != anonymousUser then
         clearToken = "\(user.name is string)|\(password is string)";
         expiry = ESAPI#encryptor()#getRelativeTimeStamp(maxAge * 1000);
         cryptToken = string (ESAPI#encryptor()#seal(clearToken, expiry));
-        setCookie (cookie [Maxage maxAge] rememberMeCookieName cryptToken)
-                  ctxt;
+        addCookie ctxt.resHeaders 
+                (cookie [Maxage maxAge] rememberMeCookieName cryptToken);
     fi);
 
 rememberMeAuthenticator userService nextAuthenticator ctxt =
-    (cs = getCookies rememberMeCookieName ctxt;
+    (cs = getCookie ctxt.headers rememberMeCookieName;
     if empty? cs then
         nextAuthenticator ctxt
     else
@@ -71,21 +71,24 @@ rememberMeAuthenticator userService nextAuthenticator ctxt =
         try
             data = strSplit '\|' (ESAPI#encryptor()#unseal(token is string));
             if length data != 2 then
-                killCookie rememberMeCookieName ctxt;
+                addCookie ctxt.resHeaders 
+                    (cookie [Maxage 0] rememberMeCookieName "");
                 failWith ("not handled");
             else
                 username = data.[0];
                 password = data.[1];
                 u = userService username password;
                 if u == anonymousUser then
-                    killCookie rememberMeCookieName ctxt;
+                    addCookie ctxt.resHeaders 
+                        (cookie [Maxage 0] rememberMeCookieName "");
                     failWith ("not handled");
                 else 
                     Some (u with {loggedInBy = "cookie"});
                 fi;
             fi
         catch Exception ex:
-            killCookie rememberMeCookieName ctxt;
+            addCookie ctxt.resHeaders 
+                (cookie [Maxage 0] rememberMeCookieName "");
             nextAuthenticator ctxt;
         yrt;
     fi);
@@ -111,8 +114,8 @@ basicInitPage realm req =
   </HEAD>
   <BODY><H1>401 Unauthorized.</H1></BODY>
 </HTML>""";
-    res.statusCode := 401;
-    res.headers.["WWW-Authenticate"]:= "Basic realm=\"\(realm)\"";
+    res = res with {statusCode = 401};
+    res.headers["WWW-Authenticate"]:= "Basic realm=\"\(realm)\"";
     req.respond res;
     true);
 
@@ -154,11 +157,13 @@ anonymousAuthenticator ctxt = anonymousUser;
 
 
 logoutFunctions = array [
-            storeInSession anonymousUser, 
             storeRememberMe  
             anonymousUser "" 2000 []];
 
-logout ctxt = (clearUser(); for logoutFunctions do fn: fn ctxt done);
+logout session ctxt = 
+        (clearUser(); 
+        storeInSession anonymousUser session;
+        for logoutFunctions do fn: fn ctxt done);
 
 accessDenied msg = throw new AccessDeniedException(msg);
 
@@ -213,3 +218,5 @@ isAccessible,
 checkAccess, 
 securityHandlerAdapter
 }
+*/
+1
