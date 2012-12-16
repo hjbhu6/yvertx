@@ -39,7 +39,6 @@ load yeb.validation;
 //HandlerAdapters
 
 
-idHandler handler is handlerAdapter = handler;
 
 
 /**
@@ -128,8 +127,7 @@ urlPatternToRegex pat =
 
     
 
-regexHandlerImpl method regexPattern handler 
-    is string -> string -> handlerAdapter = 
+regexHandlerImpl method regexPattern handler  = 
    (import java.util.regex.Pattern;
     meth = strUpper method;
     var checkMethod? = meth != "ALL";
@@ -139,7 +137,7 @@ regexHandlerImpl method regexPattern handler
 
     do req:
         if checkMethod? and (meth != (strUpper req.method )) then
-            false
+            req.respond continue;
         else
             matcher = pattern#matcher(req.path is string);
             if matcher#matches() then
@@ -172,7 +170,7 @@ regexHandlerImpl method regexPattern handler
 
                 handler nreq
             else
-                false
+                req.respond continue;
             fi;
         fi;
     done;
@@ -203,13 +201,16 @@ regexHandler requestUrl handler =
     
 runHandlers handlers req is list<handler> -> handler =
     if empty? handlers then
-        false
+        req.respond continue;
     else
-        if (head handlers) req then
-            true
-        else
-            runHandlers (tail handlers) req;
-        fi
+        (head handlers) (req with {
+            respond res = 
+                if res.statusCode == continue.statusCode then
+                    runHandlers (tail handlers) req;
+                else
+                    ()
+                fi
+        })
     fi;
 
 lazyHandler moduleName  is string -> handler =
@@ -305,45 +306,12 @@ handlersFact oldVhs adapter=
  
 newRouter adapter = handlersFact [] adapter;
 
-/**
- * handler apdapter (filter) wich makes use that the local is one of
- * the specified locals.
- *
- * ie that each handler in the router only gets either an US or Italien locale
- * use:
- *
- * :import java.util.Locale;
- * :router = newRouter (localHandler [Locale#US, Locale#IT]);
- *
- */ 
-localeHandler locales handler is list<~Locale> -> handlerAdapter = 
-   (if empty? locales then
-       handler
-    else
-        lh = hash locales;
-        defaultL = [head locales];
-        do req:
-            nlocs = filter (in lh) req.locales;
-            nlocs = if empty? nlocs then
-                    defaultL
-                else
-                    nlocs
-                fi;
-
-            handler (req with {locales = nlocs}); 
-        done;
-    fi);
-
-
-
 (load yeb.mvc.webutils) with {
 
-    idHandler,
 
     urlPatternToRegex,
 
     regexHandler,
     newRouter,
-    localeHandler,
 }
 
