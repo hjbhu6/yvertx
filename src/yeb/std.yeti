@@ -273,7 +273,20 @@ create hash is hash<'k, 'v> -> tableType<'k,'v> =
     maybeHead,
     maybeAt,
     maybe',
-    
+
+    /**
+     * Group: string
+     * converts the string to a bytearray encoded as UTF-8
+     */
+    toUTF8 str = 
+        ((str is string) unsafely_as ~String)#getBytes("UTF-8"),
+
+    /**
+     * Group: string
+     * converts the given byte-array as string with Charste UTF-8
+     */
+    fromUTF8 bytes = 
+        (new String(bytes is ~byte[], "UTF-8")) as string,
     /**
      * Group: helper (Various helpers)
      * if the value is defined execute right function esl wrong function
