@@ -168,11 +168,11 @@ response req statusCode headers body =
     {statusCode = statusCode, 
      headers = 
         (insertHash req.resHeaders headers;
-        req.resHeaders),
+        (req is request).resHeaders),
      body = body} is response; 
 
 params name req =
-    if name in (req.params) then
+    if name in ((req is request).params) then
         req.params.[name];
     else
         [] is list<string>
@@ -197,14 +197,14 @@ param name ctx =
     fi);
 
 addHeader name value req =
-    (hs = req.resHeaders;
+    (hs = (req is request).resHeaders;
     if name in hs then
         hs.[name is string] := hs.[name] ^","^ value;
     else
         hs.[name] := value;
     fi);    
 maybeHeader name req =
-    if name in req.eaders then
+    if name in (req is request).headers then
         Some req.headers.[name]
     else 
         none

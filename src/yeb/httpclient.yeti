@@ -59,24 +59,24 @@ oauthHandlers provider apiKey apiSecret callbackUrl opts =
         esac;
     
     
-    initHandler exceptionHandler req = 
+    initHandler session exceptionHandler req = 
         try
             token = service#getRequestToken();
-            req.res.session.["oauth.request_token"] := (token as ~Object);
+            session["oauth.request_token"] := (token as ~Object);
             confirmURL = service#getAuthorizationUrl(token);
             webutils.redirectView confirmURL req;
         catch OAuthException ex:
             exceptionHandler ex req
         yrt;
     
-    handleCallback req =
+    handleCallback session req =
         try
             oauth_token = webutils.param "oauth_token" req;
             oauth_verifier = webutils.param "oauth_verifier" req;
             
             verifier = new Verifier(oauth_verifier);
             requestToken = 
-                (req.res.session.["oauth.request_token"] is ~Object)
+                (session["oauth.request_token"] is ~Object)
                     unsafely_as ~Token;
             
             accessToken = 
