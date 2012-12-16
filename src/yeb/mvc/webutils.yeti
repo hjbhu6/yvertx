@@ -109,8 +109,8 @@ cookie opts name value =
         secure = _secure,
     } is cookie);
 
-/*
-encodeCookies cookies =
+
+setCookies headers cookies =
     (import org.jboss.netty.handler.codec.http:CookieEncoder,
                                                DefaultCookie;
     enc = new CookieEncoder(true);
@@ -134,24 +134,30 @@ encodeCookies cookies =
         dc#setSecure(co.secure);
         enc#addCookie(dc);
     done;
-    enc#encode());
+    str = enc#encode();
+    headers["Cookie"] := str);
 
-decodeCookies str = 
+getCookies headers = 
     (import org.jboss.netty.handler.codec.http:CookieDecoder,
                                             Cookie;
+    str = headers["Cookie"];                                        
     (new CookieDecoder())#decode(str is string) 
     |> mapJavaList do ob:
         co = (ob unsafely_as ~Cookie);
-        {name = co#getName(),
+        ({name = co#getName(),
         value = co#getValue(),
         comment = co#getComment(),
         commentUrl = co#getCommentUrl(),
         domain = co#getDomain(),
         maxage = co#getMaxAge(),
         path = co#getPath(),
-        secure = co#getSecure()} is Cookie
+        secure = co#isSecure()} is cookie)
     done);
-*/
+
+addCookie headers cookie =
+    setCookies headers (cookie :: getCookies headers);
+
+
 
 response req statusCode headers body =
     {var statusCode = statusCode, 
@@ -478,6 +484,9 @@ setFlash name value req =
     HEADER_CACHE_CONTROL = "Cache-Control",
 
     cookie,
+    setCookies,
+    getCookies,
+    addCookie,
     continue,
     request,
     response,
