@@ -75,12 +75,15 @@ request {method,uri,path,headers} =
     {
     headers,
     uri,
+    path,
     method,
     body = noneBody,
     params = [:],
     resHeaders = [:],
     respond res = ()} is request;
-       
+
+
+
 cookie opts name value = 
     (var _comment = undef_str;
     var _commentUrl = undef_str;

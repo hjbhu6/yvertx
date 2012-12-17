@@ -18,7 +18,11 @@ staticFileConf = {
 };
 
 serveStaticFile conf req =
-    serveStaticFileAtPath conf.web_root conf.index_page req req#path;
+    serveStaticFileAtPath [
+        WebRoot conf.web_root,
+        IndexPage conf.index_page,
+        Gzip conf.gzip_files] 
+        req req#path;
 
 
 
@@ -61,10 +65,12 @@ bridgeRequest conf bustarget reqO =
                 fi;
                 
                 if defined? res.file then
-                    serveStaticFileAtPath conf.web_root 
-                                          conf.index_page 
-                                          reqO 
-                                          (string res.file);
+                    serveStaticFileAtPath [
+                        WebRoot conf.web_root,
+                        IndexPage conf.index_page,
+                        Gzip conf.gzip_files] 
+                        reqO
+                        (string res.file);
                 elif defined? res.body then
                     reqO#response#write(newByteBuffer res.body);
                     reqO#response#end();

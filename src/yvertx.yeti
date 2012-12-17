@@ -1018,7 +1018,7 @@ requestHeaders req =
  * req - the HttpServerRequest
  * path - path of the file relative to webRoot
  */
-serveStaticFileAtPath opts indexPage =
+serveStaticFileAtPath opts =
     (import java.io:File;
     import org.vertx.java.core.file.impl:PathAdjuster;
     var webRoot = "web";
@@ -1033,7 +1033,7 @@ serveStaticFileAtPath opts indexPage =
     webRootPrefix = webRoot ^ File#separator;
     indexPage = webRootPrefix ^ indexPage;
     
-    do req path:
+    do path req:
         headers = requestHeaders req;
         acceptEncodingGzip = if "accept-encoding" in headers then
                 strIndexOf headers.["accept-encoding"] "gzip" 0 > -1;
@@ -1585,7 +1585,7 @@ requestMessage address msg handler =
  */
 request address msg handler =
     (load yeb.async;
-    (mapAsync (.body) (request address msg)) handler);
+    (mapAsync (.body) (requestMessage address msg)) handler);
 
 /**
  * Group: eventbus
