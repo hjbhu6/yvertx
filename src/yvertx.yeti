@@ -1534,7 +1534,7 @@ toJsonMessageHandler fn =
  * address - the address to publish to
  * structMessage - the struct which will be posted as Json
  */
-publish address msg = 
+publishToBus address msg = 
     (getVertx ())#eventBus()#publish(address is string, toJS msg);
 
 /**
@@ -1549,10 +1549,10 @@ publish address msg =
  * address - the address to send to
  * structMessage - the struct which will be send as JSON
  */
-send address msg =
+sendToBus address msg =
     (getVertx ())#eventBus()#send(address is string, toJS msg);
 
-sendWithHandler address msg handler =
+sendToBusWithHandler address msg handler =
     (getVertx ())#eventBus()#send(address is string, toJS msg, 
             toJsonMessageHandler handler);
 
@@ -1567,7 +1567,7 @@ sendWithHandler address msg handler =
  * structMessage - the struct whill will be send as JSON
  * responseHanlder - the handler which gets the response
  */
-requestMessage address msg handler =   
+requestMessageFromBus address msg handler =   
     (getVertx ())#eventBus()#send(address is string, toJS msg, 
             toEitherJsonMessageHandler handler);
 
@@ -1583,9 +1583,9 @@ requestMessage address msg handler =
  * structMessage - the struct which will be sind as JSON
  * responseHandler - the handler which gets the response struct
  */
-request address msg handler =
+requestFromBus address msg handler =
     (load yeb.async;
-    (mapAsync (.body) (requestMessage address msg)) handler);
+    (mapAsync (.body) (requestMessageFromBus address msg)) handler);
 
 /**
  * Group: eventbus
@@ -1958,10 +1958,10 @@ fileSystem = ({
     closeNetClient,
 
     //bus functions
-    publish,
-    send,
-    request,
-    requestMessage,
+    publishToBus,
+    sendToBus,
+    requestFromBus,
+    requestMessageFromBus,
     registerBusHandler,
     registerLocalBusHandler,
     unregisterBusHandler,

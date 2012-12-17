@@ -356,7 +356,7 @@ requestToJson req =
 requestToBusHandler bustarget req =
     (yvertx = load yvertx;
     jr = requestToJson req;
-    yvertx.request bustarget jr do r:
+    yvertx.requestFromBus bustarget jr do r:
         res = case r of
         Exception ex:
             response req 404 [:] noneBody;
@@ -379,7 +379,7 @@ busHandler handler msg =
         params = maybeDefined \[:] id b.params,
         body = maybeDefined \noneBody id b.body,
         resHeaders = maybeDefined \[:] id b.resHeaders,
-        respond res = msg.reply res
+        respond res = msg.reply (res with {for_json = E()})
         });
 
 (load yeb.mvc.webutils) with {
@@ -388,6 +388,12 @@ busHandler handler msg =
     urlPatternToRegex,
 
     regexHandler,
+    
+    httpHandler,
+    requestToJson,
+    requestToBusHandler,
+    busHandler,
+    
     newRouter,
 }
 
