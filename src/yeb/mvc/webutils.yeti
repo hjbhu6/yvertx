@@ -22,11 +22,7 @@ import java.util:Locale;
 import java.net:URLEncoder, 
         URLDecoder;
 
-
 import org.owasp.esapi:ESAPI,HTTPUtilitiess;
-
-
-
     
 
 load yeb.std;
@@ -43,11 +39,10 @@ typedef cookie = {
     value is string,
 };
 
-
 typedef response = {
     statusCode is number,
     headers is hash<string,string>,
-    body is Bytes ~byte[] | None (),
+    body is ~byte[],
 };
 
 typedef request = {
@@ -55,8 +50,7 @@ typedef request = {
     uri is string,
     path is string,
     method is string,
-    body is Bytes ~byte[] 
-            | None (), 
+    body is ~byte[],
     params is hash<string,list<string>>,
     resHeaders is hash<string,string>,
     respond is response -> (),
@@ -65,21 +59,28 @@ typedef request = {
 
 typedef handler = request -> ();
 
+noneBody = new byte[0];
+
 continue is response = {
     statusCode = -1,
     headers = [:],
-    body = none};
+    body = noneBody};
+
+fileResponse fileName = 
+    {statusCode = -2,
+    headers = ["file" : fileName],
+    body = noneBody};
 
 request {method,uri,path,headers} =
     {
     headers,
     uri,
     method,
-    body = none,
+    body = noneBody,
     params = [:],
     resHeaders = [:],
     respond res = ()} is request;
-        
+       
 cookie opts name value = 
     (var _comment = undef_str;
     var _commentUrl = undef_str;
@@ -224,10 +225,10 @@ escape text =
 //"     
     
 redirectView path req = 
-   (response req 301 ["Location":path] none);
+   (response req 301 ["Location":path] noneBody);
 
 statusView status req = 
-    response req status [:] none;
+    response req status [:] noneBody;
 
 
 okView req =
@@ -235,7 +236,7 @@ okView req =
 
 write req contentType content =
     response  req 200 ["Content-Type":contentType^"; charset=utf-8"]
-        (Bytes (toUTF8 content));
+        (toUTF8 content);
 
 newWriter () =
     (import java.lang.StringBuilder;
@@ -321,12 +322,12 @@ urlEncode str = URLEncoder#encode(str,"UTF-8");
 urlDecode str = URLDecoder#decode(str,"UTF-8");
 
 readBody req =
-    case req.body of
-    Bytes bs:
-        str = new String(bs is ~byte[], "UTF-8");
+    if req.body == noneBody then
+        ""
+    else
+        str = new String(req.body is ~byte[], "UTF-8");
         string str;
-    _ : ""
-    esac;
+    fi;
 
 parseQuery query =
     (ret = [:];
@@ -484,6 +485,9 @@ setFlash name value req =
     HEADER_PRAGMA = "Pragma",
     HEADER_EXPIRES = "Expires",
     HEADER_CACHE_CONTROL = "Cache-Control",
+
+    noneBody,
+    fileResponse,
 
     cookie,
     setCookies,
