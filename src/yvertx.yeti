@@ -1007,6 +1007,61 @@ requestHeaders req =
     done;
     ret);
 
+/**
+ * Group: httpServer
+ * sends the static file at the given path to the request
+ *
+ * Arguments
+ * opts - WebRoot: the directory of the files to server (default is web);
+ *        IndexPage: the file to serve for / (default is index)
+ *        Gzip: wheter to search for zip files (deefault is false)
+ * req - the HttpServerRequest
+ * path - path of the file relative to webRoot
+ */
+serveStaticFileAtPath opts indexPage =
+    (import java.io:File;
+    import org.vertx.java.core.file.impl:PathAdjuster;
+    var webRoot = "web";
+    var gzipFiles = false;
+    var indexPage = "index";
+    for opts \case of
+        WebRoot s : webRoot := s;
+        Gzip b : gzipFiles := b;
+        IndexPage s : indexPage := s;
+    esac;
+
+    webRootPrefix = webRoot ^ File#separator;
+    indexPage = webRootPrefix ^ indexPage;
+    
+    do req path:
+        headers = requestHeaders req;
+        acceptEncodingGzip = if "accept-encoding" in headers then
+                strIndexOf headers.["accept-encoding"] "gzip" 0 > -1;
+            else
+                false
+            fi;
+        fileName = webRootPrefix ^ path;
+        if path == "/" then
+            req#response#sendFile(indexPage);
+        elif strIndexOf path ".." 0 < 0 then
+            if gzipFiles and acceptEncodingGzip then
+                file = new File(PathAdjuster#adjust(fileName ^ ".gz"));
+                if file#exists() then
+                    req#response#putHeader("content-encoding", "gzip");
+                    req#response#sendFile(fileName ^ ".gz");
+                else
+                    req#response#sendFile(fileName);
+                fi
+            else
+                req#response#sendFile(fileName);
+            fi
+        else
+            req#response#statusCode := 404;
+            req#response#end();
+        fi;
+        ()
+    done);
+
 //http client things
 
 /**
@@ -1870,6 +1925,7 @@ fileSystem = ({
     putResponseTrailers,
     params,
     requestHeaders,
+    serveStaticFileAtPath,
 
     //http client functions
     createHttpClient,

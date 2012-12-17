@@ -16,39 +16,9 @@ staticFileConf = {
     gzip_files = false,
     index_page = "index",
 };
-serveStaticFileAtPath conf req path =
-    (webRootPrefix = conf.web_root ^ File#separator;
-    indexPage = webRootPrefix ^ conf.index_page;
-    
-    headers = requestHeaders req;
-    acceptEncodingGzip = if "accept-encoding" in headers then
-            strIndexOf headers.["accept-encoding"] "gzip" 0 > -1;
-        else
-            false
-        fi;
-    fileName = webRootPrefix ^ path;
-    if path == "/" then
-        req#response#sendFile(indexPage);
-    elif strIndexOf path ".." 0 < 0 then
-        if conf.gzip_files and acceptEncodingGzip then
-            file = new File(PathAdjuster#adjust(fileName ^ ".gz"));
-            if file#exists() then
-                req#response#putHeader("content-encoding", "gzip");
-                req#response#sendFile(fileName ^ ".gz");
-            else
-                req#response#sendFile(fileName);
-            fi
-        else
-            req#response#sendFile(fileName);
-        fi
-    else
-        req#response#statusCode := 404;
-        req#response#end();
-    fi;
-    ());
 
 serveStaticFile conf req =
-    serveStaticFileAtPath conf req req#path;
+    serveStaticFileAtPath conf.web_root conf.index_page req req#path;
 
 
 
@@ -91,7 +61,10 @@ bridgeRequest conf bustarget reqO =
                 fi;
                 
                 if defined? res.file then
-                    serveStaticFileAtPath conf reqO (string res.file);
+                    serveStaticFileAtPath conf.web_root 
+                                          conf.index_page 
+                                          reqO 
+                                          (string res.file);
                 elif defined? res.body then
                     reqO#response#write(newByteBuffer res.body);
                     reqO#response#end();
