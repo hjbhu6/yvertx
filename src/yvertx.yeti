@@ -130,7 +130,10 @@ _toJS object =
         elif t#name == "None" then
             () as ~Object;
         else
-            failWith "Can not serialize \(o)"
+            dbo = new HashMap();;
+            _ = dbo#put("_vtype",t#name);
+            _ = dbo#put(t#name, _toJS (t#value unsafely_as 'a));
+            new JsonObject(dbo);
         fi
     else
         o
@@ -191,6 +194,7 @@ _fromJS object =
    (import java.util:List,HashMap,Map;
     import java.lang:Number;
     import yeb:HashStruct;
+    import yeti.lang:Tag;
     
     o = object as ~Object;
     
@@ -221,15 +225,23 @@ _fromJS object =
         (it#hasNext()) loop push ar (_fromJS it#next());
         (list ar) as ~Object;
     elif o instanceof JsonObject then
-        ma = new HashMap();
-        i = (o unsafely_as ~JsonObject)#toMap()#entrySet()#iterator();
-        i#hasNext() loop
-           (e = i#next() unsafely_as ~java.util.Map$Entry;
-            value = _fromJS (e#getValue() unsafely_as 'a);
-            if not nullptr? value then
-                ma#put(string e#getKey(), value);
-            fi);
-        new HashStruct(ma);
+        jo = o unsafely_as ~JsonObject;
+        //check for variant
+        if defined? jo#getString("_vtype",undef_str) 
+            and defined? jo#getField("value") then
+            new Tag(_fromJS jo#getField("value"), 
+                    jo#getString("_vtype"))
+        else
+            ma = new HashMap();
+            i = jo#toMap()#entrySet()#iterator();
+            i#hasNext() loop
+               (e = i#next() unsafely_as ~java.util.Map$Entry;
+                value = _fromJS (e#getValue() unsafely_as 'a);
+                if not nullptr? value then
+                    ma#put(string e#getKey(), value);
+                fi);
+            new HashStruct(ma);
+        fi;
     else
         o
     fi);
