@@ -358,7 +358,7 @@ requestToBusHandler bustarget req =
     jr = requestToJson req;
     yvertx.requestFromBus bustarget jr do r:
         res = case r of
-        Exception ex:
+        None ex:
             response req 404 [:] noneBody;
         Some m:
             response req

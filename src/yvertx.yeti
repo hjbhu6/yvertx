@@ -1476,7 +1476,7 @@ closeNetClient client =
 
 _toMessageJS v =
     case v of
-    Exception msg: 
+    None msg: 
         toJS {status = "error", message = msg is string, for_json = E()};
     Some va: toJS va;
     esac;
@@ -1493,7 +1493,7 @@ toEitherJsonMessageHandler fn =
                       else 
                           "error but no message" 
                       fi;
-                fn (Exception emg);
+                fn (None emg);
             else
                 fn (Some  
                     {message = msg is ~Message,
@@ -1594,7 +1594,8 @@ requestMessageFromBus address msg handler =
  */
 requestFromBus address msg handler =
     (load yeb.async;
-    (mapAsync (.body) (requestMessageFromBus address msg)) handler);
+    ((requestMessageFromBus address msg)
+        |> bindSome (return . Some . (.body))) handler);
 
 /**
  * Group: eventbus
@@ -1668,7 +1669,7 @@ registerBusFunction address readyHandler fn =
         msg.reply try
                 Some (fn msg.body);
             catch Exception ex:
-                Exception (string ex);
+                None (string ex);
             yrt;
     done;
 

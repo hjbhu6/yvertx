@@ -16,42 +16,68 @@
 
 module yeb.async;
 
+import java.lang:Exception;
 
 //callback functions
-typedef either<a> = Exception string | Some a; 
+typedef either<a> = None string | Some a; 
 typedef callback<a> = either<a> -> ();
 typedef asyncFunction<a> = callback<a> -> ();
 
 
 /**
  * Group: async (ASYNC)
- * Transforms a value in an eitherAsyncFunction
+ * Transforms a value in an asyncFunction
  *
  * Arguments:
  *  value - value to which the created function will pass in the reciever
  */
-return v is 'a -> asyncFunction<'a> = 
-    do cb: cb (Some v) done;
+return v is either<'a> -> asyncFunction<'a> = 
+    do cb: cb v done;
 
 /**
- * Group: async
- * Transforms a callback function to an eitherCallback function
- * giving in the defaultValue if an exception is found
+ * Group: async (ASYNC)
+ * Transforms a value in an asyncFunction which always return some. Same as
+ * return (Some v)
  *
  * Arguments:
- * defaultValue - the defaultValue
- * callback - the function which is transfromed to an eitherFunction
+ *  value - value to which the created function will pass in the reciever
  */
-default defaultV cb =
-    \case of
-    Exception ex: cb defaultV;
-    Some v: cb v;
-    esac;
+returnSome v is 'a -> asyncFunction<'a> =
+    return (Some v);
 
 /**
  * Group: async
- * Joins two eitherAsyncFunctions in sequenc, where the second function
+ * Joins two asyncFunctions in sequenc, where the second function
  * is dependent on the result of the first.
+ *
+ * see also the (->) operator for a shorthand and exmples 
+ *
+ * Arguments:
+ * mappingFunction - is given the value of the first asyncFunction and should
+ * returns the second callback funcion
+ * asyncFunction - the first callback function in the sequence
+ */
+bind fn cbfn
+    is  (either<'a> -> asyncFunction<'b>) 
+        -> asyncFunction<'a> -> asyncFunction<'b> =
+    do cb:
+        cbfn do a:
+                afn = try
+                        fn a
+                    catch Exception ex:
+                        return (None (string ex));
+                    yrt;
+                afn cb;
+             done;
+    done;
+
+/**
+ * Group: async
+ * Joins two asyncFunctions in sequenc with the value, where the second function
+ * is dependent on the result of the first.
+ *
+ * Differnt to bind the second function only gets the value of a positit Some
+ * result of the callback. If there is a failure this is given further.
  *
  * see also the (->>) operator for a shorthand and exmples 
  *
@@ -60,58 +86,36 @@ default defaultV cb =
  * returns the second callback funcion
  * asyncFunction - the first callback function in the sequence
  */
-bind cbfn fn
-    is  asyncFunction<'a> -> ('a -> asyncFunction<'b>) 
-        -> asyncFunction<'b> =
-    do cb:
-        cbfn \case of
-            Exception str: cb (Exception str);
-            Some a: (fn a) cb;
-            esac;
-    done;
+bindSome fn cbfn
+    is  ('a -> asyncFunction<'b>) 
+        -> asyncFunction<'a> -> asyncFunction<'b> =
+    cbfn |> bind \case of
+        None msg: return (None msg);
+        Some a: fn a;
+        esac;
+
 
 /**
  * Group: async
- * Transform an asyncFunction which holds an asyncFunction to an asyncFunction
- * which of the parameter of the second asyncfunction. Used to flatten stacked
- * asyncFunctions
+ * Handles failure in an async functiond and returns a new one.
+ *
+ * Differnt to bind the second function only gets the failure. If the callback
+ * receives a falid value it is passed further.
+ *
+ * see also the (-|>) operator for a shorthand and exmples 
  *
  * Arguments:
- * stackedAsyncFunction - the asyncFunction which wrapps another AsyncFunction
+ * mappingFunction - is given the value of the first asyncFunction and should
+ * returns the second callback funcion
+ * asyncFunction - the first callback function in the sequence
  */
-flatten cbfn 
-    is asyncFunction<asyncFunction<'a>> -> asyncFunction<'a> =
-    bind cbfn id;
-
-/**
- * Group: async
- * Transforms the callback of an eitherAsyncFunction to another value.
- * 
- * See also the -> operator
- *
- * Arguments:
- * mappingFunction - function which mapps the original value to the new one
- * asyncFunction - originalAsyncFunction
- */
-mapAsync fn cbfn is ('a -> 'b) -> asyncFunction<'a> 
-                -> asyncFunction<'b> =
-    do cb:
-        cbfn \case of
-            Exception str: cb (Exception str);
-            Some a: cb (Some (fn a));
-            esac
-    done;
-
-/**
- * Group: async
- * Transforms any function to return as a result the an AsyncFunction of 
- * the resultvalue.
- *
- * Arguments:
- * fn - function to transform
- */
-lift fn a cb is ('a -> 'b) -> ('a -> asyncFunction<'b>) =
-    cb (Some (fn a));
+bindNone fn cbfn
+    is  ( string -> asyncFunction<'b>) 
+        -> asyncFunction<'a> -> asyncFunction<'b> =
+    cbfn |> bind \case of
+        None msg: fn msg;
+        Some a: returnSome a;
+        esac;
 
 /**
  * Group: async
@@ -127,21 +131,33 @@ parallel cbfns cb
     (res = array [];
     var handled = false;
     for cbfns do c:
-        c \case of
-            Exception str: 
-                if not handled then
-                    handled := true;
-                    cb (Exception str);
-                fi;
-            Some a:
-                if not handled then
-                    push res a;
-                    if length res == length cbfns then
+        c do r:
+            finished = synchronized res \case r of
+                None str: 
+                    if not handled then
                         handled := true;
-                        cb (Some(list res));
+                        Some (None str);
+                    else
+                        none
+                    fi;
+                Some a:
+                    if not handled then
+                        push res a;
+                        if length res == length cbfns then
+                            handled := true;
+                            Some (Some(list res));
+                        else
+                            none
+                        fi
+                    else
+                        none
                     fi
-                fi
+                esac;
+            case finished of
+                None _ : ();
+                Some arg : cb arg;
             esac;
+        done;
     done);
 
 
@@ -157,22 +173,33 @@ parallel cbfns cb
  */
 setAsync ctr cbfn is 'b -> asyncFunction<'a> -> (() -> 'a) =
     (ctr.starting();
+    mutex = ctr.mutex;
     var hasReceived = false;
     var res = NotSet ();
-    cbfn \case of
-        Exception str: 
-            if not hasReceived then
-                res := Exception str;
-                hasReceived := true;
-                ctr.hasReceived (Exception str);
-            fi;
-        Some a:
-            if not hasReceived then
-                hasReceived := true;
-                res := Some a;
-                ctr.hasReceived (Some ());
-            fi;
-    esac;
+    cbfn do r:
+        call? = synchronized mutex \case r of
+            None str: 
+                if not hasReceived then
+                    res := Exception str;
+                    hasReceived := true;
+                    Some (None str);
+                else
+                    none
+                fi;
+            Some a:
+                if not hasReceived then
+                    hasReceived := true;
+                    res := Some a;
+                    Some (Some ());
+                else
+                    none
+                fi;
+            esac;
+        case call? of
+        None _: ();
+        Some arg: ctr.hasReceived arg;
+        esac;
+    done;
     \(case res of
         NotSet (): failWith "Not set";
         Exception str: failWith str;
@@ -188,97 +215,87 @@ setAsync ctr cbfn is 'b -> asyncFunction<'a> -> (() -> 'a) =
  * callback - callback which receives the result of the prepare function
  * or the exception of the first not succesful result
  *
- * Examples:
- * :cbCollect \{
- * :   name = cbSet (request "mongodb" {search="some"}),
- * :   image = cbSet (request "imageService" {search="someid"})}
- * :   \case of
- * :         Exception ex: throw ex;
- * :         Some {name, image}: //handle result
- * :     esac;
  */
-collectParallel inex cb is ('b -> 'a) -> asyncFunction<'a>=
-    (var called = false;
+collectAsync inex cb is ('b -> 'a) -> asyncFunction<'a>=
+    (mutex = new Object();
+     var called = false;
      var requests = 0;
      var received = 0;
      var result = none;
      ctr = {
+        mutex,
         starting () = 
-            requests := requests + 1,
+            synchronized mutex \(requests := requests + 1),
+
         hasReceived ex =
-            case ex of
-            Exception str :
-                called := true;
-                cb (Exception str);
-            Some _ :
-                received := received + 1;
-                if not called then
-                    case result of
-                    None _ : ();
-                    Some v: 
-                        if received == requests then
-                            called := true;
-                            cb (Some v);
-                        fi;
-                    esac;
-                fi;
-            esac,
+            (call? = synchronized mutex \case ex of
+                None str :
+                    called := true;
+                    Some (None str);
+                Some _ :
+                    received := received + 1;
+                    if not called then
+                        case result of
+                        None _ : none;
+                        Some v: 
+                            if received == requests then
+                                called := true;
+                                Some (Some v);
+                            else
+                                none
+                            fi;
+                        esac;
+                    else
+                        none
+                    fi;
+                esac;
+
+            case call? of
+            None _ : ();
+            Some arg: cb arg
+            esac),
     };
     try 
-        r = inex ctr; 
-        result := Some r;
-        if not called and received == requests then
-            called := true;
-            cb (Some r)
-        fi;
+        r = inex ctr;
+        call? = synchronized mutex 
+            \(result := Some r;
+            if not called and received == requests then
+                called := true;
+                Some (Some r);
+            else 
+                none
+            fi);
+        case call? of
+        None _ : ();
+        Some arg: cb arg;
+        esac;
             
     catch Exception ex:
-        if not called then
-            called := true;
-            cb (Exception (string ex));
-        fi
+        call? = synchronized mutex 
+            \(if not called then
+                called := true;
+                Some (None (string ex));
+            else
+                none
+            fi);
+        case call? of 
+        None _: ();
+        Some arg: cb arg;
+        esac;
     yrt;
     ());
 
-/**
- * Group: async
- * transfers any function an either callback function. In case the callback
- * recevies an Exception the exception is thrown. Otherwise the value is
- * given to the argument function
- *
- * Arguments:
- * fn - function to execute in case the callback gets a value
- */
-noex fn = do cb:
-    case cb of
-    Exception ex: failWith (ex is string);
-    Some v: (fn is 'a -> ()) v;
-    esac;
-done;
+run stru = stru.f1 \();
+
 {
     //callback functions
     return,
-    default,
+    returnSome,
     bind,
-    flatten,
-    mapAsync,
-    lift,
+    bindSome,
+    bindNone,
     parallel,
     setAsync,
-    collectParallel,
-    noex,
-    
-    /**
-     * Group: async
-     * operator for cbMap but with changed parameters
-     */
-    (->) cbfn fn =  mapAsync fn cbfn,
-    
-    /**
-     * Group: async
-     * operator for cbBind with changed paramters
-     */
-    (>>=) cbfn fn = bind fn cbfn,
-    
-
+    collectAsync,
+    run,
 }
