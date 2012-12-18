@@ -409,7 +409,7 @@ toAsyncResultHandler fn =
                 if (r is ~AsyncResult)#succeeded() then
                     fn (Some r#result)
                 else
-                    fn (Exception r#exception);
+                    fn (None (string r#exception));
                 fi,
         end;
         new IYetiAsyncResultHandler());
@@ -432,7 +432,7 @@ toTypedAsyncResultHandler tfn fn
                 if (r is ~AsyncResult)#succeeded() then
                    fn (Some (tfn r#result))
                 else
-                   fn (Exception r#exception);
+                   fn (None (string r#exception));
                 fi,
         end;
         new IYetiAsyncResultHandler());
