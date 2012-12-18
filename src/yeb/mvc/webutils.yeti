@@ -43,6 +43,7 @@ typedef response = {
     statusCode is number,
     headers is hash<string,string>,
     body is ~byte[],
+    for_json is E(),
 };
 
 typedef request = {
@@ -173,7 +174,8 @@ response req statusCode headers body =
      headers = 
         (insertHash req.resHeaders headers;
         (req is request).resHeaders),
-     body = body} is response; 
+     body = body,
+     for_json = E()} is response; 
 
 params name req =
     if name in ((req is request).params) then

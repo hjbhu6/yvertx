@@ -1474,6 +1474,13 @@ closeNetClient client =
 
 //bus things
 
+_toMessageJS v =
+    case v of
+    Exception msg: 
+        toJS {status = "error", message = msg is string, for_json = E()};
+    Some va: toJS va;
+    esac;
+
 toEitherJsonMessageHandler fn =
     (import yeti.lang:FailureException;
     class YvertxEitherMessageHandler extends Handler
@@ -1488,15 +1495,17 @@ toEitherJsonMessageHandler fn =
                       fi;
                 fn (Exception emg);
             else
-                fn (Some 
-                    {message = msg,
-                    handler = this as ~Handler,
+                fn (Some  
+                    {message = msg is ~Message,
+                    handler =  this as ~Handler,
                     get body () = 
                         fromJS (msg#body unsafely_as ~JsonObject),
                     get replyAddress () = string msg#replyAddress,
-                    reply v = msg#reply(toJS v),
+                    reply v = 
+                        msg#reply(_toMessageJS v),
                     request v handler = 
-                        msg#reply(toJS v, toEitherJsonMessageHandler handler)
+                        msg#reply(_toMessageJS v, 
+                            toEitherJsonMessageHandler handler)
                    });
             fi,
 
@@ -1508,17 +1517,17 @@ toJsonMessageHandler fn =
         void handle(Object ob)
             msg = ob unsafely_as ~Message;
             body = fromJS (msg#body unsafely_as ~JsonObject);
-            fn  
-                {message = msg,
-                handler = this as ~Handler,
+            fn {message = msg is ~Message,
+                handler =  this as ~Handler,
                 get body () = 
                     fromJS (msg#body unsafely_as ~JsonObject),
                 get replyAddress () = string msg#replyAddress,
-                reply v = msg#reply(toJS v),
+                reply v = 
+                    msg#reply(_toMessageJS v),
                 request v handler = 
-                    msg#reply(toJS v, toEitherJsonMessageHandler handler)
-               },
-
+                    msg#reply(_toMessageJS v, 
+                        toEitherJsonMessageHandler handler)
+               };
     end;
     new YvertxMessageHandler() as ~Handler);
 
@@ -1636,6 +1645,32 @@ registerLocalBusHandler address handler =
 unregisterBusHandler id handler resultHandler =
     (getVertx ())#eventBus()#unregisterHandler(id is string, handler, 
                           toAsyncResultHandler resultHandler);
+
+/**
+ * Group: eventbus
+ * registers an async function as bushandler. The function is only given 
+ * the body
+ * of the message and a function to respond to the message
+ */
+registerBusAsyncFunction address readyHandler handler =
+    registerBusHandler address readyHandler do msg:
+        handler msg.body msg.reply;
+    done;
+
+/**
+ * Group: eventbus
+ * registers a function as bushandler. The function is given the body
+ * of the message and the return value is send as response. If an
+ * excpetion is thrown this es send as status error
+ */
+registerBusFunction address readyHandler fn =
+    registerBusHandler address readyHandler do msg:
+        msg.reply try
+                Some (fn msg.body);
+            catch Exception ex:
+                Exception (string ex);
+            yrt;
+    done;
 
 //filesystem
 fsHelper = {
@@ -1965,7 +2000,9 @@ fileSystem = ({
     registerBusHandler,
     registerLocalBusHandler,
     unregisterBusHandler,
-    
+    registerBusAsyncFunction,
+    registerBusFunction,
+
     /**
      * Group: eventbus
      * property for the eventbus object from vertx

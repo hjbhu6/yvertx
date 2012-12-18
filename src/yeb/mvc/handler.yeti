@@ -379,7 +379,11 @@ busHandler handler msg =
         params = maybeDefined \[:] id b.params,
         body = maybeDefined \noneBody id b.body,
         resHeaders = maybeDefined \[:] id b.resHeaders,
-        respond res = msg.reply (res with {for_json = E()})
+        respond res = msg.reply (Some {
+            statusCode = res.statusCode,
+            headers = res.headers,
+            body = res.body,
+            for_json = E()})
         });
 
 (load yeb.mvc.webutils) with {
