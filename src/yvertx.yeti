@@ -616,6 +616,116 @@ setTimer delay handler =
 cancelTimer timerId =
     (getVertx ())#cancelTimer(timerId);
 
+
+/**
+ * Group: experimental (EXPERIMENTAL)
+ *
+ * Creates a new worker wich runs on differnt thread from
+ * current thread. Its closed hooks will be called when the close hooks
+ * of the creating verticle are called.
+ *
+ * Similar to a worker verticle but run with a function.
+ *
+ * Note that the startfn will run on a different worker-thread. So it is not 
+ * save without synhroinzation to use objects from the enclosing socpe.
+ *
+ * Arguments:
+ * cb - callback called when succesful created on. Called on the calling 
+ * context
+ * startfn - function run first on the worker thread. 
+ */ 
+newWorker cb startfn =     
+    (import org.vertx.java.core.impl:VertxInternal,
+                                     Context;
+    vertx = (getVertx()) unsafely_as ~VertxInternal;
+    
+    ctxt = Context#getContext();
+    if not defined? ctxt then
+        failWith "no vertx context defined can not execute";
+    fi;
+
+    idw = new Object();
+
+    newCtxt = vertx#startInBackground(runnable do:
+        r = try 
+            startfn();
+            Some "ok";
+        catch Exception ex:
+            None (string ex);
+        yrt;
+        ctxt#execute(runnable \(cb r));
+        done);
+    ctxt#putCloseHook(idw, runnable \newCtxt#runCloseHooks()));
+
+/**
+ * Group: experimental 
+ *
+ * Creates a pipe. A pipe is used to send messages between workers and the 
+ * parent. It is similar to an eventbus but without addresses and abitrary 
+ * values can be sent.
+ *
+ * The pipe is thread save.
+ */
+newPipe () = 
+    (import org.vertx.java.core.impl:Context;
+
+    mutex = new Object();
+    var listeners = array [];
+    var counter = 0;
+    {
+        /**
+         * register a function which gets called when a value is 
+         * send/published. Returns a function which is used in unregister
+         */
+        register fn = 
+            ctxt = Context#getContext();
+            if not defined? ctxt then
+                failWith "There is not vertx context"
+            fi;
+            runfn v = ctxt#execute(runnable \(fn v));
+            runob = runfn as ~Object;
+
+            ctxt#putCloseHook(runob, runnable \(unregister runob));  
+            synchronized mutex \(push listeners runfn);
+            runob,
+        /**
+         * unrgiester a function
+         * use the reruned value of register as argument
+         */
+        unregister ob = 
+            synchronized mutex do:
+                listeners := listeners 
+                |> filter ((same? (ob as ~Object)) . (as ~Object)) 
+                |> array;
+            done,
+        
+        /**
+         * send a value to one of the lisenenrs
+         */
+        send v = 
+            fn = synchronized mutex 
+                \(l = length listeners;
+                if l == 0 then
+                    \()
+                else
+                    counter := counter + 1;
+                    if counter >= l then
+                        counter := 0;
+                    fi;
+                    listeners[counter];
+                fi);
+            fn v,
+
+        /**
+         * send a value to all the listeners
+         */
+        publish v =
+            fns = synchronized mutex \(copy listeners);
+            for fns do fn: fn v done,
+    });
+
+
+
 /**
  * Group: container (CONTAINER)
  * Function to create a function with creates a verticle. Such a function
