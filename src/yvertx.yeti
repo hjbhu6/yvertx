@@ -660,13 +660,13 @@ newWorker cb startfn =
 /**
  * Group: experimental 
  *
- * Creates a pipe. A pipe is used to send messages between workers and the 
- * parent. It is similar to an eventbus but without addresses and abitrary 
- * values can be sent.
+ * Creates a fibre. A firbre is used to send messages between workers and the 
+ * parent. It is similar to an eventbus but withonly one address 
+ * the fibire itself and abitrary values can be sent.
  *
- * The pipe is thread save.
+ * The fibre is thread save and thus can be shared between different contexts.
  */
-newPipe () = 
+newFibre () = 
     (import org.vertx.java.core.impl:Context;
 
     mutex = new Object();
