@@ -16,14 +16,50 @@
 
 module yeb.table;
 
-import java.util:HashMap;
+typedef opaque table<k,v> = ~TMap;
 
-typedef opaque table<k,v> = ~HashMap;
+asTMap = (do t: (t is ~TMap) done) as table<'k,'v> -> ~TMap;
+
+
+update k v table is 'k -> 'v -> table<'k,'v> -> table<'k,'v>=
+    ((asTMap table)#update(k as ~Object, v as ~Object)) as table<'k,'v>;
+
+
+remove k table is 'k -> table<'k,'v> -> table<'k,'v>=
+    ((asTMap table)#remove(k as ~Object)) as table<'k,'v>;
+
+valAt k table is 'k -> table<'k,'v> -> 'v=
+    (r = (asTMap table)#get(k as ~Object, TMap#NULL_VALUE);
+    if same? r TMap#NULL_VALUE then
+        none
+    else
+        Some (r unsafely_as 'v)
+    fi);
+    
+getDefault k default table is 'k -> 'v -> table<'k,'v> -> 'v =
+    ((asTMap table)#get(k as ~Object, default as ~Object)) unsafely_as 'v;
+
+count table =
+    (asTMap table)#size();
+
+seq table is table<'k, 'v> -> list<{key is 'k, value is 'v}>=
+    ((asTMap table)#keyValueList()) unsafely_as list<{key is 'k, value is 'v}>;
+
+forTable table fn =
+    for (seq table) do {key,value}: fn key value done;
+
+create ha is hash<'k,'v> -> table<'k,'v> = 
+    (var t = TMap#EMPTY as table<'k,'v>;
+    forHash ha do k v: t := update k v t done;
+    t);
 
 {
-    empty () = new HashMap(),
+    update,
+    remove,
+    valAt,
+    getDefault,
+    count,
+    forTable,
+    create,
 }
-as
-{
-    empty is () -> table<'k,'V>
-}
+
