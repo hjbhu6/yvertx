@@ -1762,9 +1762,11 @@ unregisterBusHandler id handler resultHandler =
  * the body
  * of the message and a function to respond to the message
  */
-registerBusAsyncFunction address readyHandler handler =
+registerBusAsyncFunction readyHandler handlers =
+    forHash handlers do address handler:
     registerBusHandler address readyHandler do msg:
         handler msg.body msg.reply;
+    done;
     done;
 
 /**
@@ -1773,13 +1775,15 @@ registerBusAsyncFunction address readyHandler handler =
  * of the message and the return value is send as response. If an
  * excpetion is thrown this es send as status error
  */
-registerBusFunction address readyHandler fn =
+registerBusFunction readyHandler fns =
+    forHash fns do address fn:
     registerBusHandler address readyHandler do msg:
         msg.reply try
                 Some (fn msg.body);
             catch Exception ex:
                 None (string ex);
             yrt;
+    done
     done;
 
 //filesystem
