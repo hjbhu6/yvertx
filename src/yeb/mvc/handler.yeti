@@ -360,7 +360,7 @@ createRequestWorkers opts workerFn =
     done;
 
     [1 .. numberOfWorkers]
-    |>map \((flip newWorker) startFn)
+    |>map \(newWorker startFn)
     |>parallel 
     |>bindSome \(returnSome do req:
         fibre.send req;

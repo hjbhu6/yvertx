@@ -634,7 +634,7 @@ cancelTimer timerId =
  * context
  * startfn - function run first on the worker thread. 
  */ 
-newWorker cb startfn =     
+newWorker startfn cb=     
     (import org.vertx.java.core.impl:VertxInternal,
                                      Context;
     vertx = (getVertx()) unsafely_as ~VertxInternal;
