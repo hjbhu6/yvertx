@@ -285,7 +285,28 @@ collectAsync inex cb is ('b -> 'a) -> asyncFunction<'a>=
     yrt;
     ());
 
-run stru = stru.f1 \();
+run stru = (stru.f1 ()) \();
+
+await timeoutMs asyncFn is number -> asyncFunction<'a> -> 'a =
+    (import java.util.concurrent:CountDownLatch,
+                                 TimeUnit;
+    latch = new CountDownLatch(1);
+    avalue = atomic (None "");
+    asyncFn do v:
+        avalue.value := v;
+        latch#countDown();
+    done;
+    f = if timeoutMs < 1 then
+        latch#wait();
+    elif not latch#await(timeoutMs,TimeUnit#MILLISECONDS) then
+        failWith "timeout"
+    fi;
+    case avalue.value of
+    None str: failWith str;
+    Some v: v;
+    esac);
+
+
 
 {
     //callback functions
@@ -298,4 +319,5 @@ run stru = stru.f1 \();
     setAsync,
     collectAsync,
     run,
+    await,
 }
