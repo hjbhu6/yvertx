@@ -36,7 +36,7 @@ newValidationException msg value =
 
 validOr notValid validFn value =
     try
-        valueFn value;
+        validFn value;
     catch MessageException ex:
         notValid ();
     yrt;
@@ -137,8 +137,9 @@ valiURL max input =
         throw (esapiToValiEx ex input) 
     yrt;
 
-valiList vali listIn  = 
-    listIn |> filter (maybeValid \false \true vali);
+valiList vali listIn = 
+    listIn |> map (maybeValid \none Some vali)
+        |> catSome;
 
 
 valiString min max str = 

@@ -2210,4 +2210,5 @@ fileSystem = ({
     blend,
     newFibre,
     newWorker,
+    toEitherJsonMessageHandler
 }

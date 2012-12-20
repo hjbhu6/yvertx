@@ -116,13 +116,13 @@ createField minValues maxValues form unprefixedName converter toString
 
                 //convert the string values
                 for ps (maybeValid
-                        converter
                         do ex: 
                             errors := ex#getMessageObject() :: errors 
                         done
                         do r: 
                             _values := r :: _values 
-                        done);
+                        done
+                        converter);
 
                 //if there are errors forget the values
                 errors := reverse errors;

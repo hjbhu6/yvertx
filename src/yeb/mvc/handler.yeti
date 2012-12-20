@@ -307,7 +307,7 @@ handlersFact oldVhs adapter=
 newRouter adapter = handlersFact [] adapter;
 
 requestToBusMessage opts =
-    (load yeb.validator;
+    (load yeb.validation;
     load yvertx;
     var defaultBusTarget = none;
     var busPrefix = "ajaxbridge.";
@@ -319,59 +319,77 @@ requestToBusMessage opts =
     esac;
 
 
-    eventbus = (getVertx())#getEventbus();
+    eventbus = (getVertx())#eventBus();
     do req:
         //first the target
         case defaultBusTarget of
         Some n : Some n;
         None _ : maybeAt \none (maybeHead \none Some) "bustarget" req.params;
         esac
-        \case of
-        None _: req#respond(continue);
+        |> \case of
+        None _: req.respond continue;
         Some busTarget:
             //write all the params
-            import org.vertx.java.core.json:JsonObject;
+            import org.vertx.java.core.json:JsonObject,
+                                            JsonArray;
             import org.vertx.java.core.eventbus:Message;
             jo = new JsonObject();
             forHash req.params do k v:
-                {name, value} = if strStarts? k "num_" then
-                    {name = strRight k 4,
-                    value = valiList strToNum (req.params k)}
+                _ = if strStarts? k "num_" then
+                    name = strRight k 4;
+                    value = valiList strToNum (req.params[k]);
+                    if length value == 1 then
+                        jo#putNumber(name, (head value) is number);
+                    else
+                        ja = new JsonArray();
+                        for value do v:
+                            _ = ja#add(v);
+                        done;
+                        jo#putArray(name, ja);
+                    fi;
                 elif strStarts? k "bool_" then
-                    {name = strRight k 5,
-                    value = valiList strToBoolean (req.params k)}
+                    name = strRight k 5;
+                    value = valiList strToBoolean (req.params[k]);
+                    if length value == 1 then
+                        jo#putBoolean(name, head value);
+                    else
+                        ja = new JsonArray();
+                        for value do v:
+                            _ = ja#add(v);
+                        done;
+                        jo#putArray(name, ja);
+                    fi;
                 else
-                    {name = k,
-                    value = req.params k}
+                    name = k;
+                    value = req.params[k];
+                    if length value == 1 then
+                        jo#putString(name, head value);
+                    else
+                        ja = new JsonArray();
+                        for value do v:
+                            _ = ja#add(v);
+                        done;
+                        jo#putArray(name, ja);
+                    fi;
                 fi;
-                _ = if length value == 1 then
-                    jo#putObject(name, head value);
-                else
-                    ja = new JsonArray();
-                    for value do v:
-                        ja#add(v);
-                    done;
-                    jma#put(name, ja);
-                fi;
-
             done;
 
             if "Content-Type" in req.headers
-                and req.headers["Content-Type"] ~= "application/json" then
+                and req.headers["Content-Type"] =~ "application/json" then
                 //read the body and parse it as jons
                 json = new JsonObject(fromUTF8 req.body);
-                name = maybeAt \bodyName (maybeHead \bodyName) 
+                name = maybeAt \bodyName (maybeHead \bodyName id) 
                         "body-name" req.params;
                 jo#putObject(name,json);
             fi;
     
             eventbus#send(busPrefix^busTarget, jo,
-                toEitherJsonMessageHandler \case of:
+                toEitherJsonMessageHandler \case of
                     None _:
                         req.respond (response req 401 [:] noneBody);
                     Some r:
                         req.respond (write req "application/json" 
-                                        (string (r.msg is ~Message)#body))
+                                        (string (r.message is ~Message)#body))
                     esac);
         esac;
 
