@@ -307,7 +307,7 @@ handlersFact oldVhs adapter=
 newRouter adapter = handlersFact [] adapter;
 
 
-httpHandler opts handler reqO =
+httpToHandler opts handler reqO =
     (import org.vertx.java.core.http:HttpServerRequest;
     load yvertx;
     fileHandler = serveStaticFileAtPath opts;
@@ -343,6 +343,29 @@ httpHandler opts handler reqO =
         handler req;
     done);
 
+createRequestWorkers opts workerFn = 
+    (load yeb.async;
+    load yvertx;
+    import java.lang:Integer;
+    var numberOfWorkers =  
+        Integer#getInteger("vertx.backgroundPoolSize",20)#intValue();
+    for opts \case of
+        WorkerCount c: numberOfWorkers := c;
+    esac;
+
+    fibre = newFibre();
+    startFn = do:
+        handler = workerFn ();
+        _ = fibre.register handler;
+    done;
+
+    [1 .. numberOfWorkers]
+    |>map \((flip newWorker) startFn)
+    |>parallel 
+    |>bindSome \(returnSome do req:
+        fibre.send req;
+    done));
+
 requestToJson req = 
     {headers = (req is request).headers,
     uri = req.uri,
@@ -369,7 +392,7 @@ requestToBusHandler bustarget req =
         (req is request).respond res;
     done);
 
-busHandler handler msg =
+requestFromBusHandler handler msg =
     (b = msg.body;
     (handler is handler) {
         headers = maybeDefined \[:] id b.headers,
@@ -389,11 +412,12 @@ busHandler handler msg =
 
     regexHandler,
     
-    httpHandler,
-    requestToJson,
-    requestToBusHandler,
-    busHandler,
-    
     newRouter,
+
+    httpToHandler,
+    requestToBusHandler,
+    requestFromBusHandler,
+
+
 }
 
