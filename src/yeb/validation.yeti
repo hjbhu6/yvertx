@@ -34,15 +34,15 @@ failWithValidation msg value =
 newValidationException msg value =
     new ValidationException(msg, value unsafely_as ~Object);
 
-validOr notValid valueFn =
+validOr notValid validFn value =
     try
-        valueFn ();
+        valueFn value;
     catch MessageException ex:
-        notValid;
+        notValid ();
     yrt;
 
 
-maybeValid validFn notValidFn valueFn value =
+maybeValid notValidFn valueFn validFn value =
     try
         v = validFn value;
         valueFn v;
@@ -138,7 +138,7 @@ valiURL max input =
     yrt;
 
 valiList vali listIn  = 
-    listIn |> filter (maybeValid vali \false \true);
+    listIn |> filter (maybeValid \false \true vali);
 
 
 valiString min max str = 
@@ -275,42 +275,8 @@ valiCreditCard str =
         throw (esapiToValiEx ex str) 
     yrt;
 
-ve converter v = 
-    case v of
-    E s : converter s;
-    V v : v;
-    esac;
-
-veMaybe converter nfn sfn v = 
-    if not defined? v then
-        nfn()
-    else
-        case v of
-        Some s: sfn (ve converter s);
-        None (): nfn();
-        esac;
-    fi;
-
-veList converter v =
-    if not defined? v then
-        []
-    else
-        case v of
-        E vl : map converter vl;
-        V vl : vl;
-        esac;
-    fi;
-    
-ves v = ve string;
-ven v = ve strToNum;
     
 {
-    ve, 
-    veMaybe,
-    veList,
-    ves,
-    ven,
-    
     failWithValidation,
     newValidationException,
     validOr, 
