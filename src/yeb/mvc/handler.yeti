@@ -306,6 +306,79 @@ handlersFact oldVhs adapter=
  
 newRouter adapter = handlersFact [] adapter;
 
+requestToBusMessage opts =
+    (load yeb.validator;
+    load yvertx;
+    var defaultBusTarget = none;
+    var busPrefix = "ajaxbridge.";
+    var bodyName = "body";
+    for opts \case of
+        BusTarget s: defaultBusTarget := Some s;
+        BusPrefix s: busPrefix := s;
+        BodyName s: bodyName := s;
+    esac;
+
+
+    eventbus = (getVertx())#getEventbus();
+    do req:
+        //first the target
+        case defaultBusTarget of
+        Some n : Some n;
+        None _ : maybeAt \none (maybeHead \none Some) "bustarget" req.params;
+        esac
+        \case of
+        None _: req#respond(continue);
+        Some busTarget:
+            //write all the params
+            import org.vertx.java.core.json:JsonObject;
+            import org.vertx.java.core.eventbus:Message;
+            jo = new JsonObject();
+            forHash req.params do k v:
+                {name, value} = if strStarts? k "num_" then
+                    {name = strRight k 4,
+                    value = valiList strToNum (req.params k)}
+                elif strStarts? k "bool_" then
+                    {name = strRight k 5,
+                    value = valiList strToBoolean (req.params k)}
+                else
+                    {name = k,
+                    value = req.params k}
+                fi;
+                _ = if length value == 1 then
+                    jo#putObject(name, head value);
+                else
+                    ja = new JsonArray();
+                    for value do v:
+                        ja#add(v);
+                    done;
+                    jma#put(name, ja);
+                fi;
+
+            done;
+
+            if "Content-Type" in req.headers
+                and req.headers["Content-Type"] ~= "application/json" then
+                //read the body and parse it as jons
+                json = new JsonObject(fromUTF8 req.body);
+                name = maybeAt \bodyName (maybeHead \bodyName) 
+                        "body-name" req.params;
+                jo#putObject(name,json);
+            fi;
+    
+            eventbus#send(busPrefix^busTarget, jo,
+                toEitherJsonMessageHandler \case of:
+                    None _:
+                        req.respond (response req 401 [:] noneBody);
+                    Some r:
+                        req.respond (write req "application/json" 
+                                        (string (r.msg is ~Message)#body))
+                    esac);
+        esac;
+
+    done);
+
+    
+
 
 httpToHandler opts handler reqO =
     (import org.vertx.java.core.http:HttpServerRequest;
