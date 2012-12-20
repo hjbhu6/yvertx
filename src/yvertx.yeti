@@ -670,8 +670,8 @@ newFibre () =
     (import org.vertx.java.core.impl:Context;
 
     mutex = new Object();
-    var listeners = array [];
-    var counter = 0;
+    var listeners = [];
+    curListeners = atomic [];
     {
         /**
          * register a function which gets called when a value is 
@@ -686,7 +686,7 @@ newFibre () =
             runob = runfn as ~Object;
 
             ctxt#putCloseHook(runob, runnable \(unregister runob));  
-            synchronized mutex \(push listeners runfn);
+            synchronized mutex \(listeners := runfn :: listeners);
             runob,
         /**
          * unrgiester a function
@@ -696,31 +696,30 @@ newFibre () =
             synchronized mutex do:
                 listeners := listeners 
                 |> filter ((same? (ob as ~Object)) . (as ~Object)) 
-                |> array;
+                |> list;
             done,
         
         /**
          * send a value to one of the lisenenrs
          */
         send v = 
-            fn = synchronized mutex 
-                \(l = length listeners;
-                if l == 0 then
-                    \()
-                else
-                    counter := counter + 1;
-                    if counter >= l then
-                        counter := 0;
-                    fi;
-                    listeners[counter];
-                fi);
-            fn v,
-
+            l = curListeners.value;
+            if empty? l then
+                ll = synchronized mutex \(listeners);
+                if not empty? ll then
+                    curListeners.value := (tail ll);
+                    (head ll) v;
+                fi
+            else
+                curListeners.value := tail l;
+                (head l) v;
+            fi,
+            
         /**
          * send a value to all the listeners
          */
         publish v =
-            fns = synchronized mutex \(copy listeners);
+            fns = synchronized mutex \(listeners);
             for fns do fn: fn v done,
     });
 
@@ -2204,5 +2203,7 @@ fileSystem = ({
     toJSArray,
     fromJS,
     fromJSArray,
-    blend
+    blend,
+    newFibre,
+    newWorker,
 }
