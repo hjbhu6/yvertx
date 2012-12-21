@@ -1621,6 +1621,9 @@ toEitherJsonMessageHandler fn =
                     replyEither v = 
                         msg#reply(_toMessageJS v),
                     request v handler = 
+                        msg#reply(_toMessageJS (Some v), 
+                            toEitherJsonMessageHandler handler),
+                    requestEither v handler = 
                         msg#reply(_toMessageJS v, 
                             toEitherJsonMessageHandler handler)
                    });
@@ -1648,6 +1651,9 @@ toJsonMessageHandler fn =
                 replyEither v = 
                     msg#reply(_toMessageJS v),
                 request v handler = 
+                    msg#reply(_toMessageJS (Some v), 
+                        toEitherJsonMessageHandler handler),
+                requestEither v handler = 
                     msg#reply(_toMessageJS v, 
                         toEitherJsonMessageHandler handler)
                };
