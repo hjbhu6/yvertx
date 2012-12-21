@@ -16,13 +16,13 @@
 
 module yeb.async;
 
-import java.lang:Exception;
+import java.lang:Exception,
+                RuntimException;
 
 //callback functions
-typedef either<a> = None string | Some a; 
+typedef either<a> = None ~Exception | Some a; 
 typedef callback<a> = either<a> -> ();
 typedef asyncFunction<a> = callback<a> -> ();
-
 
 /**
  * Group: async (ASYNC)
@@ -45,6 +45,17 @@ return v is either<'a> -> asyncFunction<'a> =
 returnSome v is 'a -> asyncFunction<'a> =
     return (Some v);
 
+class AsyncException(String msg) extends RuntimeException
+end;
+
+/**
+ * Group: async 
+ * creates an AsyncException from a string
+ */
+returnNone v = 
+    (import yeti.lang:FailureException;
+    None ((new FailureException(v is string)) as ~Exception));
+
 /**
  * Group: async
  * Joins two asyncFunctions in sequenc, where the second function
@@ -65,7 +76,7 @@ bind fn cbfn
                 afn = try
                         fn a
                     catch Exception ex:
-                        return (None (string ex));
+                        return (None ex);
                     yrt;
                 afn cb;
              done;
@@ -110,10 +121,10 @@ bindSome fn cbfn
  * asyncFunction - the first callback function in the sequence
  */
 bindNone fn cbfn
-    is  ( string -> asyncFunction<'b>) 
+    is  ( ~Exception -> asyncFunction<'b>) 
         -> asyncFunction<'a> -> asyncFunction<'b> =
     cbfn |> bind \case of
-        None msg: fn msg;
+        None ex: fn ex;
         Some a: returnSome a;
         esac;
 
@@ -131,6 +142,7 @@ parallel cbfns cb
     (res = array [];
     var handled = false;
     for cbfns do c:
+        try
         c do r:
             finished = synchronized res \case r of
                 None str: 
@@ -158,6 +170,9 @@ parallel cbfns cb
                 Some arg : cb arg;
             esac;
         done;
+        catch Exception ex:
+            cb (None ex);
+        yrt;
     done);
 
 
@@ -178,11 +193,11 @@ setAsync ctr cbfn is 'b -> asyncFunction<'a> -> (() -> 'a) =
     var res = NotSet ();
     cbfn do r:
         call? = synchronized mutex \case r of
-            None str: 
+            None ex: 
                 if not hasReceived then
-                    res := Exception str;
+                    res := Exception (ex is ~Exception);
                     hasReceived := true;
-                    Some (None str);
+                    Some (None ex);
                 else
                     none
                 fi;
@@ -202,7 +217,7 @@ setAsync ctr cbfn is 'b -> asyncFunction<'a> -> (() -> 'a) =
     done;
     \(case res of
         NotSet (): failWith "Not set";
-        Exception str: failWith str;
+        Exception ex: throw (ex is ~Exception);
         Some v: v
       esac));    
 
@@ -274,7 +289,7 @@ collectAsync inex cb is ('b -> 'a) -> asyncFunction<'a>=
         call? = synchronized mutex 
             \(if not called then
                 called := true;
-                Some (None (string ex));
+                Some (None ex);
             else
                 none
             fi);
@@ -287,11 +302,13 @@ collectAsync inex cb is ('b -> 'a) -> asyncFunction<'a>=
 
 run stru = (stru.f1 ()) \();
 
+_awaitEx = returnNone "";
+
 await timeoutMs asyncFn is number -> asyncFunction<'a> -> 'a =
     (import java.util.concurrent:CountDownLatch,
                                  TimeUnit;
     latch = new CountDownLatch(1);
-    avalue = atomic (None "");
+    avalue = atomic _awaitEx;
     asyncFn do v:
         avalue.value := v;
         latch#countDown();
@@ -302,7 +319,7 @@ await timeoutMs asyncFn is number -> asyncFunction<'a> -> 'a =
         failWith "timeout"
     fi;
     case avalue.value of
-    None str: failWith str;
+    None ex: throw (ex is ~Exception);
     Some v: v;
     esac);
 
@@ -312,6 +329,7 @@ await timeoutMs asyncFn is number -> asyncFunction<'a> -> 'a =
     //callback functions
     return,
     returnSome,
+    returnNone,
     bind,
     bindSome,
     bindNone,

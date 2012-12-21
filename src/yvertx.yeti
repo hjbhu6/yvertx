@@ -56,6 +56,7 @@ import org.vertx.java.deploy:Verticle,
 import org.vertx.java.deploy.impl:VertxLocator;
 
 
+load yeb.async;
 
 typedef json<a> = {.for_json is a};
 
@@ -402,14 +403,15 @@ toLongHandler fn =
  * Arguments:
  * handler - funciton taking either Exception ex or Value v
  */
-toAsyncResultHandler fn =
+toAsyncResultHandler fn 
+    is callback<~Object> -> ~AsyncResultHandler =
        (class IYetiAsyncResultHandler extends AsyncResultHandler
             void handle(Object o)
                 r = o unsafely_as ~AsyncResult;
                 if (r is ~AsyncResult)#succeeded() then
                     fn (Some r#result)
                 else
-                    fn (None (string r#exception));
+                    fn (None r#exception);
                 fi,
         end;
         new IYetiAsyncResultHandler());
@@ -424,15 +426,14 @@ toAsyncResultHandler fn =
  * Exception ex
  */
 toTypedAsyncResultHandler tfn fn 
-    is (~Object -> 'a) -> ((Some 'a | Exception ~Exception ) -> 'b) 
-        -> ~AsyncResultHandler =
+    is (~Object -> 'a) -> callback<'a> -> ~AsyncResultHandler =
        (class IYetiAsyncResultHandler extends AsyncResultHandler
             void handle(Object o)
                 r = o unsafely_as ~AsyncResult;
                 if (r is ~AsyncResult)#succeeded() then
                    fn (Some (tfn r#result))
                 else
-                   fn (None (string r#exception));
+                   fn (None r#exception);
                 fi,
         end;
         new IYetiAsyncResultHandler());
@@ -651,9 +652,9 @@ newWorker startfn cb=
             startfn();
             Some "ok";
         catch Exception ex:
-            None (string ex);
+            None ex;
         yrt;
-        ctxt#execute(runnable \(cb r));
+        ctxt#execute(runnable \((cb is callback<string>) r));
         done);
     ctxt#putCloseHook(idw, runnable \newCtxt#runCloseHooks()));
 
@@ -883,22 +884,24 @@ end;
  * timeoutMs - the timouout in Ms
  * callback - the callback function
  */
-timeout time cb = 
+timeout timeMs asfn cb 
+    is number -> asyncFunction<'a> -> asyncFunction<'a> = 
     (var handled = false;
 
-    _ = setTimer (time is number) do:
+    _ = setTimer (timeMs) do:
         if not handled then
             handled := true;
-            cb (Exception ((new TimeOutException(time)) as ~Exception));
+            cb (None ((new TimeOutException(timeMs)) as ~Exception));
         fi
     done;
     
-    do arg:
+    asfn do v:
         if not handled then
             handled := true;
-            cb arg;
+            cb v
         fi
     done);
+
 //http server things
 
 /**
@@ -1591,8 +1594,7 @@ _toMessageJS v =
     esac;
 
 toEitherJsonMessageHandler fn =
-    (import yeti.lang:FailureException;
-    class YvertxEitherMessageHandler extends Handler
+    (class YvertxEitherMessageHandler extends Handler
         void handle(Object ob)
             msg = ob unsafely_as ~Message;
             body = fromJS (msg#body unsafely_as ~JsonObject);
@@ -1602,7 +1604,7 @@ toEitherJsonMessageHandler fn =
                       else 
                           "error but no message" 
                       fi;
-                fn (None emg);
+                fn (returnNone emg);
             else
                 fn (Some  
                     {message = msg is ~Message,
