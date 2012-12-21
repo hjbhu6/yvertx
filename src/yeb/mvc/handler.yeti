@@ -456,7 +456,7 @@ createRequestWorkers opts workerFn =
     |>bindSome \(returnSome do req:
         fibre.send req;
     done));
-
+/*
 requestToJson req = 
     {headers = (req is request).headers,
     uri = req.uri,
@@ -495,7 +495,7 @@ requestFromBusHandler handler msg =
         resHeaders = maybeDefined \[:] id b.resHeaders,
         respond res = msg.reply (Some  res)
         });
-
+*/
 (load yeb.mvc.webutils) with {
 
 
@@ -506,8 +506,8 @@ requestFromBusHandler handler msg =
     newRouter,
 
     httpToHandler,
-    requestToBusHandler,
-    requestFromBusHandler,
+    requestToBusMessage,
+    createRequestWorkers,
 
 
 }
