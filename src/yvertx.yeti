@@ -1588,8 +1588,11 @@ closeNetClient client =
 
 _toMessageJS v =
     case v of
-    None msg: 
-        toJS {status = "error", message = msg is string, for_json = E()};
+    None ex: 
+        toJS {status = "error", 
+              message = string (ex is ~Exception)#getMessage(),
+              exception = string ex,
+              for_json = E()};
     Some va: toJS va;
     esac;
 
@@ -1598,6 +1601,7 @@ toEitherJsonMessageHandler fn =
         void handle(Object ob)
             msg = ob unsafely_as ~Message;
             body = fromJS (msg#body unsafely_as ~JsonObject);
+            try
             if defined? body.status and body.status == "error" then
                 emg = if defined? body.message then
                           string body.message
@@ -1613,12 +1617,17 @@ toEitherJsonMessageHandler fn =
                         fromJS (msg#body unsafely_as ~JsonObject),
                     get replyAddress () = string msg#replyAddress,
                     reply v = 
+                        msg#reply(_toMessageJS (Some v)),
+                    replyEither v = 
                         msg#reply(_toMessageJS v),
                     request v handler = 
                         msg#reply(_toMessageJS v, 
                             toEitherJsonMessageHandler handler)
                    });
-            fi,
+            fi
+            catch Exception ex:
+                msg#reply(_toMessageJS (None ex));
+            yrt,
 
     end;
     new YvertxEitherMessageHandler() as ~Handler);
@@ -1628,17 +1637,23 @@ toJsonMessageHandler fn =
         void handle(Object ob)
             msg = ob unsafely_as ~Message;
             body = fromJS (msg#body unsafely_as ~JsonObject);
+            try
             fn {message = msg is ~Message,
                 handler =  this as ~Handler,
                 get body () = 
                     fromJS (msg#body unsafely_as ~JsonObject),
                 get replyAddress () = string msg#replyAddress,
                 reply v = 
+                    msg#reply(_toMessageJS (Some v)),
+                replyEither v = 
                     msg#reply(_toMessageJS v),
                 request v handler = 
                     msg#reply(_toMessageJS v, 
                         toEitherJsonMessageHandler handler)
                };
+            catch Exception ex:
+                msg#reply(_toMessageJS (None ex));
+            yrt,
     end;
     new YvertxMessageHandler() as ~Handler);
 
@@ -1767,7 +1782,7 @@ unregisterBusHandler id handler resultHandler =
 registerBusAsyncFunction readyHandler handlers =
     forHash handlers do address handler:
     registerBusHandler address readyHandler do msg:
-        handler msg.body msg.reply;
+        handler msg.body msg.replyEither;
     done;
     done;
 
@@ -1780,10 +1795,10 @@ registerBusAsyncFunction readyHandler handlers =
 registerBusFunction readyHandler fns =
     forHash fns do address fn:
     registerBusHandler address readyHandler do msg:
-        msg.reply try
+        msg.replyEither try
                 Some (fn msg.body);
             catch Exception ex:
-                None (string ex);
+                None ex;
             yrt;
     done
     done;
