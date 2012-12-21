@@ -33,7 +33,7 @@ verticle do :
         \case of
             Some {resp, buffer}:
                 _ = println (string buffer);
-            Exception ex: throw (ex is ~Exception);
+            None ex: throw (ex is ~Exception);
         esac;
     \()
 done;

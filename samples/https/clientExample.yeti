@@ -19,14 +19,14 @@ module clientExample;
 import org.vertx.java.core.buffer.Buffer;
  
 load yvertx;
-
+load yeb.std;
 
 verticle do :
     client = (createHttpClient "localhost:4443")
              #setSSL(true)
              #setTrustAll(true);
              
-    getHttpBodyNow client "/" [:] (noex do {buffer, resp}:
+    getHttpBodyNow client "/" [:] (maybe' throwEx do {buffer, resp}:
             println "length: \((buffer is ~Buffer)#length())";
             println (string buffer);
           done);

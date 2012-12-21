@@ -12,7 +12,7 @@ verticle do :
                     ["Content-Length": string (buffer is ~Buffer)#length(),
                      "Content-Type": "text/html"];
                 _ = req#response#end(buffer);
-            Exception ex :
+            None ex :
                 println "Error reading file: \(ex)";
         esac;
     done) #listen(8080, 'localhost');

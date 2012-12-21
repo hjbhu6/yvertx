@@ -3,10 +3,8 @@ module yvertx.deploy.child;
 load yvertx;
 
 verticle do :
-   send "test-handler" {started=true, for_json=E()}; 
+   sendToBus "test-handler" {started=true, for_json=E()}; 
    println "child started";
-   \(
-   		send "test-handler" {stopped = true,for_json=E()};
-   	);
+   \(sendToBus "test-handler" {stopped = true,for_json=E()};);
 done;
 

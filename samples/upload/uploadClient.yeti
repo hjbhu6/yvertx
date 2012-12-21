@@ -50,7 +50,7 @@ verticle do :
     // req.setChunked(true);
 
     fileSystem.open [] filename \case of
-        Exception ex: (ex is ~Exception)#printStackTrace(System#err);
+        None ex: (ex is ~Exception)#printStackTrace(System#err);
         Some file :
             (pump = createPump (file is ~AsyncFile)#getReadStream() req;
              pump#start();
@@ -60,7 +60,7 @@ verticle do :
                     Some _ :
                         (req#end();
                          println "File sent");
-                    Exception ex: (ex is ~Exception)#printStackTrace(System#err);
+                    None ex: (ex is ~Exception)#printStackTrace(System#err);
                 esac
              done));
     esac;
