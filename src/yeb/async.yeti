@@ -304,6 +304,14 @@ run stru = (stru.f1 ()) \();
 
 _awaitEx = returnNone "";
 
+/**
+ * Group: async
+ * blocks for the given time in ms on the asnyc function and returns the
+ * result or throws an exception.
+ *
+ * If the asyncFunction sends a None ~Exception. The exception is thrown.
+ * If the timeout is 0 or negative blocks for ever
+ */
 await timeoutMs asyncFn is number -> asyncFunction<'a> -> 'a =
     (import java.util.concurrent:CountDownLatch,
                                  TimeUnit;
@@ -322,7 +330,6 @@ await timeoutMs asyncFn is number -> asyncFunction<'a> -> 'a =
     None ex: throw (ex is ~Exception);
     Some v: v;
     esac);
-
 
 
 {
