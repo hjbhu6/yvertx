@@ -348,6 +348,13 @@ create hash is hash<'k, 'v> -> tableType<'k,'v> =
      */
     obj x = x unsafely_as ~Object,
 
+    /**
+     * Group: helper
+     * throws an exception. Throw can not be used as function, therefore
+     * this function is a replacment. It just throws the given exception.
+     */
+    throwEx ex = throw (ex is ~Exception),
+
     randomList () = (
         import java.util.Random;
         ran = new Random();
