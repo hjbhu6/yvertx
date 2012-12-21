@@ -1331,7 +1331,7 @@ getHttpBodyNow client uri headers handler =
     exh ex =
         if not handled then
             handled := true;
-            handler (Exception (ex is ~Exception));
+            handler (None (ex is ~Exception));
         fi;
     req = httpRequest client (Get uri) headers do resp:
         exceptionHandler resp exh;
