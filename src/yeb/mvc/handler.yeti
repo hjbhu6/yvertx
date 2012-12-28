@@ -395,7 +395,21 @@ requestToBusMessage opts =
 
     done);
 
-    
+createYebHttpHandler opts workerFact =
+    (load yeb.async;
+    load yvertx;
+    workerOpts = array [];
+    httpOpts = array [];
+    for opts \case of
+        WorkerCount c: push workerOpts (WorkerCount c);
+        WebRoot s: push httpOpts (WebRoot s);
+        Gzip b: push httpOpts (Gzip b);
+        IndexPage s: push httpOpts (IndexPage s);
+    esac;
+
+    yebHandler = await (createRequestWorker workerOpts workerFact);
+    vertxHandler = httpToHandler httpOpts yebHandler;
+    vertxHandler);
 
 
 httpToHandler opts handler reqO =
@@ -456,6 +470,9 @@ createRequestWorkers opts workerFn =
     |>bindSome \(returnSome do req:
         fibre.send req;
     done));
+
+
+
 /*
 requestToJson req = 
     {headers = (req is request).headers,
@@ -509,6 +526,7 @@ requestFromBusHandler handler msg =
     requestToBusMessage,
     createRequestWorkers,
 
+    createYebHttpHandler,
 
 }
 
