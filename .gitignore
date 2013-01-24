@@ -4,3 +4,4 @@ lib/unmanaged
 lib/ybuilder/extlib_managed
 target
 mods/**/lib/*
+temp/
