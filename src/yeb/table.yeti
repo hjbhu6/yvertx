@@ -28,16 +28,22 @@ update k v table is 'k -> 'v -> table<'k,'v> -> table<'k,'v>=
 remove k table is 'k -> table<'k,'v> -> table<'k,'v>=
     ((asTMap table)#remove(k as ~Object)) as table<'k,'v>;
 
-valAt k table is 'k -> table<'k,'v> -> 'v=
+
+maybeAt k nofn infn table 
+    is 'k -> (() -> 'r) -> ('v -> 'r) -> table<'k, 'v> -> 'r =
     (r = (asTMap table)#get(k as ~Object, TMap#NULL_VALUE);
     if same? r TMap#NULL_VALUE then
-        none
+        nofn ();
     else
-        Some (r unsafely_as 'v)
+        infn (r unsafely_as 'v)
     fi);
     
-getDefault k default table is 'k -> 'v -> table<'k,'v> -> 'v =
-    ((asTMap table)#get(k as ~Object, default as ~Object)) unsafely_as 'v;
+at k table = 
+    maybeAt k \(failWith "No key \(k) in table") id table;
+
+contains? k table =
+    maybeAt k \true \false table;
+
 
 count table =
     (asTMap table)#size();
@@ -56,8 +62,9 @@ create ha is hash<'k,'v> -> table<'k,'v> =
 {
     update,
     remove,
-    valAt,
-    getDefault,
+    maybeAt,
+    contains?,
+    at,
     count,
     forTable,
     create,
