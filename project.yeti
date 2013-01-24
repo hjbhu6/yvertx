@@ -50,8 +50,8 @@ remoteRepository "typesafe"
 
 //yeti dependency
 dependency "org.yeti" "yeti" "0.9.7-SNAPSHOT" [];
-dependency "org.vert-x" "vertx-platform" "1.3.0.final" [ProvidedScope ()];
-dependency "org.vert-x" "vertx-testframework" "1.3.0.final" [ProvidedScope ()];
+dependency "org.vert-x" "vertx-platform" "1.3.1.final" [ProvidedScope ()];
+dependency "org.vert-x" "vertx-testframework" "1.3.1.final" [ProvidedScope ()];
 
 
 dependency "org.yeti" "yeti" "0.9.7-SNAPSHOT" [];
@@ -61,18 +61,18 @@ dependency "org.owasp.esapi" "esapi" "2.0GA"
 dependency "commons-lang" "commons-lang" "2.0" [];
 dependency "commons-fileupload" "commons-fileupload" "1.1.1" [];
 dependency "commons-codec" "commons-codec" "1.3" [];
-dependency "commons-dbcp" "commons-dbcp" "1.4" [];
+//dependency "commons-dbcp" "commons-dbcp" "1.4" [];
 
 dependency "org.scribe" "scribe" "1.3.0" [];
 dependency "com.ning" "async-http-client" "1.5.0" [];
 
-dependency "com.google.guava" "guava" "r07" [];
+//dependency "com.google.guava" "guava" "r07" [];
 dependency "joda-time" "joda-time" "1.6" [];
 dependency "org.slf4j" "jcl-over-slf4j" "1.6.4" [];
 dependency "org.slf4j" "slf4j-log4j12" "1.6.4" [];
 dependency "log4j" "log4j" "1.2.12" [];
-dependency "org.springframework" "spring-web" "3.0.5.RELEASE" [];
-dependency "org.springframework" "spring-test" "3.0.5.RELEASE" [];
+//dependency "org.springframework" "spring-web" "3.0.5.RELEASE" [];
+//dependency "org.springframework" "spring-test" "3.0.5.RELEASE" [];
 
 dependency "org.codehaus.jackson" "jackson-core-asl" "1.9.3" [];
 dependency "com.jayway.jsonpath" "json-path" "0.5.5" [];
