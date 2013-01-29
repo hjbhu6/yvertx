@@ -135,9 +135,9 @@ regexHandlerImpl method regexPattern handler  =
     {names, regex} = urlPatternToRegex regexPattern;
     pattern = Pattern#compile(regex);
 
-    do req:
+    do req res:
         if checkMethod? and (meth != (strUpper req.method )) then
-            req.respond continue;
+            res continue;
         else
             matcher = pattern#matcher(req.path is string);
             if matcher#matches() then
@@ -168,13 +168,12 @@ regexHandlerImpl method regexPattern handler  =
                 fi;
                 nreq = req with { params, path};
 
-                handler nreq
+                handler nreq res
             else
-                req.respond continue;
+                res continue;
             fi;
         fi;
-    done;
-);
+    done);
 
 /**
  * Handleradapter which takes a request method and path pattern and 
@@ -199,20 +198,28 @@ regexHandler requestUrl handler =
         esac;
     regexHandlerImpl meth regexPattern handler);
     
-runHandlers handlers req is list<handler> -> handler =
+runHandlers handlers req responder is list<handler> -> handler =
     if empty? handlers then
-        req.respond continue;
+        responder continue;
     else
-        (head handlers) (req with {
-            respond res = 
+        try
+        (head handlers) req \case of
+            None ex: responder (None (ex is ~Exception));
+            Some res:
                 if res.statusCode == continue.statusCode then
-                    runHandlers (tail handlers) req;
+                    runHandlers (tail handlers) req responder;
                 else
-                    ()
+                    responder (Some res)
                 fi
-        })
+            esac;
+        catch Exception ex:
+            responder (None ex);
+        yrt
     fi;
 
+/**
+ * Loads a handler from a module by name
+ */
 lazyHandler moduleName  is string -> handler =
    (var myHandler is (Some handler | None () ) = none;
     loadHandler () = (
@@ -306,7 +313,12 @@ handlersFact oldVhs adapter=
  
 newRouter adapter = handlersFact [] adapter;
 
-requestToBusMessage opts =
+/**
+ * Creates an handler which pushes the requeparameters on the eventbus as 
+ * JsonObject. If the request content is also an json object than this
+ * is also part of the message
+ */
+requestToBusMessage opts is 'o -> handler =
     (load yeb.validation;
     load yvertx;
     var defaultBusTarget = none;
@@ -320,7 +332,8 @@ requestToBusMessage opts =
 
 
     eventbus = (getVertx())#eventBus();
-    do req:
+    do req respond:
+        try
         //first the target
         case defaultBusTarget of
         Some n : Some n;
@@ -386,90 +399,103 @@ requestToBusMessage opts =
             eventbus#send(busPrefix^busTarget, jo,
                 toEitherJsonMessageHandler \case of
                     None _:
-                        req.respond (response req 401 [:] noneBody);
+                        respond (response req 401 [:] noneBody);
                     Some r:
-                        req.respond (write req "application/json" 
+                        respond (write req "application/json" 
                                         (string (r.message is ~Message)#body))
                     esac);
         esac;
+        catch Exception ex:
+            respond (None ex)
+        yrt
 
     done);
 
-createYebHttpHandler opts workerFact =
-    (load yeb.async;
-    load yvertx;
-    workerOpts = array [];
-    httpOpts = array [];
-    for opts \case of
-        WorkerCount c: push workerOpts (WorkerCount c);
-        WebRoot s: push httpOpts (WebRoot s);
-        Gzip b: push httpOpts (Gzip b);
-        IndexPage s: push httpOpts (IndexPage s);
-    esac;
-
-    yebHandler = await (createRequestWorker workerOpts workerFact);
-    vertxHandler = httpToHandler httpOpts yebHandler;
-    vertxHandler);
-
-
-httpToHandler opts handler reqO =
+/**
+ * Takes a yebhandler and creates a vertx HttpHandler.
+ * used to Brigde between Vertx http and yeb.
+ */
+httpToHandler opts yebhandler =
     (import org.vertx.java.core.http:HttpServerRequest;
     load yvertx;
     fileHandler = serveStaticFileAtPath opts;
-                
-    bodyHandler (reqO is ~HttpServerRequest) do buffer:
-        req = {
-            headers = requestHeaders reqO,
-            uri = reqO#uri,
-            path = reqO#path,
-            method = reqO#method,
-            params = 
-                ret = [:];
-                forHash (params reqO) do k v: ret[k]:=[v] done;
-                ret,
-            body = buffer#getBytes(),
-            resHeaders = [:],
-            respond res = 
-                if res.statusCode == continue.statusCode then
+    do reqO:            
+        bodyHandler (reqO is ~HttpServerRequest) do buffer:
+            respond is asyncFunction<response>=
+                \case of
+                None ex:
                     reqO#response#statusCode := 404;
                     _ = reqO#response#end();
-                elif res.statusCode == -2 then
-                    path = res.headers["file"];
-                    fileHandler path reqO;
-                else
-                    reqO#response#statusCode := res.statusCode;
-                    putResponseHeaders reqO [:]; // res.headers;
-                    if not res.body == noneBody then
-                        reqO#response#write(newByteBuffer res.body);
+                    println ex;
+                Some res: 
+                    if res.statusCode == continue.statusCode then
+                        reqO#response#statusCode := 404;
+                        _ = reqO#response#end();
+                    elif res.statusCode == -2 then
+                        path = res.headers["file"];
+                        fileHandler path reqO;
+                    else
+                        reqO#response#statusCode := res.statusCode;
+                        putResponseHeaders reqO [:]; // res.headers;
+                        if not res.body == noneBody then
+                            reqO#response#write(newByteBuffer res.body);
+                        fi;
+                        _ = reqO#response#end();
                     fi;
-                    _ = reqO#response#end();
-                fi,
-        } is request;
-        handler req;
+                esac;
+            
+            req = {
+                headers = requestHeaders reqO,
+                uri = reqO#uri,
+                path = reqO#path,
+                method = reqO#method,
+                params = 
+                    ret = [:];
+                    forHash (params reqO) do k v: ret[k]:=[v] done;
+                    ret,
+                body = buffer#getBytes(),
+                resHeaders = [:],
+            } is request;
+            try
+                yebhandler req respond;
+            catch Exception ex:
+                respond (None ex)
+            yrt;
+        done
     done);
 
-createRequestWorkers opts workerFn = 
+/**
+ * Creates an  yebHandler which fans out to many vertx workers yebHandlers.
+ * Takes a factory function which produdes handlers and returns an
+ * async function from which one yebhandler can be gotten. This handler will
+ * fan out its request to the handler produced by the factory function
+ */
+createRequestWorkers numberOfWorkers yebHandlerFactoryFn = 
     (load yeb.async;
     load yvertx;
-    import java.lang:Integer;
-    var numberOfWorkers =  
-        Integer#getInteger("vertx.backgroundPoolSize",20)#intValue();
-    for opts \case of
-        WorkerCount c: numberOfWorkers := c;
-    esac;
 
     fibre = newFibre();
-    startFn = do:
-        handler = workerFn ();
-        _ = fibre.register handler;
-    done;
 
     [1 .. numberOfWorkers]
-    |>map \(newWorker startFn)
+    |>map \(newWorker 
+        \(handler is handler = yebHandlerFactoryFn ();
+        _ = fibre.register do {req,res}: handler req res done;
+        ))
     |>parallel 
-    |>bindSome \(returnSome do req:
-        fibre.send req;
-    done));
+    |>bindSome \(return (Some do req res:
+        fibre.send {req, res};
+    done)));
+
+/**
+ * Creates a VertxHttpHandler which bridges to a number of worker
+ * yebHandlers
+ */
+createYebHttpHandler httpOpts numberOfWorkers workerFact =
+    (load yeb.async;
+    load yvertx;
+    yebHandler = await (createRequestWorkers workerOpts workerFact);
+    vertxHandler = httpToHandler httpOpts yebHandler;
+    vertxHandler);
 
 
 

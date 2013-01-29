@@ -26,6 +26,7 @@ import org.owasp.esapi:ESAPI,HTTPUtilitiess;
     
 
 load yeb.std;
+load yeb.async;
 load yeb.validation;
 
 typedef cookie = {
@@ -46,6 +47,7 @@ typedef response = {
     for_json is E(),
 };
 
+
 typedef request = {
     headers is hash<string, string>,
     uri is string,
@@ -54,21 +56,20 @@ typedef request = {
     body is ~byte[],
     params is hash<string,list<string>>,
     resHeaders is hash<string,string>,
-    respond is response -> (),
 };
 
 
-typedef handler = request -> ();
+typedef handler = request -> asyncFunction<response>;
 
 noneBody = new byte[0];
 
-continue is response = {
+continue is Some response = Some {
     statusCode = -1,
     headers = [:],
     body = noneBody};
 
 fileResponse fileName = 
-    {statusCode = -2,
+    Some {statusCode = -2,
     headers = ["file" : fileName],
     body = noneBody};
 
@@ -170,12 +171,12 @@ getCookie headers name =
 
 
 response req statusCode headers body =
-    {statusCode = statusCode, 
+    Some ({statusCode = statusCode, 
      headers = 
         (insertHash req.resHeaders headers;
         (req is request).resHeaders),
      body = body,
-     for_json = E()} is response; 
+     for_json = E()} is response); 
 
 params name req =
     if name in ((req is request).params) then
@@ -266,7 +267,9 @@ cacheForSeconds seconds mustRevalidate res =
         headers.["Expires"]:= 
             string (System#currentTimeMillis() + (seconds * 1000));
         //HTTP1.1 header
-        hv = "max-age=\(seconds)\(if mustRevalidate then ", must revalidate" else ""fi)";
+        hv = 
+            "max-age=\(seconds)\(if mustRevalidate then 
+                                    ", must revalidate" else ""fi)";
         headers.["Cache-Control"] := hv;
     else
         headers.["Pragma"] := "no-cache";
