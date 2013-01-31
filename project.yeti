@@ -14,89 +14,86 @@
  * and limitations under the License.
  */
 
-////////////////////////////////////////////////////////////////////////////////
-// The ybuilder project build file
-//
-// This file is a normal yeti program, which gets executed through ybuilder.jar.
-//
+/**
+ * build file for yvertx - run with java -jar ybuilder.jar
+*/
 
-////////////////////////////////////////////////////////////////////////////////
 // Build dependencies
 //
 //@buildDependency "org.apache.ant" "ant-junit" "1.8.1" 
 //    [exclusion "junit" "junit", exclusion "org.apache.ant" "ant"];
 //
 
+load ybuilder.core.build;
 load ybuilder.core.base;
+load ybuilder.core.vertxbase;
+
+config = baseConfig ();
+config.name := "yvertx";
+config.groupId :="org.yvertx";
+config.artifactId := "yvertx-yeti-lang-impl";
+config.version := "0.9.6a";
+config.description := "Yeti support for vert.x";
+
+config.deployRepository.url :=
+        "file:///${basedir}/../../chrisis-maven-repo/snapshots/";
+
+config = createBaseConfig config [
+    remoteRepository "sonatype-nexus-releases" 
+        "https://oss.sonatype.org/content/repositories/snapshots",
+    remoteRepository "typesafe" 
+        "http://repo.typesafe.com/typesafe/releases/",
+
+    //yeti dependency
+    dependency "org.yeti" "yeti" "0.9.7-SNAPSHOT" [],
+    dependency "org.vert-x" "vertx-platform" "1.3.1.final"
+        [ProvidedScope ()],
+    dependency "org.vert-x" "vertx-testframework" "1.3.1.final" 
+        [ProvidedScope ()],
 
 
+    dependency "org.yeti" "yeti" "0.9.7-SNAPSHOT" [],
+    dependency "org.owasp.esapi" "esapi" "2.0GA" 
+        [exclusion "javax.servlet" "servlet-api"],
+    dependency "commons-lang" "commons-lang" "2.0" [],
+    dependency "commons-fileupload" "commons-fileupload" "1.1.1" [],
+    dependency "commons-codec" "commons-codec" "1.3" [],
 
-project.name := "yvertx";
-project.groupId :="org.yvertx";
-project.artifactId := "yvertx-yeti-lang-impl";
-project.version := "0.9.6a";
-project.description := "Yeti support for vert.x";
+    dependency "org.scribe" "scribe" "1.3.0" [],
+    dependency "com.ning" "async-http-client" "1.5.0" [],
 
-//load projectBase now
-_ = load ybuilder.core.vertxBase [];
+    dependency "joda-time" "joda-time" "1.6" [],
+    dependency "org.slf4j" "jcl-over-slf4j" "1.6.4" [],
+    dependency "org.slf4j" "slf4j-log4j12" "1.6.4" [],
+    dependency "log4j" "log4j" "1.2.12" [],
 
-//repositories
-deployRepository.url :="file:///${basedir}/../../chrisis-maven-repo/snapshots/";
+    dependency "org.codehaus.jackson" "jackson-core-asl" "1.9.3" [],
+    dependency "com.jayway.jsonpath" "json-path" "0.5.5" [],
+    dependency "org.mongodb" "mongo-java-driver" "2.7.3" [],
 
-remoteRepository "sonatype-nexus-releases" 
-    "https://oss.sonatype.org/content/repositories/snapshots";
-remoteRepository "typesafe" 
-    "http://repo.typesafe.com/typesafe/releases/";
+    dependency "junit" "junit" "3.8.2" [TestScope ()],
+    dependency "org.mockito" "mockito-all" "1.8.5" [TestScope ()],
+    dependency "org.hsqldb" "hsqldb" "2.0.0" [TestScope ()],
+    dependency "org.springframework" 
+        "spring-jdbc" "3.0.5.RELEASE" [TestScope ()],
+];
 
-//yeti dependency
-dependency "org.yeti" "yeti" "0.9.7-SNAPSHOT" [];
-dependency "org.vert-x" "vertx-platform" "1.3.1.final" [ProvidedScope ()];
-dependency "org.vert-x" "vertx-testframework" "1.3.1.final" [ProvidedScope ()];
+config = config with createVertxConfig true config;
 
+//register targets
 
-dependency "org.yeti" "yeti" "0.9.7-SNAPSHOT" [];
-//dependency "com.typesafe.akka" "akka-actor" "2.0.1" [];
-dependency "org.owasp.esapi" "esapi" "2.0GA" 
-    [exclusion "javax.servlet" "servlet-api"];
-dependency "commons-lang" "commons-lang" "2.0" [];
-dependency "commons-fileupload" "commons-fileupload" "1.1.1" [];
-dependency "commons-codec" "commons-codec" "1.3" [];
-//dependency "commons-dbcp" "commons-dbcp" "1.4" [];
-
-dependency "org.scribe" "scribe" "1.3.0" [];
-dependency "com.ning" "async-http-client" "1.5.0" [];
-
-//dependency "com.google.guava" "guava" "r07" [];
-dependency "joda-time" "joda-time" "1.6" [];
-dependency "org.slf4j" "jcl-over-slf4j" "1.6.4" [];
-dependency "org.slf4j" "slf4j-log4j12" "1.6.4" [];
-dependency "log4j" "log4j" "1.2.12" [];
-//dependency "org.springframework" "spring-web" "3.0.5.RELEASE" [];
-//dependency "org.springframework" "spring-test" "3.0.5.RELEASE" [];
-
-dependency "org.codehaus.jackson" "jackson-core-asl" "1.9.3" [];
-dependency "com.jayway.jsonpath" "json-path" "0.5.5" [];
-dependency "org.mongodb" "mongo-java-driver" "2.7.3" [];
-
-dependency "junit" "junit" "3.8.2" [TestScope ()];
-dependency "org.mockito" "mockito-all" "1.8.5" [TestScope ()];
-dependency "org.hsqldb" "hsqldb" "2.0.0" [TestScope ()];
-dependency "org.springframework" "spring-jdbc" "3.0.5.RELEASE" [TestScope ()];
+config = config with registerBaseTargets config;
+config = config with registerVertxTargets config;
 
 ////////////////////////////////////////////////////////////////////////////////
 //---custom targets --
 
-load ybuilder.core.build;
-_ = target "compileSamples" [Before livecycleTargets.testCompile] 
+_ = target config "samples" "compile" 
+    [Before config.livecycleTargets.testCompile] 
     do project:
-        dirSet = (createAntDirSet "samples" [])#getDirectoryScanner();
-        dirSet#scan();
-        
-        dirs = dirSet#getIncludedDirectories()
-            |> wrapArray
-            |> map string
-            |> filter defined?
+        dirs = listDirs "samples" []
             |> filter (!= "");
+        
         
         println "Sample dirs \(dirs)";
         
@@ -109,12 +106,12 @@ _ = target "compileSamples" [Before livecycleTargets.testCompile]
                 cOutDir =  outDir^sDir;
                 println "compiling dir \(srcDir)";
                 antTask "mkdir" ["dir":cOutDir] [] project;
-                yeticTask
+                helpers.yeticTask
                     cOutDir
                     srcDir
-                    taskProps.yetic.includes
-                    taskProps.yetic.sourceReaderCode
-                    pathes.compile
+                    config.yeticIncludes
+                    config.yeticSourceReaderCode
+                    (pathes.compile config)
                     project;
                 
         done;
@@ -126,4 +123,4 @@ _ = target "compileSamples" [Before livecycleTargets.testCompile]
 
 // leave the final load! 
 // runs the targets entered at the command line
-load ybuilder.core.run;
+run config;
