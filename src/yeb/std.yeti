@@ -121,7 +121,7 @@ maybeHead noHead headF li =
     if empty? li then (noHead ()) else headF (head li) fi;
 
 maybeAt noValue valueF k hs =
-    if k in hs then valueF (hs.[k]) else (noValue k) fi;
+    if k in hs then valueF (hs[k]) else (noValue k) fi;
 
 listStarts? start l =
     if empty? start then
@@ -135,8 +135,6 @@ listStarts? start l =
     fi;
 
 
-maybeDefined defaultFn valueFn x =
-    if defined? x then valueFn x else defaultFn () fi;
 
 maybe' defaultFn fn opt =
     case opt of
