@@ -148,16 +148,16 @@ regexHandlerImpl method regexPattern handler  =
                 for [0..matcher#groupCount()] do c:
                     push urlParams matcher#group(c);
                 done;
-                params.["urlPrams"] := list urlParams;
+                params["urlPrams"] := list urlParams;
                 
                 //add the named parameters
                 for names do name:
                     ls = if name in params then
-                            params.[name];
+                            params[name];
                          else
                             []
                          fi;
-                    params.[name] := (string matcher#group(name)) :: ls;
+                    params[name] := (string matcher#group(name)) :: ls;
                 done;
 
                 //set the new pathInfo and servletPath

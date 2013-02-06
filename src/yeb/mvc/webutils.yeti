@@ -182,7 +182,7 @@ response req statusCode headers body =
 
 params name req =
     if name in ((req is request).params) then
-        req.params.[name];
+        req.params[name];
     else
         [] is list<string>
     fi;
@@ -208,13 +208,13 @@ param name ctx =
 addHeader name value req =
     (hs = (req is request).resHeaders;
     if name in hs then
-        hs.[name is string] := hs.[name] ^","^ value;
+        hs[name is string] := hs[name] ^","^ value;
     else
-        hs.[name] := value;
+        hs[name] := value;
     fi);    
 maybeHeader name req =
     if name in (req is request).headers then
-        Some req.headers.[name]
+        Some req.headers[name]
     else 
         none
     fi;
@@ -227,7 +227,7 @@ isAjax req =
 
 escape text =
     (escapeT s =
-         "&#\(Character#codePointAt(s.[0] is string, 0));";
+         "&#\(Character#codePointAt(s[0] is string, 0));";
      strJoin '' (matchAll '[<>&"]' escapeT id "\(text)"));
 
 //"     
@@ -266,17 +266,17 @@ cacheForSeconds seconds mustRevalidate res =
     (headers = res.headers;
     if seconds > 0 then
         //HTTP1.0 header
-        headers.["Expires"]:= 
+        headers["Expires"]:= 
             string (System#currentTimeMillis() + (seconds * 1000));
         //HTTP1.1 header
         hv = 
             "max-age=\(seconds)\(if mustRevalidate then 
                                     ", must revalidate" else ""fi)";
-        headers.["Cache-Control"] := hv;
+        headers["Cache-Control"] := hv;
     else
-        headers.["Pragma"] := "no-cache";
-        headers.["Expires"] := "1";
-        headers.["Cache-Control"]:= "no-cache, no-store";
+        headers["Pragma"] := "no-cache";
+        headers["Expires"] := "1";
+        headers["Cache-Control"]:= "no-cache, no-store";
     fi);
 
 //+++++++++++++++++++++++Utils ++++++++++++++++++++++++++++
@@ -343,10 +343,10 @@ parseQuery query =
     (ret = [:];
     _ = matchAll '([^&=]+)(=([^&=]*))?'
         do ar:
-            name = urlDecode (ar.[1]);
-            value = urlDecode (ar.[3]);
-            ols = if not name in ret then [] else ret.[name] fi;
-            ret.[name] := value :: ols;
+            name = urlDecode (ar[1]);
+            value = urlDecode (ar[3]);
+            ols = if not name in ret then [] else ret[name] fi;
+            ret[name] := value :: ols;
             "";
         done
         id
@@ -462,16 +462,16 @@ flashKey = "org.yeb.session.flash";
 
 getFlash name req =
     (if oldFlashKey in (req is request).res.session then
-        s = req.res.session.[flashKey] unsafely_as hash<string,~Object>;
+        s = req.res.session[flashKey] unsafely_as hash<string,~Object>;
         if name in s then
-            Some s.[name];
+            Some s[name];
         else
             none
         fi
     elif flashKey in req.res.session then
-        s = req.res.session.[flashKey] unsafely_as hash<string, ~Object>;
+        s = req.res.session[flashKey] unsafely_as hash<string, ~Object>;
         if name in s then
-            Some s.[name];
+            Some s[name];
         else
             none
         fi
@@ -481,13 +481,13 @@ getFlash name req =
 
 setFlash name value req =
     (m = if flashKey in (req is request).res.session then
-        (req.res.session.[flashKey]) unsafely_as hash<string, ~Object>
+        (req.res.session[flashKey]) unsafely_as hash<string, ~Object>
     else
         r = [:];
-        req.res.session.[flashKey] := (r as ~Object);
+        req.res.session[flashKey] := (r as ~Object);
         r
     fi;
-    m.[name] := value as ~Object);
+    m[name] := value as ~Object);
 */
 
 {
@@ -546,7 +546,7 @@ setFlash name value req =
     decryptQueryString encrypted = 
        (ret = [:];
         forJavaMap (ESAPI#httpUtilities()#decryptQueryString(encrypted)) do k v:
-            ret.[string k] := string v;
+            ret[string k] := string v;
         done;
         ret),
     encryptHiddenField value = 
