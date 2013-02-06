@@ -187,7 +187,7 @@ class YetiClassLoader(ClassLoader parentOrNull, String[] sourceDirsA, boolean re
                 Thread#currentThread()#getContextClassLoader() 
              else parentOrNull fi,
     sr = sourceReader 
-        (if nullptr? sourceDirsA then [] else map string (list (wrapArray sourceDirsA)) fi) 
+        (if nullptr? sourceDirsA then [] else map string (list sourceDirsA) fi) 
         readFromClassPath 
         (Some parent),
         
@@ -212,7 +212,11 @@ class YetiClassLoader(ClassLoader parentOrNull, String[] sourceDirsA, boolean re
             Thread#currentThread()#setContextClassLoader(parent);
             try
                 //println "findClass compiling \(clName)";
-                eval.compileYetiFiles [CodeWriter (this as ~CodeWriter), SourceReader reader] [] [flName]
+                eval.compileYetiFiles 
+                        [CodeWriter (this as ~CodeWriter), 
+                                   SourceReader reader] 
+                        [] 
+                        [flName]
             finally
                 Thread#currentThread()#setContextClassLoader(oldCl);
             yrt;

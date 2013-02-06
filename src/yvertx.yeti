@@ -25,7 +25,8 @@ import org.vertx.java.core:Handler,
                            AsyncResult,
                            AsyncResultHandler,
                            Vertx;
-import org.vertx.java.core.impl:Context;
+import org.vertx.java.core.impl:Context,
+                                VertxInternal;
 import org.vertx.java.core.buffer:Buffer;
 import org.vertx.java.core.eventbus:Message;
 import org.vertx.java.core.file:FileSystem,
@@ -617,6 +618,13 @@ setTimer delay handler =
 cancelTimer timerId =
     (getVertx ())#cancelTimer(timerId);
 
+/**
+ * gets the current running context or NULL (undefined)
+ */
+_currentContext () =
+    (vertx = (getVertx()) unsafely_as ~VertxInternal;
+    vertx#getContext());
+    
 
 /**
  * Group: experimental (EXPERIMENTAL)
@@ -636,11 +644,8 @@ cancelTimer timerId =
  * startfn - function run first on the worker thread. 
  */ 
 newWorker startfn cb=     
-    (import org.vertx.java.core.impl:VertxInternal,
-                                     Context;
-    vertx = (getVertx()) unsafely_as ~VertxInternal;
-    
-    ctxt = Context#getContext();
+    (vertx = (getVertx()) unsafely_as ~VertxInternal;
+    ctxt = _currentContext();
     if not defined? ctxt then
         failWith "no vertx context defined can not execute";
     fi;
@@ -679,7 +684,7 @@ newFibre () =
          * send/published. Returns a function which is used in unregister
          */
         register fn = 
-            ctxt = Context#getContext();
+            ctxt = _currentContext();
             if not defined? ctxt then
                 failWith "There is not vertx context"
             fi;
@@ -1157,7 +1162,9 @@ serveStaticFileAtPath opts =
             req#response#sendFile(indexPage);
         elif strIndexOf path ".." 0 < 0 then
             if gzipFiles and acceptEncodingGzip then
-                file = new File(PathAdjuster#adjust(fileName ^ ".gz"));
+                file = new File(PathAdjuster#adjust(
+                        (getVertx()) unsafely_as ~VertxInternal,
+                        fileName ^ ".gz"));
                 if file#exists() then
                     req#response#putHeader("content-encoding", "gzip");
                     req#response#sendFile(fileName ^ ".gz");
@@ -1901,8 +1908,7 @@ fileSystem = ({
                    toTypedAsyncResultHandler (unsafely_as ~FileProps) handler),
         
     readDir path filter handler =
-       (mfn obj = map string (wrapArray ((obj is ~Object) 
-                                    unsafely_as ~String[]));
+       (mfn obj = ((obj is ~Object) unsafely_as ~String[]) as list<string>;
         case filter of
         None ():
             ((getVertx ())#fileSystem())#readDir(path is string, 
@@ -1967,9 +1973,10 @@ fileSystem = ({
 {
     /**
      * Group: vertx
-     * context property calls Context#getContext
+     * context property calls gets the context from VertxInternal
+     * This is no public vertx api.
      */
-    get context () =  Context#getContext(),
+    get context () =  _currentContext (),
     
     /**
      * Group: vertx
@@ -1982,7 +1989,7 @@ fileSystem = ({
      * fn - the hook function
      */
     addCloseHook key fn = 
-        Context#getContext()#putCloseHook(key is string, runnable fn),
+        (_currentContext())#putCloseHook(key is string, runnable fn),
     
     /**
      * Group: vertx
@@ -1991,7 +1998,7 @@ fileSystem = ({
      * calls Context#executeOnWorker
      */
     executeOnWorker fn = 
-        Context#getContext()#executeOnWorker(runnable fn),
+        (_currentContext())#executeOnWorker(runnable fn),
     
 
     toHandler, 
