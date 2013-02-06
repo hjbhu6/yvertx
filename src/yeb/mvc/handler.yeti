@@ -32,6 +32,7 @@ import yeti.lang: Fun, Struct;
 import org.yeb:ValidationException, YebUtils;
 
 load yeb.std;
+load yeb.async;
 load yeb.mvc.webutils;
 load yeb.validation;
 
@@ -206,7 +207,7 @@ runHandlers handlers req responder is list<handler> -> handler =
         (head handlers) req \case of
             None ex: responder (None (ex is ~Exception));
             Some res:
-                if res.statusCode == continue.statusCode then
+                if res.statusCode == continueStatusCode then
                     runHandlers (tail handlers) req responder;
                 else
                     responder (Some res)
@@ -340,7 +341,7 @@ requestToBusMessage opts is 'o -> handler =
         None _ : maybeAt \none (maybeHead \none Some) "bustarget" req.params;
         esac
         |> \case of
-        None _: req.respond continue;
+        None _: respond continue;
         Some busTarget:
             //write all the params
             import org.vertx.java.core.json:JsonObject,
@@ -421,28 +422,6 @@ httpToHandler opts yebhandler =
     fileHandler = serveStaticFileAtPath opts;
     do reqO:            
         bodyHandler (reqO is ~HttpServerRequest) do buffer:
-            respond is asyncFunction<response>=
-                \case of
-                None ex:
-                    reqO#response#statusCode := 404;
-                    _ = reqO#response#end();
-                    println ex;
-                Some res: 
-                    if res.statusCode == continue.statusCode then
-                        reqO#response#statusCode := 404;
-                        _ = reqO#response#end();
-                    elif res.statusCode == -2 then
-                        path = res.headers["file"];
-                        fileHandler path reqO;
-                    else
-                        reqO#response#statusCode := res.statusCode;
-                        putResponseHeaders reqO [:]; // res.headers;
-                        if not res.body == noneBody then
-                            reqO#response#write(newByteBuffer res.body);
-                        fi;
-                        _ = reqO#response#end();
-                    fi;
-                esac;
             
             req = {
                 headers = requestHeaders reqO,
@@ -457,9 +436,32 @@ httpToHandler opts yebhandler =
                 resHeaders = [:],
             } is request;
             try
-                yebhandler req respond;
+                (yebhandler is handler) req 
+                    \case of
+                    None ex:
+                        reqO#response#statusCode := 404;
+                        _ = reqO#response#end();
+                        throw (ex is ~Exception);
+                    Some res: 
+                        if res.statusCode == continueStatusCode then
+                            reqO#response#statusCode := 404;
+                            _ = reqO#response#end();
+                        elif res.statusCode == -2 then
+                            path = res.headers["file"];
+                            fileHandler path reqO;
+                        else
+                            reqO#response#statusCode := res.statusCode;
+                            putResponseHeaders reqO [:]; // res.headers;
+                            if not res.body == noneBody then
+                                reqO#response#write(newByteBuffer res.body);
+                            fi;
+                            _ = reqO#response#end();
+                        fi;
+                    esac;
             catch Exception ex:
-                respond (None ex)
+                reqO#response#statusCode := 404;
+                _ = reqO#response#end();
+                throw (ex is ~Exception);
             yrt;
         done
     done);
@@ -493,7 +495,7 @@ createRequestWorkers numberOfWorkers yebHandlerFactoryFn =
 createYebHttpHandler httpOpts numberOfWorkers workerFact =
     (load yeb.async;
     load yvertx;
-    yebHandler = await (createRequestWorkers workerOpts workerFact);
+    yebHandler = await 0  (createRequestWorkers numberOfWorkers workerFact);
     vertxHandler = httpToHandler httpOpts yebHandler;
     vertxHandler);
 

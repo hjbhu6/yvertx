@@ -63,8 +63,9 @@ typedef handler = request -> asyncFunction<response>;
 
 noneBody = new byte[0];
 
+continueStatusCode = -1;
 continue is Some response = Some {
-    statusCode = -1,
+    statusCode = continueStatusCode,
     headers = [:],
     body = noneBody};
 
@@ -148,6 +149,7 @@ getCookies headers =
                                             Cookie;
     str = headers["Cookie"];                                        
     (new CookieDecoder())#decode(str is string) 
+    |> (unsafely_as ~java.util.Collection)
     |> mapJavaList do ob:
         co = (ob unsafely_as ~Cookie);
         ({name = co#getName(),
@@ -503,6 +505,7 @@ setFlash name value req =
     getCookie,
     addCookie,
     continue,
+    continueStatusCode,
     request,
     response,
     params,
