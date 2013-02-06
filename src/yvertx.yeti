@@ -842,7 +842,7 @@ config () = fromJS ((getContainer ())#getConfig());
 _enviroment () = 
    (ret = [:];
     forJavaMap ((getContainer ())#getEnv()) do key value: 
-        ret.[string key] := string value;
+        ret[string key] := string value;
     done;
     ret);
 
@@ -1104,7 +1104,7 @@ putResponseTrailers request trailers =
 params req =
    (ret = [:];
     forJavaMap (req is ~HttpServerRequest)#params() do key value:
-        ret.[string key] := if defined? value then string value else "" fi;
+        ret[string key] := if defined? value then string value else "" fi;
     done;
     ret);
 
@@ -1120,7 +1120,7 @@ params req =
 requestHeaders req =
     (ret = [:];
     forJavaMap (req is ~HttpServerRequest)#headers() do key value:
-        ret.[string key] := if defined? value then string value else "" fi;
+        ret[string key] := if defined? value then string value else "" fi;
     done;
     ret);
 
@@ -1153,7 +1153,7 @@ serveStaticFileAtPath opts =
     do path req:
         headers = requestHeaders req;
         acceptEncodingGzip = if "accept-encoding" in headers then
-                strIndexOf headers.["accept-encoding"] "gzip" 0 > -1;
+                strIndexOf headers["accept-encoding"] "gzip" 0 > -1;
             else
                 false
             fi;
@@ -1230,7 +1230,7 @@ putRequestHeaders request headers =
 responseHeaders resp =
     (ret = [:];
     forJavaMap (resp is ~HttpClientResponse)#headers() do k v:
-        ret.[string k] := if defined? v then string v else "" fi;
+        ret[string k] := if defined? v then string v else "" fi;
     done;
     ret);
 
@@ -1244,7 +1244,7 @@ responseHeaders resp =
 responseTrailers resp =
     (ret = [:];
     forJavaMap (resp is ~HttpClientResponse)#trailers() do k v:
-        ret.[string k] := if defined? v then string v else "" fi;
+        ret[string k] := if defined? v then string v else "" fi;
     done;
     ret);
 
@@ -1646,7 +1646,6 @@ toJsonMessageHandler fn =
     (class YvertxMessageHandler extends Handler
         void handle(Object ob)
             msg = ob unsafely_as ~Message;
-            body = fromJS (msg#body unsafely_as ~JsonObject);
             try
             fn {message = msg is ~Message,
                 handler =  this as ~Handler,
@@ -1700,6 +1699,19 @@ publishToBus address msg =
 sendToBus address msg =
     (getVertx ())#eventBus()#send(address is string, toJS msg);
 
+/**
+ * Group: eventbus
+ * send a Json message on the eventbus with a normal handler
+ *
+ * Note only struct can be send/received 
+ *
+ * calls Eventbus#send
+ *
+ * Arguments:
+ * address - the address to send to
+ * structMessage - struct iwht will be sind
+ * handler - the callback function receiving the response
+ */
 sendToBusWithHandler address msg handler =
     (getVertx ())#eventBus()#send(address is string, toJS msg, 
             toJsonMessageHandler handler);
@@ -2139,6 +2151,7 @@ fileSystem = ({
     //bus functions
     publishToBus,
     sendToBus,
+    sendToBusWithHandler,
     requestFromBus,
     requestMessageFromBus,
     registerBusHandler,
