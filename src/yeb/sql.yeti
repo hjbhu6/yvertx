@@ -44,7 +44,6 @@ logger = getLogger "yeb.sql";
 
 /**
  * Convinience mehtod to construc a apache commons BasicDataSource
- */
 dataSource driverClassName connectionUri opts =
    (import org.apache.commons.dbcp.BasicDataSource;
     ds = new BasicDataSource();
@@ -58,6 +57,7 @@ dataSource driverClassName connectionUri opts =
         esac
     done;
     ds);
+ */
 
 /**
  * Transfers a SQLWarningn in an excpetion string
@@ -602,7 +602,6 @@ exceptionString seq is ~SQLException -> string = (
 
 
 {
-    dataSource,
     
     withConnection,
     update,

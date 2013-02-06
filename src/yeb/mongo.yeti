@@ -1,12 +1,20 @@
 module yeb.mongo;
 
 import java.lang:Number;
-import yeti.lang: AList, Struct, Tag, ByKey,GenericStruct;
+import yeti.lang: AList, 
+                Struct, 
+                Tag, 
+                ByKey,
+                GenericStruct;
 import com.mongodb: DBCollection, 
                     BasicDBObject, 
                     DBCursor, 
                     DBObject;
-import java.util: Map, HashMap, List, Iterator;
+import java.util: Map, 
+                HashMap, 
+                List, 
+                Iterator, 
+                Collection;
 
 
 load yeb.std;
@@ -21,7 +29,7 @@ _fromDBO o =
     elif o instanceof Number then
         (number' o) as ~Object;
     elif o instanceof List then
-        ((o unsafely_as ~List) |> mapJavaList (_fromDBO)) as ~Object;  
+        ((o unsafely_as ~Collection) |> mapJavaList (_fromDBO)) as ~Object;  
     elif o instanceof Map then
         ma = new HashMap();
         forJavaMap (o unsafely_as ~Map) do k v:
