@@ -494,7 +494,7 @@ _structHandler rs =
     do:
         ma = new java.util.HashMap();
         for [1 .. columnCount] do c:
-            colName = columnNames.[c - 1];
+            colName = columnNames[c - 1];
             val = rs#getObject(c);
             if not nullptr? val then
                 value = if val instanceof java.lang.Number then
@@ -502,7 +502,8 @@ _structHandler rs =
                 elif val instanceof java.lang.String then
                     (string val) as ~String;
                 elif val instanceof java.lang.Boolean then
-                    ((val unsafely_as ~Boolean)#booleanValue()) unsafely_as ~Object;
+                    ((val unsafely_as ~Boolean)#booleanValue()) 
+                        unsafely_as ~Object;
                 else
                     val;
                 fi;

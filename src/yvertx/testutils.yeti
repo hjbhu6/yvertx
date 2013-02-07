@@ -216,7 +216,7 @@ _runTestsImpl tests resultO allResults vertx container =
             |> sort
             |> map do name:
                     {name,
-                    test = tests.[name]}
+                    test = tests[name]}
                 done;
 
         println "start testing: tests \(ts |> map (.name))";

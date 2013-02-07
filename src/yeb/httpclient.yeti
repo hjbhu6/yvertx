@@ -29,7 +29,6 @@ oauthHandlers provider apiKey apiSecret callbackUrl opts =
     import org.scribe.builder:ServiceBuilder;
 
     webutils = load yeb.mvc.webutils;
-    mvc = load yeb.mvc.handler;
 
     var serviceBuilderOpt = none;
     for opts do opt:
@@ -71,7 +70,7 @@ oauthHandlers provider apiKey apiSecret callbackUrl opts =
     
     handleCallback session req =
         try
-            oauth_token = webutils.param "oauth_token" req;
+            //oauth_token = webutils.param "oauth_token" req;
             oauth_verifier = webutils.param "oauth_verifier" req;
             
             verifier = new Verifier(oauth_verifier);
