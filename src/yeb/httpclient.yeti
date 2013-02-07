@@ -154,8 +154,7 @@ client opts =
     None _: client;
     esac);
 
-
-asyncRequest httpClient opts url handler =
+coreRequest httpClient opts url handler =
    (import com.ning.http.client:AsyncHttpClient, Response,
                 AsyncHandler,
                 AsyncCompletionHandler, SignatureCalculator,
@@ -213,17 +212,32 @@ asyncRequest httpClient opts url handler =
                         cb (Some resp);
                         resp,
                     void onThrowable(Throwable ta)
-                        cb (Exception ta),
+                        if ta instanceof Exception then
+                            cb (None (ta unsafely_as ~Exception))
+                        else
+                            throw ta
+                        fi,
             end;
             builder#execute(new MyAsyncCompletionHandler()));
         None _: builder#execute();
         esac;
 	
     future);
-	
+
+request httpClient opts url handler =
+    (import com.ning.http.client:Response;
+    load yeb.async;
+    yvertx = load yvertx;
+    ctxt = yvertx.context;
+    h = do a:
+        ctxt#execute(runnable \((handler is callback<~Response>) a))
+    done;
+    _ = coreRequest httpClient opts url (Some h));
+
 
 {    
     oauthHandlers,
     client,
-    asyncRequest
+    coreRequest,
+    request
 }    
