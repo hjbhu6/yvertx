@@ -244,7 +244,7 @@ lazyHandler moduleName  is string -> handler =
         done;
     fi);
 
-handlersFact oldVhs adapter= 
+_routerFact oldVhs adapter= 
    (vhs = array [];
     {
 		get adapter () = adapter,
@@ -252,7 +252,9 @@ handlersFact oldVhs adapter=
             push vhs (adapter handler),
         
         pattern regex handler = add ((regexHandler regex) handler),
-        _get regex handler = add ((regexHandler (Get regex)) handler),
+        get = do regex handler:
+            add ((regexHandler (Get regex)) handler)
+        done,
         post regex handler = add ((regexHandler (Post regex)) handler),
         put regex handler = add ((regexHandler (Put regex)) handler),
         delete regex handler = add ((regexHandler (Delete regex)) handler),        
@@ -264,11 +266,11 @@ handlersFact oldVhs adapter=
         lazy regex moduleName = 
             add ((regexHandler (All regex)) (lazyHandler moduleName)),
 
-        get handler () =
+        newHandler () =
             runHandlers (vhs ++ oldVhs),
 
         newSubRouter adapter =
-            handlersFact (vhs ++ oldVhs) adapter,
+            _routerFact (vhs ++ oldVhs) adapter,
     });
     
 /**
@@ -312,7 +314,7 @@ handlersFact oldVhs adapter=
  * :router.get "members"
  */
  
-newRouter adapter = handlersFact [] adapter;
+newRouter adapter = _routerFact [] adapter;
 
 /**
  * Creates an handler which pushes the requeparameters on the eventbus as 
@@ -492,13 +494,14 @@ createRequestWorkers numberOfWorkers yebHandlerFactoryFn =
  * Creates a VertxHttpHandler which bridges to a number of worker
  * yebHandlers
  */
-createYebHttpHandler httpOpts numberOfWorkers workerFact =
+createYebHttpServer httpOpts numberOfWorkers handlerFn =
     (load yeb.async;
     load yvertx;
-    yebHandler = await 0  (createRequestWorkers numberOfWorkers workerFact);
-    vertxHandler = httpToHandler httpOpts yebHandler;
-    vertxHandler);
 
+    yebHandler = await 0  
+        (createRequestWorkers numberOfWorkers handlerFn);
+    vertxHandler = httpToHandler httpOpts yebHandler;
+    createHttpServerWithHandler vertxHandler);
 
 
 /*
@@ -554,7 +557,7 @@ requestFromBusHandler handler msg =
     requestToBusMessage,
     createRequestWorkers,
 
-    createYebHttpHandler,
+    createYebHttpServer,
 
 }
 
