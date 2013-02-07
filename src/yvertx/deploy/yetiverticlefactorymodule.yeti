@@ -22,10 +22,10 @@ import java.lang:ClassLoader,
 
 
 import org.vertx.java.core.impl:VertxInternal;
-import org.vertx.java.deploy: Verticle,
-                              VerticleFactory;
-import org.vertx.java.deploy.impl: VerticleManager,
-                                   VertxLocator;
+import org.vertx.java.deploy: Verticle;
+import org.vertx.java.deploy.impl: VerticleFactory,
+                                    VerticleManager,
+                                    VertxLocator;
 
 class YetiVerticleFactory extends VerticleFactory
     var manager = () as ~VerticleManager,
