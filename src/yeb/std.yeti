@@ -187,8 +187,8 @@ simpleTest testHash ()=
     fi);
 
 //json things
-toJson stru = string (json.toJS stru);
-fromJson str = 
+writeJson stru = string (json.toJS stru);
+parseJson str = 
     (import org.vertx.java.core.json:JsonObject;
     ob = new JsonObject(str is string);
     json.fromJS ob);
@@ -366,8 +366,8 @@ create hash is hash<'k, 'v> -> tableType<'k,'v> =
 
     findCodeAtLine,
 
-    toJson,
-    fromJson,
+    writeJson,
+    parseJson,
 
     tableCreate = create,
     tableAddAll = addAll,
