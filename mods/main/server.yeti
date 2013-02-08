@@ -25,7 +25,7 @@ load yvertx;
 router = newRouter id;
 
 router.get "/" do req res: 
-    writeHtml "Hello World!" |> res;
+    writeHtml req "Hello World!" |> res;
 done;
 
 verticle do:
