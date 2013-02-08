@@ -243,8 +243,38 @@ create hash is hash<'k, 'v> -> tableType<'k,'v> =
        addAll t hash
     fi);
 
+/**
+ * Group: digest
+ * calculates the hash for the given algorithm for the given messagen
+ * using java.security.MessageDigest
+ *
+ * Arguments:
+ * algorithm - the algorithm to use
+ * message - the message over which the hash sould be mad
+ */
+messageDigest algorithm message =
+    Digester#calc(algorithm is string, message is string);
 
 {       
+    messageDigest, 
+
+    /**
+     * Group: digest
+     * MD5 hash using messageDigest function
+     */
+    hashMD5 = messageDigest "MD5",
+    
+    /**
+     * Group: digest
+     * SHA-1 hash using messageDigest function
+     */
+    hashSHA1 = messageDigest "SHA-1",
+
+    /**
+     * Group: digest
+     * SHA-256 hash using messageDigest function
+     */
+    hashSHA256 = messageDigest "SHA-256",
 
     enviroment = 
        (var v is Production string 
