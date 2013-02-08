@@ -27,6 +27,12 @@ import org.vertx.java.deploy.impl: VerticleFactory,
                                     VerticleManager,
                                     VertxLocator;
 
+class MockVerticle extends Verticle
+    void start() 
+        println "waiting for redeploy ....",
+end;
+    
+
 class YetiVerticleFactory extends VerticleFactory
     var manager = () as ~VerticleManager,
     
@@ -46,7 +52,21 @@ class YetiVerticleFactory extends VerticleFactory
         import java.lang.RuntimeException;
         import yeti.lang:Fun,
                          Struct;
+       
+        //load the mod.json to see wheter autoredeploy
+        autoRedeploy = 
+            (std = load yeb.std;
+            ins = loader#getResourceAsStream("mod.json");
+            if defined? ins then
+                js = inputHandle ins "UTF-8"
+                    |> getContents
+                    |> std.parseJson;
+                std.maybeDefined \false std.isBoolean js.``auto-redeploy``
+            else
+                false
+            fi);
         
+        //create the yeti classloader
         cl = new YetiClassLoader(loader,[],true);
         ocl = Thread#currentThread()#getContextClassLoader();
         Thread#currentThread()#setContextClassLoader(cl);
@@ -86,9 +106,13 @@ class YetiVerticleFactory extends VerticleFactory
             //invoke the function
             fn#apply(() as ~Object) unsafely_as ~Verticle;
         catch CompileException ex:
-            import java.lang:ClassNotFoundException;
             println "Yeti Compilation Error: \(ex#getMessage())";
-            throw new ClassNotFoundException(ex#getMessage());
+            if autoRedeploy then
+                (new MockVerticle()) as ~Verticle;
+            else
+                import java.lang:ClassNotFoundException;
+                throw new ClassNotFoundException(ex#getMessage());
+            fi
         finally
             Thread#currentThread()#setContextClassLoader(ocl);
         yrt,
