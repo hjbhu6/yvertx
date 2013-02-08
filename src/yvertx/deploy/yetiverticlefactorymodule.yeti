@@ -29,6 +29,7 @@ import org.vertx.java.deploy.impl: VerticleFactory,
 
 class MockVerticle extends Verticle
     void start() 
+        println "\nFix Error and save to redeploy.";
         println "waiting for redeploy ....",
 end;
     
