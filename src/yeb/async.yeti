@@ -322,7 +322,7 @@ await timeoutMs asyncFn is number -> asyncFunction<'a> -> 'a =
         latch#countDown();
     done;
     if timeoutMs < 1 then
-        latch#wait();
+        latch#await();
     elif not latch#await(timeoutMs,TimeUnit#MILLISECONDS) then
         failWith "timeout"
     fi;
