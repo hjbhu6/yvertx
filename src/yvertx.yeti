@@ -786,7 +786,7 @@ verticle runFn
             -> ({vertx is ~Vertx, container is ~Container} -> 'a)) 
             -> ( () -> ~Verticle) =
    (class IYetiVerticle extends Verticle 
-        var stopFn = \(failWith "No stopfuntion assigned yet"),
+        var stopFn = \(println "No stopfuntion assigned yet"),
         
         void start()
             stopFn := 
