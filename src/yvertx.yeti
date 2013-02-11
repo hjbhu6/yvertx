@@ -1620,7 +1620,7 @@ toEitherJsonMessageHandler fn =
                       else 
                           "error but no message" 
                       fi;
-                fn (returnNone emg);
+                fn (failNone emg);
             else
                 fn (Some  
                     {message = msg is ~Message,
@@ -1751,7 +1751,7 @@ requestMessageFromBus address msg handler =
 requestFromBus address msg handler =
     (load yeb.async;
     ((requestMessageFromBus address msg)
-        |> bindSome (return . Some . (.body))) handler);
+        |> bind (return . (.body))) handler);
 
 /**
  * Group: eventbus

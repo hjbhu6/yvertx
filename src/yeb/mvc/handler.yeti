@@ -486,9 +486,9 @@ createRequestWorkers numberOfWorkers yebHandlerFactoryFn =
         _ = fibre.register do {req,res}: handler req res done;
         ))
     |>parallel 
-    |>bindSome \(return (Some do req res:
+    |>bind \(return do req res:
         fibre.send {req, res};
-    done)));
+    done));
 
 /**
  * Creates a VertxHttpHandler which bridges to a number of worker
@@ -499,7 +499,7 @@ createYebHandler httpOpts numberOfWorkers handlerFn =
     load yvertx;
 
     createRequestWorkers numberOfWorkers handlerFn
-        |> bindSome (returnSome . httpToHandler httpOpts));
+        |> bind (return . httpToHandler httpOpts));
 
 
 /*

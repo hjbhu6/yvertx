@@ -31,7 +31,7 @@ typedef asyncFunction<a> = callback<a> -> ();
  * Arguments:
  *  value - value to which the created function will pass in the reciever
  */
-return v is either<'a> -> asyncFunction<'a> = 
+returnEither v is either<'a> -> asyncFunction<'a> = 
     do cb: cb v done;
 
 /**
@@ -42,19 +42,26 @@ return v is either<'a> -> asyncFunction<'a> =
  * Arguments:
  *  value - value to which the created function will pass in the reciever
  */
-returnSome v is 'a -> asyncFunction<'a> =
-    return (Some v);
+return v is 'a -> asyncFunction<'a> =
+    returnEither (Some v);
 
 class AsyncException(String msg) extends RuntimeException
 end;
+
+
+/**
+ * Group: async
+ * crates a None with Excpetion
+ */
+failNone msg = 
+    (import yeti.lang:FailureException;
+    (None ((new FailureException(msg is string)) as ~Exception)));
 
 /**
  * Group: async 
  * creates an AsyncException from a string
  */
-returnNone v = 
-    (import yeti.lang:FailureException;
-    None ((new FailureException(v is string)) as ~Exception));
+returnNone msg = returnEither (failNone msg);
 
 /**
  * Group: async
@@ -68,7 +75,7 @@ returnNone v =
  * returns the second callback funcion
  * asyncFunction - the first callback function in the sequence
  */
-bind fn cbfn
+bindEither fn cbfn
     is  (either<'a> -> asyncFunction<'b>) 
         -> asyncFunction<'a> -> asyncFunction<'b> =
     do cb:
@@ -76,7 +83,7 @@ bind fn cbfn
                 afn = try
                         fn a
                     catch Exception ex:
-                        return (None ex);
+                        returnEither (None ex);
                     yrt;
                 afn cb;
              done;
@@ -97,11 +104,11 @@ bind fn cbfn
  * returns the second callback funcion
  * asyncFunction - the first callback function in the sequence
  */
-bindSome fn cbfn
+bind fn cbfn
     is  ('a -> asyncFunction<'b>) 
         -> asyncFunction<'a> -> asyncFunction<'b> =
-    cbfn |> bind \case of
-        None msg: return (None msg);
+    cbfn |> bindEither \case of
+        None msg: returnEither (None msg);
         Some a: fn a;
         esac;
 
@@ -123,9 +130,9 @@ bindSome fn cbfn
 bindNone fn cbfn
     is  ( ~Exception -> asyncFunction<'b>) 
         -> asyncFunction<'a> -> asyncFunction<'b> =
-    cbfn |> bind \case of
+    cbfn |> bindEither \case of
         None ex: fn ex;
-        Some a: returnSome a;
+        Some a: return a;
         esac;
 
 /**
@@ -302,7 +309,6 @@ collectAsync inex cb is ('b -> 'a) -> asyncFunction<'a>=
 
 run stru = (stru.f1 ()) \();
 
-_awaitEx = returnNone "";
 
 /**
  * Group: async
@@ -313,10 +319,11 @@ _awaitEx = returnNone "";
  * If the timeout is 0 or negative blocks for ever
  */
 await timeoutMs asyncFn is number -> asyncFunction<'a> -> 'a =
-    (import java.util.concurrent:CountDownLatch,
+    (import java.lang.RuntimeException;
+    import java.util.concurrent:CountDownLatch,
                                  TimeUnit;
     latch = new CountDownLatch(1);
-    avalue = atomic _awaitEx;
+    avalue = atomic (failNone "notset");
     println "latch created";
     asyncFn do v:
         println "value set";
@@ -337,11 +344,12 @@ await timeoutMs asyncFn is number -> asyncFunction<'a> -> 'a =
 
 {
     //callback functions
+    failNone,
     return,
-    returnSome,
+    returnEither,
     returnNone,
     bind,
-    bindSome,
+    bindEither,
     bindNone,
     parallel,
     setAsync,
