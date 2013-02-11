@@ -481,7 +481,7 @@ createRequestWorkers numberOfWorkers yebHandlerFactoryFn =
     fibre = newFibre();
 
     [1 .. numberOfWorkers]
-    |>map \(newWorker 
+    |>map' \(newWorker 
         \(handler is handler = yebHandlerFactoryFn ();
         _ = fibre.register do {req,res}: handler req res done;
         ))
