@@ -20,6 +20,9 @@ import java.lang:ClassLoader,
                  Throwable,
                  Thread;
 
+import java.io.File;
+import java.net:URLDecoder,
+                URLClassLoader;
 
 import org.vertx.java.core.impl:VertxInternal;
 import org.vertx.java.deploy: Verticle;
@@ -43,9 +46,7 @@ class YetiVerticleFactory extends VerticleFactory
     String getLanguage() "yeti",
     
     boolean isFactoryFor(String main)
-        (strEnds? main ".yeti") 
-        or (strEnds? main ".teti")
-        or ((strEnds? main "YetiVerticle.class") and (strLength main > 18)),
+        (strEnds? main ".yeti"),
     
     Verticle createVerticle(String verticleName, ClassLoader loader)
         import yeb:YetiClassLoader;
@@ -66,13 +67,52 @@ class YetiVerticleFactory extends VerticleFactory
             else
                 false
             fi);
+        //the file name
+        fileName = 
+            (strReplace "." "/" 
+                (strLeft verticleName ((strLength verticleName) - 5)))
+            ^ strRight verticleName ((strLength verticleName) - 5);
         
-        //create the yeti classloader
-        cl = new YetiClassLoader(loader,[],true);
+        resourceURL = loader#getResource(fileName);
+        if not defined? resourceURL then
+            failWith "no verticle found for \(fileName) given \(verticleName)";
+        fi;
+        sourceFile = 
+            new File(URLDecoder#decode(resourceURL#getFile(), "UTF-8"));
+        
+        if not sourceFile#canRead() then
+            failWith ("can not read file \(sourceFile#getAbsolutePath())"
+                    ^"current dir is: \((new File("."))#getAbsolutePath())");
+        fi;
+        
+        //the targetdir
+        targetDir = 
+            (load yeb.std;
+            name = "vertx_yeti_classes_"
+                ^ hashSHA1 sourceFile#getAbsolutePath();
+            tmpDir = new File(System#getProperty("java.io.tmpdir"));
+            newFile = new File(tmpDir, name);
+            if not newFile#exists() then
+                _ = newFile#mkdirs();
+            fi;
+            newFile#deleteOnExit();
+            newFile);
+        
+        //compile with current loader
         ocl = Thread#currentThread()#getContextClassLoader();
-        Thread#currentThread()#setContextClassLoader(cl);
+        Thread#currentThread()#setContextClassLoader(loader);
         try
-        
+            eval = load yeti.lang.compiler.eval;
+            println "[yetic] Compiling to: \(targetDir#getAbsolutePath())";
+            eval.compileYetiFiles [To targetDir#getAbsolutePath(),
+                                   Warn println] 
+                                  [] [sourceFile#getAbsolutePath()];
+
+            cl = new URLClassLoader(array [targetDir#toURI()#toURL()],
+                                       loader);
+            Thread#currentThread()#setContextClassLoader(cl);
+
+            //create the url classLoader
             {className,functionName}  = 
                 (pa = if strEnds? verticleName ".yeti" 
                     or strEnds? verticleName ".teti" then
@@ -117,6 +157,7 @@ class YetiVerticleFactory extends VerticleFactory
         finally
             Thread#currentThread()#setContextClassLoader(ocl);
         yrt,
+
     void reportException(Throwable t)
         manager#getLogger()#error("Exception in Yeti verticle script", t),
 

@@ -677,7 +677,7 @@ newFibre () =
 
     mutex = new Object();
     var listeners = [];
-    curListeners = atomic [];
+    var curListeners = [];
     {
         /**
          * register a function which gets called when a value is 
@@ -702,24 +702,29 @@ newFibre () =
             synchronized mutex do:
                 listeners := listeners 
                 |> filter ((same? (ob as ~Object)) . (as ~Object)) 
+                |> array
                 |> list;
+                curListeners := [];
             done,
         
         /**
          * send a value to one of the lisenenrs
          */
         send v = 
-            l = curListeners.value;
-            if empty? l then
-                ll = synchronized mutex \(listeners);
-                if not empty? ll then
-                    curListeners.value := (tail ll);
-                    (head ll) v;
-                fi
-            else
-                curListeners.value := tail l;
-                (head l) v;
-            fi,
+            (fn = synchronized mutex \(
+                if empty? listeners then
+                    \();
+                else
+                    if empty? curListeners then
+                        curListeners := tail listeners;
+                        head listeners;
+                    else
+                        r = head curListeners;
+                        curListeners := tail curListeners;
+                        r
+                    fi
+                fi);
+            fn v),
             
         /**
          * send a value to all the listeners
@@ -786,7 +791,7 @@ verticle runFn
             -> ({vertx is ~Vertx, container is ~Container} -> 'a)) 
             -> ( () -> ~Verticle) =
    (class IYetiVerticle extends Verticle 
-        var stopFn = \(failWith "No stopfuntion assigned yet"),
+        var stopFn = \(println "No stopfuntion assigned yet"),
         
         void start()
             stopFn := 

@@ -19,18 +19,50 @@ module server;
 
 
 load yeb.std;
+load yeb.async;
 load yeb.mvc.handler;
 load yvertx;
 
 router = newRouter id;
 
 router.get "/" do req res: 
-    writeHtml "Hello World!" |> res;
+    println "received request";
+    writeHtml req "Hello World!" |> res;
 done;
 
 verticle do:
-    println "running server";
-    server = createYebHttpServer [] 20 router.newHandler;
-    server#listen(8080);
+    /*fibre2 = newFibre();
+    _ = fibre2.register (println . ("fibre2/1:"^));
+    fibre2.send("foo");
+    _ = fibre2.register (println . ("fibre2/2:"^));
+    fibre2.send("foo2");
+    fibre = newFibre();
+    parallel ([1..20] |> map' do n:
+        newWorker do: 
+            println "worker made \(n)";
+            _ = fibre.register do m: println "worker\(n): \(m)"; done;
+        done
+    done) \(println "sending......";
+            for [1..10] fibre.send);
+    println "running servier";
+    createRequestWorkers 2 \do q r: println q done do yebHandler:
+        println "handler gotten \(yebHandler)";
+    done;
+        ;
+    println "handler created";*/
+
+    createRequestWorkers 1 \(do req res: println req done)
+        \case of
+        Some ha:
+            server = createHttpServerWithHandler (httpToHandler [] ha);
+            println "server started";
+            server#listen(8080);
+            ();
+        None _ : ()
+        esac;
+    //println "server started";
+    //    (httpToHandler [] yebHandler);
+    //server = createYebHttpServer [] 1 \do req res: println req done;
+    //server#listen(8080);
     \();
 done;
