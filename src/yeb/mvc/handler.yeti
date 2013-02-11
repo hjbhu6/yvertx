@@ -494,14 +494,12 @@ createRequestWorkers numberOfWorkers yebHandlerFactoryFn =
  * Creates a VertxHttpHandler which bridges to a number of worker
  * yebHandlers
  */
-createYebHttpServer httpOpts numberOfWorkers handlerFn =
+createYebHandler httpOpts numberOfWorkers handlerFn =
     (load yeb.async;
     load yvertx;
 
-    yebHandler = await 0  
-        (createRequestWorkers numberOfWorkers handlerFn);
-    vertxHandler = httpToHandler httpOpts yebHandler;
-    createHttpServerWithHandler vertxHandler);
+    createRequestWorkers numberOfWorkers handlerFn
+        |> bindSome (returnSome . httpToHandler httpOpts));
 
 
 /*
@@ -557,7 +555,7 @@ requestFromBusHandler handler msg =
     requestToBusMessage,
     createRequestWorkers,
 
-    createYebHttpServer,
+    createYebHandler,
 
 }
 

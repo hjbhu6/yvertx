@@ -317,11 +317,15 @@ await timeoutMs asyncFn is number -> asyncFunction<'a> -> 'a =
                                  TimeUnit;
     latch = new CountDownLatch(1);
     avalue = atomic _awaitEx;
+    println "latch created";
     asyncFn do v:
+        println "value set";
         avalue.value := v;
         latch#countDown();
+        println "latch counted down";
     done;
     if timeoutMs < 1 then
+        println "awaiting latch";
         latch#await();
     elif not latch#await(timeoutMs,TimeUnit#MILLISECONDS) then
         failWith "timeout"
@@ -330,7 +334,6 @@ await timeoutMs asyncFn is number -> asyncFunction<'a> -> 'a =
     None ex: throw (ex is ~Exception);
     Some v: v;
     esac);
-
 
 {
     //callback functions
@@ -343,6 +346,4 @@ await timeoutMs asyncFn is number -> asyncFunction<'a> -> 'a =
     parallel,
     setAsync,
     collectAsync,
-    run,
-    await,
 }

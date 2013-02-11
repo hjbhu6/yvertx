@@ -51,6 +51,7 @@ verticle do:
         ;
     println "handler created";*/
 
+    /*
     createRequestWorkers 1 \(do req res: println req done)
         \case of
         Some ha:
@@ -59,10 +60,13 @@ verticle do:
             server#listen(8080);
             ();
         None _ : ()
-        esac;
-    //println "server started";
+        esac;*/
     //    (httpToHandler [] yebHandler);
-    //server = createYebHttpServer [] 1 \do req res: println req done;
-    //server#listen(8080);
+    createYebHandler [] 1 \do req res: println req done \case of
+        None ex: throw (ex is ~Exception);
+        Some h:
+            server = createHttpServerWithHandler h;
+            _ = server#listen(8080);
+    esac;
     \();
 done;
