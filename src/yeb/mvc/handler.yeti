@@ -412,8 +412,8 @@ _routerFact oldVhs =
         jsonStruct regex opts stru = 
             add (regexHandler (All regex) (jsonStructAdapter opts stru)),
 
-        lazy regex moduleName = 
-            add ((regexHandler (All regex)) (lazyHandler moduleName)),
+        //lazy regex moduleName = 
+        //    add ((regexHandler (All regex)) (lazyHandler moduleName)),
 
         newHandler () =
             runHandlers (vhs ++ oldVhs),
