@@ -8,17 +8,18 @@ a letter to Creative Commons, 444 Castro Street, Suite 900, Mountain View, Calif
 
 # Writing Verticles
 
-We previously discussed how a verticle is the unit of deployment in vert.x. Let's look in more detail about how to write a verticle.
+We previously discussed how a verticle is the unit of deployment in vert.x. 
+Let's look in more detail about how to write a verticle.
 
-As an example we'll write a simple TCP echo server. The server just accepts connections and any data received by it is echoed back on the connection.
+As an example we'll write a simple TCP echo server. The server just accepts 
+connections and any data received by it is echoed back on the connection.
 
 Copy the following into a text editor and save it as `server.yeti`
 
     load yvertx;
-    net = load yvertx.net;
 
-    do {vertx, container}:
-        server = net.createServerWithHandler vertx do sock:
+    verticle do:
+        server = createNetServerWithHandler do sock:
             (newPump sock sock)#start();
         done;
         server#listen(1234, "localhost");
@@ -38,33 +39,56 @@ And notice how data you send (and hit enter) is echoed back to you.
 
 Congratulations! You've written your first verticle.
         
-## Loading other scripts.
+## Loading other the yvertx module.
 
-To load other scripts from within your verticle you use the `load` function. The argument to `load` is the name of the script you want to load. You can use `load` to load any other scripts in your verticle, or to load system scripts such as `vertx.js` which are always available to verticles.
-
-If you want to access the vert.x core API from within your verticle (which you almost certainly want to do), you need to call `load('vertx.js')` at the top of your script. Normally this will be the first thing at the top of your verticle main. `vert.js` is just the name of the script that contains the core API.
+If you want to access the vert.x core API from within your verticle 
+(which you almost certainly want to do), you need to call `load yvertx` at 
+the top of your script. Normally this will be the first thing at the 
+top of your verticle main. `yvertx` is just the name of the module that 
+contains the core API.
 
 ## Verticle clean-up
 
-Servers, clients and event bus handlers will be automatically closed when the verticles is stopped, however if you need to provide any custom clean-up code when the verticle is stopped you can provide a `vertxStop` top-level function. Vert.x will then call this when the verticle is stopped. 
+Servers, clients and event bus handlers will be automatically closed when the 
+verticles is stopped. However if you need to provide any custom clean-up code 
+you put it into the function returned from the verticle creation function. 
+This function will be invoked when the verticle stops. 
         
+    yvertx = load yvertx;
+
+    yvertx.verticle do:
+        //verticle start code goes here
+        
+        //after start code, return the stop-function which gets called
+        //when the verticle is called
+        do: 
+            //stop code goes here
+        done
+    done;
+    
 ## Getting Configuration in a Verticle
 
-If JSON configuration has been passed when deploying a verticle from either the command line using `vertx run` or `vertx deploy` and specifying a configuration file, or when deploying programmatically, that configuration is available to the verticle in the `vertx.config` variable. For example:
+If JSON configuration has been passed when deploying a verticle from either 
+the command line using `vertx run` or `vertx deploy` and specifying 
+a configuration file, or when deploying programmatically, that configuration 
+is available to the verticle in the `vertx.config` variable. For example:
 
-    var config = vertx.config;
+    config = yvertx.config ();
     
-    stdout.println("Config is " + JSON.stringify(config));
+    println "Config is \(config)";
     
-The config returned is a JSON object. You can use this object to configure the verticle. Allowing verticles to be configured in a consistent way like this allows configuration to be easily passed to them irrespective of the language.
+The config returned is an struct which is generated from an underlying JSON 
+object. You can use this struct to configure the verticle. Allowing verticles 
+to be configured in a consistent way like this allows configuration to be 
+easily passed to them irrespective of the language.
 
 ## Logging from a Verticle
 
 Each verticle is given its own logger. :
 
-    var logger = vertx.logger;
+    logger = yvertx.logger;
     
-    logger.info("I am logging something");
+    logger#info("I am logging something");
     
 The logger has the functions:
 
@@ -77,112 +101,130 @@ The logger has the functions:
 
 Which have the normal meanings you would expect.
 
-The log files by default go in a file called `vertx.log` in the system temp directory. On my Linux box this is `\tmp`.
+The log files by default go in a file called `vertx.log` in the system temp 
+directory. On my Linux box this is `\tmp`.
 
 For more information on configuring logging, please see the main manual.
 
 ## Accessing environment variables from a Verticle
 
-You can access environment variables from a Verticle with the variable `vertx.env`.
+You can access enviroment veriables using `yvertx.enviroment` which
+returns a hash<string,string> of all the environment variables.
 
-## stdout and stderr in a Verticle
-
-The variables `stdout` and `stderr` are injected into all verticles. Unsurprisingly, you use these to print to stdout and stderr.
-
-    stdout.println("Hello from the verticle");
-   
 # Deploying and Undeploying Verticles Programmatically
 
-You can deploy and undeploy verticles programmatically from inside another verticle. Any verticles deployed programmatically inherit the path of the parent verticle. 
+You can deploy and undeploy verticles programmatically from inside another 
+verticle. Any verticles deployed programmatically inherit the path of 
+the parent verticle. 
 
 ## Deploying a simple verticle
 
-To deploy a verticle programmatically call the function `vertx.deployVerticle`. The return value of `vertx.deployVerticle` is the unique id of the deployment, which can be used later to undeploy the verticle.
+To deploy a verticle programmatically call the function 
+`yvertx.deployVerticle`. The return value of `vertx.deployVerticle` is the 
+unique id of the deployment, which can be used later to undeploy the verticle.
 
-To deploy a single instance of a verticle :
+To deploy a verticle :
 
-    vertx.deployVerticle('my_verticle.js');  
+    yvertx.deployVerticle name config numberOfInstances finishedCallback;
+
+Ie to deploy one instance of the verticle `server.yeti`
+
+    yvertx.deployVerticle 
+        "server.yeti" 
+        {for_json = E()}
+        1
+        do: println "finished deploy" done;
     
 ## Deploying a module programmatically
 
 You should use `deployModule` to deploy a module, for example:
 
-    container.deployModule("vertx.mailer-v1.0", config);
+    yvertx.deployModule name config numberOfInstances finishedCallback;
 
-Would deploy an instance of the `vertx.mailer` module with the specified configuration. Please see the modules manual
- for more information about modules.
+It works like deployVerticle just for modules. Please see the modules manual 
+for more information about modules.
     
 ## Passing configuration to a verticle programmatically   
   
-JSON configuration can be passed to a verticle that is deployed programmatically. Inside the deployed verticle the configuration is accessed with the `vertx.getConfig` function. For example:
+Configuration can be passed to a verticle that is deployed 
+programmatically. The configuration is written as a struct which is converted
+by yvertx to JSON. Inside the deployed verticle the configuration is accessed 
+with the `yvertx.config` function. For example:
 
-    var config = { name: 'foo', age: 234 };
-    vertx.deployVerticle('my_verticle.js', config); 
+    config = { name= 'foo', age = 234, for_json = E() };
+    yvertx.deployVerticle
+        'server.yeti'
+        config
+        1
+        \(); 
             
-Then, in `my_verticle.js` you can access the config via `vertx.getConfig` as previously explained.
+Then, in `server.yeti` you can access the config via `yvertx.config ()` 
+as previously explained.
+    
+## Specifying number of instances
+
+You can specify the number of instances of a verticle to deploy, when you 
+deploy a verticle:
+
+    vertx.deployVerticle 'my_verticle.js' emptyJS 5 \();   
+  
+The above example would deploy 5 instances.
+
+## Getting Notified when Deployment is complete
+
+The actual verticle deployment is asynchronous and might not complete until 
+some time after the call to `deployVerticle` has returned. When the verticle 
+has completed being deployed, you get notified throgh the handler you pass 
+as the final argument to `deployVerticle`:
+
+    yvertx.deployVerticle 'my_verticle.js' emptyJS 10 do:
+        yvertx.logger#info("It's been deployed!");
+    done;  
     
 ## Using a Verticle to co-ordinate loading of an application
 
-If you have an application that is composed of multiple verticles that all need to be started at application start-up, then you can use another verticle that maintains the application configuration and starts all the other verticles. You can think of this as your application starter verticle.
+If you have an application that is composed of multiple verticles that 
+all need to be started at application start-up, then you can use another 
+verticle that maintains the application configuration and starts all the other 
+verticles. You can think of this as your application starter verticle.
 
-For example, you could create a verticle `app.js` as follows:
+For example, you could create a verticle `app.yeti` as follows:
 
     // Application config
     
-    var appConfig = {
-        verticle1Config: {
+    appConfig = {
+        verticle1Config = {
             // Config for verticle1
         },
-        verticle2Config: {
+        verticle2Config = {
             // Config for verticle2
         }, 
-        verticle3Config: {
+        verticle3Config = {
             // Config for verticle3
-        },
-        verticle4Config: {
-            // Config for verticle4
-        },
-        verticle5Config: {
-            // Config for verticle5
-        }  
+        }
     }  
     
     // Start the verticles that make up the app  
     
-    vertx.deployVerticle("verticle1.js", appConfig.verticle1Config);
-    vertx.deployVerticle("verticle2.js", appConfig.verticle2Config, 5);
-    vertx.deployVerticle("verticle3.js", appConfig.verticle3Config);
-    vertx.deployWorkerVerticle("verticle4.js", appConfig.verticle4Config);
-    vertx.deployWorkerVerticle("verticle5.js", appConfig.verticle5Config, 10);
-        
+    yvertx.deployVerticle "verticle1.yeti", appConfig.verticle1Config 1 \();
+    vertx.deployVerticle "verticle2.js"  appConfig.verticle2Config 5 \();
+    vertx.deployVerticle "verticle3.yeti", appConfig.verticle3Config 1 \();
         
 Then you can start your entire application by simply running:
 
-    vertx run app.js
+    vertx run app.yeti
     
 or
     
-    vertx deploy app.js
+    vertx deploy app.yeti
                         
-## Specifying number of instances
 
-By default, when you deploy a verticle only one instance of the verticle is deployed. If you want more than one instance to be deployed, e.g. so you can scale over your cores better, you can specify the number of instances as follows:
-
-    vertx.deployVerticle('my_verticle.js', null, 10);   
-  
-The above example would deploy 10 instances.
-
-## Getting Notified when Deployment is complete
-
-The actual verticle deployment is asynchronous and might not complete until some time after the call to `deployVerticle` has returned. If you want to be notified when the verticle has completed being deployed, you can pass a handler as the final argument to `deployVerticle`:
-
-    vertx.deployVerticle('my_verticle.js', null, 10, function() {
-        log.info("It's been deployed!");
-    });  
-    
 ## Deploying Worker Verticles
 
-The `vertx.deployVerticle` method deploys standard (non worker) verticles. If you want to deploy worker verticles use the `vertx.deployWorkerVerticle` function. This function takes the same parameters as `vertx.deployVerticle` with the same meanings.
+The `vertx.deployVerticle` method deploys standard (non worker) verticles. 
+If you want to deploy worker verticles use the `vertx.deployWorkerVerticle` 
+function. This function takes the same parameters as `vertx.deployVerticle` 
+with the same meanings.
 
 ## Undeploying a Verticle
 
