@@ -1,4 +1,4 @@
 {
 	"main" : "yvertx.test.yeti",
-	"includes" : "org.yvertx.yvertx-yeti-lang-impl-v0"
+	"includes" : "main"
 }

@@ -224,15 +224,15 @@ done,
         done;
 done,
 
-"cb:returnSome" : do rs:
-   (returnSome 2) do v: rs.assure "" ((Some 2) == v) done;
+"cb:return" : do rs:
+   (return 2) do v: rs.assure "" ((Some 2) == v) done;
 done,
 
-"cb:bindSome" : do rs:
+"cb:bind" : do rs:
     r = do cb: cb (Some 1) done
-    |> bindSome do x:
+    |> bind do x:
         rs.assert "" (x == 1);
-        do cb2: cb2 (returnNone "f") done
+        do cb2: cb2 (failNone "f") done
     done;
     r \case of
         None ex: rs.assure "" true;
@@ -253,8 +253,8 @@ done,
     done;
     handlers = adresses |> map do adr:
         requestMessageFromBus adr emptyJS 
-        |>bindSome do {body} : 
-            returnSome body.value 
+        |>bind do {body} : 
+            return body.value 
         done;
     done;
     parallel handlers (maybe () do res:
@@ -273,9 +273,9 @@ done,
 
     cfn = collectAsync do s:{
          a = setAsync s
-            (requestFromBus "adr1" emptyJS |> bindSome (returnSome . (.value))),
+            (requestFromBus "adr1" emptyJS |> bind (return . (.value))),
          b = setAsync s
-            (requestFromBus "adr2" emptyJS |> bindSome (returnSome . (.value))),
+            (requestFromBus "adr2" emptyJS |> bind (return . (.value))),
         }done;
         
     cfn (maybe () do r :
