@@ -219,6 +219,155 @@ runHandlers handlers req responder is list<handler> -> handler =
     fi;
 
 /**
+ * Converts the request parameters to a struct. 
+ * The parameters of the request are converted to a struct. Parametes starting
+ * with 'num_' are converted to number values, witho "bool_" to boolean-values.
+ * The 'num_' and 'bool_' values are stripped of the name.
+ *
+ * If the request has content-type "form-url-encoded" than the body is also
+ * added to the parameters. If the content-type is "application/json/ then
+ * the body is converted to a JsonObject and added as "body" to the struct.
+ *
+ * The resulting struct is set as values field on the request struct and
+ * than the given handler is called.
+ *
+ * The optional special parameter '_function' is set as functionName on to
+ * the request-struct. It is not part of values struct.
+ *
+ * Arguments:
+ * options - defaultValues and/or default funcitonName
+ * handler - handler to call with the result
+ */
+requestToStruct opts nextHandler is 'o -> 'h -> handler =
+    (load yeb.validation;
+    yvertx = load yvertx;
+
+    values = [:];
+    var functionName = "";
+    for opts \case of
+        Defaults ha: insertHash values (ha is hash<string,list<string>>);
+        DefaultFunction n: functionName := n;
+    esac;
+
+    do req res:
+        import org.vertx.java.core.json:JsonObject,
+                                        JsonArray;
+        import org.vertx.java.core.eventbus:Message;
+        
+        readFormData req;
+
+        insertHash values req.params;
+
+
+        jo = new JsonObject();
+        forHash values do k v:
+            _ = if strStarts? k "num_" then
+                name = strRight k 4;
+                value = valiList strToNum (req.params[k]);
+                if length value == 1 then
+                    jo#putNumber(name, (head value) is number);
+                else
+                    ja = new JsonArray();
+                    for value do v:
+                        _ = ja#add(v);
+                    done;
+                    jo#putArray(name, ja);
+                fi;
+            elif strStarts? k "bool_" then
+                name = strRight k 5;
+                value = valiList strToBoolean (req.params[k]);
+                if length value == 1 then
+                    jo#putBoolean(name, head value);
+                else
+                    ja = new JsonArray();
+                    for value do v:
+                        _ = ja#add(v);
+                    done;
+                    jo#putArray(name, ja);
+                fi;
+            elif k == "_function" and
+                length (req.params[k]) > 0 then
+                functionName := head req.params[k];
+            else
+                name = k;
+                value = req.params[k];
+                if length value == 1 then
+                    jo#putString(name, head value);
+                else
+                    ja = new JsonArray();
+                    for value do v:
+                        _ = ja#add(v);
+                    done;
+                    jo#putArray(name, ja);
+                fi;
+            fi;
+        done;
+
+        if "Content-Type" in req.headers
+            and req.headers["Content-Type"] =~ "application/json" then
+            //read the body and parse it as jons
+            json = new JsonObject(fromUTF8 req.body);
+            jo#putObject("body",json);
+        fi;
+
+
+        result = {functionName,
+                values = yvertx.fromJS jo};
+        nextHandler req result res;
+        
+   done); 
+
+jsonStructAdapter opts stru is 'a -> {jsonStru is boolean} -> handler =
+    (import yeti.lang:Fun;
+    fnHash = (
+        ret = [:];
+        {fields, value} = case peekObject stru of
+            Struct r: r;
+            _ : failWith "this is not realy possible"
+        esac;
+        
+        fields 
+            |> filter do fin:
+                fold do b n: b or (strStarts? fin n) done 
+                    false 
+                    ["get_", "put_", "post_", "delete_", "all_"]
+            done
+            |> (flip for) do n:
+                case value n of
+                Object ob: 
+                    if (ob is ~Object) instanceof Fun then
+                        ret[n] := (ob unsafely_as ~Fun)
+                    fi;
+                _ : ()
+                esac;
+            done;
+        ret);
+    
+    requestToStruct opts do req {functionName, values} res:
+        {method} = req;
+        sname = (strLower method)^"_"^functionName;
+        
+        call fno = 
+            (fn = (fno is ~Object) unsafely_as ('a -> 'b);
+            js = fn values;
+            js = js with {for_json = E()};
+            res (writeJsonResponse (req as request) js));
+             
+
+        if sname in fnHash then
+            call fnHash[sname];
+        else
+            sname = "all_"^functionName;
+            if sname in fnHash then
+                call fnHash[sname]
+            else
+               res continue; 
+            fi
+        fi;
+        
+    done);
+
+/**
  * Loads a handler from a module by name
  */
 lazyHandler moduleName  is string -> handler =
@@ -244,24 +393,19 @@ lazyHandler moduleName  is string -> handler =
         done;
     fi);
 
-_routerFact oldVhs adapter= 
+_routerFact oldVhs = 
    (vhs = array [];
     {
-		get adapter () = adapter,
         add handler =
-            push vhs (adapter handler),
+            push vhs handler,
         
-        pattern regex handler = add ((regexHandler regex) handler),
-        get = do regex handler:
-            add ((regexHandler (Get regex)) handler)
-        done,
-        post regex handler = add ((regexHandler (Post regex)) handler),
-        put regex handler = add ((regexHandler (Put regex)) handler),
-        delete regex handler = add ((regexHandler (Delete regex)) handler),        
-        options regex handler = add ((regexHandler (Options regex)) handler),
-        head regex handler = add ((regexHandler (Head regex)) handler),
-        
-        all regex handler = add ((regexHandler (All regex)) handler),        
+        handle regex handler = add ((regexHandler regex) handler),
+
+        convert regex handler = 
+            add ((regexHandler regex) (requestToStruct [] handler)),  
+
+        jsonStruct regex opts stru = 
+            add (regexHandler (All regex) (jsonStructAdapter opts stru)),
 
         lazy regex moduleName = 
             add ((regexHandler (All regex)) (lazyHandler moduleName)),
@@ -269,8 +413,8 @@ _routerFact oldVhs adapter=
         newHandler () =
             runHandlers (vhs ++ oldVhs),
 
-        newSubRouter adapter =
-            _routerFact (vhs ++ oldVhs) adapter,
+        newSubRouter () =
+            _routerFact (vhs ++ oldVhs),
     });
     
 /**
@@ -278,11 +422,11 @@ _routerFact oldVhs adapter=
  *
  * ie to specify differen request handlings do:
  * :router = newRouter id;
- * :router.get "index" do ctxt: //handle get request done
- * :router.post "someform" do ctxt: //handle post request done
+ * :router.get "index" do req res: //handle get request done
+ * :router.post "someform" do req res: //handle post request done
  * :router.add customHandler; //use to add a handler which is always executed
  * :
- * :handler = router.handler; //cunstructs an handler for all the routes
+ * :handler = router.newHandler; //cunstructs an handler for all the routes
  *
  * The router will than try to match any route in the order given and execute
  * the handlerfunction if it fits.
@@ -295,7 +439,7 @@ _routerFact oldVhs adapter=
  * - Handling "" means that the right handler was found but the async RequestContext
  *   is kept open for further processing by the handler
  *
- * The router creates itself a handler with .handler. This handler can be used
+ * The router creates itself a handler with .newHandler. This handler can be used
  * directly in yebWebMain.handler or can be given to another router (with .add)
  * 
  * The adapter parameter is a function whith transforms each given handler to 
@@ -303,122 +447,16 @@ _routerFact oldVhs adapter=
  *
  * ie to make sure each request is of a certain locale and has a logged in user:
  * 
- * :router = newRouter do handler ctxt:
- *       userId = (session ctxt)#getAttribute("userid")
- *       if defined? userId then
- *          handler (ctxt with {user = loadUserFromDb userId})
- *       else
- *          redirectView "login" ctxt
- *       fi
- *    done;
- * :router.get "members"
  */
  
-newRouter adapter = _routerFact [] adapter;
+newRouter () = _routerFact [];
 
-/**
- * Creates an handler which pushes the requeparameters on the eventbus as 
- * JsonObject. If the request content is also an json object than this
- * is also part of the message
- */
-requestToBusMessage opts is 'o -> handler =
-    (load yeb.validation;
-    load yvertx;
-    var defaultBusTarget = none;
-    var busPrefix = "ajaxbridge.";
-    var bodyName = "body";
-    for opts \case of
-        BusTarget s: defaultBusTarget := Some s;
-        BusPrefix s: busPrefix := s;
-        BodyName s: bodyName := s;
-    esac;
-
-
-    eventbus = (getVertx())#eventBus();
-    do req respond:
-        try
-        //first the target
-        case defaultBusTarget of
-        Some n : Some n;
-        None _ : maybeAt \none (maybeHead \none Some) "bustarget" req.params;
-        esac
-        |> \case of
-        None _: respond continue;
-        Some busTarget:
-            //write all the params
-            import org.vertx.java.core.json:JsonObject,
-                                            JsonArray;
-            import org.vertx.java.core.eventbus:Message;
-            jo = new JsonObject();
-            forHash req.params do k v:
-                _ = if strStarts? k "num_" then
-                    name = strRight k 4;
-                    value = valiList strToNum (req.params[k]);
-                    if length value == 1 then
-                        jo#putNumber(name, (head value) is number);
-                    else
-                        ja = new JsonArray();
-                        for value do v:
-                            _ = ja#add(v);
-                        done;
-                        jo#putArray(name, ja);
-                    fi;
-                elif strStarts? k "bool_" then
-                    name = strRight k 5;
-                    value = valiList strToBoolean (req.params[k]);
-                    if length value == 1 then
-                        jo#putBoolean(name, head value);
-                    else
-                        ja = new JsonArray();
-                        for value do v:
-                            _ = ja#add(v);
-                        done;
-                        jo#putArray(name, ja);
-                    fi;
-                else
-                    name = k;
-                    value = req.params[k];
-                    if length value == 1 then
-                        jo#putString(name, head value);
-                    else
-                        ja = new JsonArray();
-                        for value do v:
-                            _ = ja#add(v);
-                        done;
-                        jo#putArray(name, ja);
-                    fi;
-                fi;
-            done;
-
-            if "Content-Type" in req.headers
-                and req.headers["Content-Type"] =~ "application/json" then
-                //read the body and parse it as jons
-                json = new JsonObject(fromUTF8 req.body);
-                name = maybeAt \bodyName (maybeHead \bodyName id) 
-                        "body-name" req.params;
-                jo#putObject(name,json);
-            fi;
-    
-            eventbus#send(busPrefix^busTarget, jo,
-                toEitherJsonMessageHandler \case of
-                    None _:
-                        respond (response req 401 [:] noneBody);
-                    Some r:
-                        respond (write req "application/json" 
-                                        (string (r.message is ~Message)#body))
-                    esac);
-        esac;
-        catch Exception ex:
-            respond (None ex)
-        yrt
-
-    done);
 
 /**
  * Takes a yebhandler and creates a vertx HttpHandler.
  * used to Brigde between Vertx http and yeb.
  */
-httpToHandler opts yebhandler =
+yebHandlerToVertxHandler opts yebhandler =
     (import org.vertx.java.core.http:HttpServerRequest;
     load yvertx;
     fileHandler = serveStaticFileAtPath opts;
@@ -494,12 +532,12 @@ createRequestWorkers numberOfWorkers yebHandlerFactoryFn =
  * Creates a VertxHttpHandler which bridges to a number of worker
  * yebHandlers
  */
-createYebHandler httpOpts numberOfWorkers handlerFn =
+createYebHandler httpOpts numberOfWorkers yebHandlerFactoryFn =
     (load yeb.async;
     load yvertx;
 
-    createRequestWorkers numberOfWorkers handlerFn
-        |> bind (return . httpToHandler httpOpts));
+    createRequestWorkers numberOfWorkers yebHandlerFactoryFn
+        |> bind (return . yebHandlerToVertxHandler httpOpts));
 
 
 /*
@@ -544,15 +582,15 @@ requestFromBusHandler handler msg =
 */
 (load yeb.mvc.webutils) with {
 
-
     urlPatternToRegex,
 
     regexHandler,
     
     newRouter,
 
-    httpToHandler,
-    requestToBusMessage,
+    requestToStruct,
+    
+    yebHandlerToVertxHandler, 
     createRequestWorkers,
 
     createYebHandler,

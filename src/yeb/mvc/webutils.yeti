@@ -259,8 +259,8 @@ newWriter () =
 writeHtml req content =
     write req "text/html" content;
 
-//writeJson req json =
-//    write req "application/json" ((load org.yeb.json).write [] json);
+writeJsonResponse req json =
+    write req "application/json" (writeJson json);
 
 cacheForSeconds seconds mustRevalidate res = 
     (headers = res.headers;
@@ -524,7 +524,7 @@ setFlash name value req =
     write,
     newWriter,
     writeHtml,
-    //writeJson,
+    writeJsonResponse,
     cacheForSeconds,
     parseHttpDate,
     formatHttpDate,
