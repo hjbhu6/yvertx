@@ -322,17 +322,24 @@ await timeoutMs asyncFn is number -> asyncFunction<'a> -> 'a =
     (import java.lang.RuntimeException;
     import java.util.concurrent:CountDownLatch,
                                  TimeUnit;
+    import org.vertx.java.core.impl:VertxInternal;
+    import org.vertx.java.deploy.impl:VertxLocator;
+
     latch = new CountDownLatch(1);
     avalue = atomic (failNone "notset");
     println "latch created";
-    asyncFn do v:
-        println "value set";
-        avalue.value := v;
-        latch#countDown();
-        println "latch counted down";
-    done;
+
+    //run the async function in it's own context otherwise
+    //it will never be called because the latch will block
+    _ = ((VertxLocator#vertx) unsafely_as ~VertxInternal)
+            #startInBackground(runnable do:
+        asyncFn do v:
+            avalue.value := v;
+            latch#countDown();
+        done;
+    done);
+
     if timeoutMs < 1 then
-        println "awaiting latch";
         latch#await();
     elif not latch#await(timeoutMs,TimeUnit#MILLISECONDS) then
         failWith "timeout"
