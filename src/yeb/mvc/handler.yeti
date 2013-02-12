@@ -603,6 +603,5 @@ requestFromBusHandler handler msg =
     createRequestWorkers,
 
     createYebHttpServer,
-
 }
 
