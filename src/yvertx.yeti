@@ -818,6 +818,7 @@ deployModule name config instances handler =
                                             toJS config, 
                                             instances is number, 
                                             toStringHandler handler);
+
 /**
  * Group: container
  * Deploy a verticle progammatically
@@ -835,6 +836,25 @@ deployVerticle name config instances handler=
                                                 toJS config, 
                                                 instances is number, 
                                                 toStringHandler handler);
+
+/**
+ * Group: container
+ * Deploy a worker verticle progammatically
+ *
+ * Calls ~Container#deployWorkerVerticle
+ *
+ * Arguments:
+ * verticleName - name of the verticle to deploy
+ * config - JSON config to provide to the verticle (given as struct)
+ * instances - number of instances
+ * handler - called when succesful deploid. The handler is given the uniqueid
+ */
+deployWorkerVerticle name config instances handler= 
+    (getContainer ())#deployWorkerVerticle(name is string, 
+                                                toJS config, 
+                                                instances is number, 
+                                                toStringHandler handler);
+
 /**
  * Group: container
  * The config given to this verticle
@@ -2095,6 +2115,7 @@ fileSystem = ({
 
     deployModule, 
     deployVerticle, 
+    deployWorkerVerticle,
     config, 
 
     /**
