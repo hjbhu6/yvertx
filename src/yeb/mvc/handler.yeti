@@ -537,13 +537,14 @@ createRequestWorkers numberOfWorkers yebHandlerFactoryFn =
  * Creates a VertxHttpHandler which bridges to a number of worker
  * yebHandlers
  */
-createYebHandler httpOpts numberOfWorkers yebHandlerFactoryFn =
+createYebHttpServer timeOutMs httpOpts numberOfWorkers yebHandlerFactoryFn =
     (load yeb.async;
     load yvertx;
 
     createRequestWorkers numberOfWorkers yebHandlerFactoryFn
-        |> bind (return . yebHandlerToVertxHandler httpOpts));
-
+        |> bind (return . yebHandlerToVertxHandler httpOpts)
+        |> await timeOutMs
+        |> createHttpServerWithHandler);
 
 /*
 requestToJson req = 
@@ -598,7 +599,7 @@ requestFromBusHandler handler msg =
     yebHandlerToVertxHandler, 
     createRequestWorkers,
 
-    createYebHandler,
+    createYebHttpServer,
 
 }
 

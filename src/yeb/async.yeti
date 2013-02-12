@@ -327,7 +327,6 @@ await timeoutMs asyncFn is number -> asyncFunction<'a> -> 'a =
 
     latch = new CountDownLatch(1);
     avalue = atomic (failNone "notset");
-    println "latch created";
 
     //run the async function in it's own context otherwise
     //it will never be called because the latch will block
@@ -361,4 +360,5 @@ await timeoutMs asyncFn is number -> asyncFunction<'a> -> 'a =
     parallel,
     setAsync,
     collectAsync,
+    await,
 }

@@ -23,10 +23,11 @@ load yeb.async;
 load yeb.mvc.handler;
 load yvertx;
 
-router = newRouter id;
+router = newRouter ();
 
-router.get "/" do req res: 
-    println "received request";
+router.handle 
+(Get "/") do req res: 
+    println "received request \(req)";
     writeHtml req "Hello World!" |> res;
 done;
 
@@ -62,11 +63,8 @@ verticle do:
         None _ : ()
         esac;*/
     //    (httpToHandler [] yebHandler);
-    createYebHandler [] 1 \do req res: println req done \case of
-        None ex: throw (ex is ~Exception);
-        Some h:
-            server = createHttpServerWithHandler h;
-            _ = server#listen(8080);
-    esac;
+    server = createYebHttpServer 0 [] 1 router.newHandler;
+    println "server running";
+    server#listen(8080);
     \();
 done;
