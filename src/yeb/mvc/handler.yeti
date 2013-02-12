@@ -317,6 +317,11 @@ requestToStruct opts nextHandler is 'o -> 'h -> handler =
         
    done); 
 
+/**
+ * creates a handler which converts the request to struct using
+ * the 'requestToStruc' function and than invoces a function on the given
+ * structure according to the name with the value.
+ */
 jsonStructAdapter opts stru is 'a -> {jsonStru is boolean} -> handler =
     (import yeti.lang:Fun;
     fnHash = (
