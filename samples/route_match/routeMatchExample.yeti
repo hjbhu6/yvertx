@@ -15,7 +15,7 @@
  */
 module routeMatchExample;
 
-load yvertx;
+load yeb.yvertx;
 
 verticle do :
     rm = newRouteMatcher ();

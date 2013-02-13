@@ -14,7 +14,7 @@
  * and limitations under the License.
  */
 
-module yvertx;
+module yeb.yvertx;
 
 import java.lang:Exception,
                  Runnable,

@@ -16,7 +16,7 @@
 
 module websocketsExample;
 
-load yvertx;
+load yeb.yvertx;
 
  
 import org.vertx.java.core.Handler;

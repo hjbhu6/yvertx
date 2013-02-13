@@ -14,7 +14,7 @@
  * and limitations under the License.
  */
 
-module yvertx.testutils;
+module yeb.yvertx.testutils;
 
 import org.vertx.java.core:Vertx;
 import org.vertx.java.core.buffer:Buffer;
@@ -22,7 +22,7 @@ import org.vertx.java.deploy:Container;
 import org.vertx.java.testframework:TestUtils;
 
 
-load yvertx;
+load yeb.yvertx;
 
 _runTestsImpl tests resultO allResults vertx container =
     if empty? tests then

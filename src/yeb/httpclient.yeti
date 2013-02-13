@@ -227,7 +227,7 @@ coreRequest httpClient opts url handler =
 request httpClient opts url handler =
     (import com.ning.http.client:Response;
     load yeb.async;
-    yvertx = load yvertx;
+    yvertx = load yeb.yvertx;
     ctxt = yvertx.context;
     h = do a:
         ctxt#execute(runnable \((handler is callback<~Response>) a))

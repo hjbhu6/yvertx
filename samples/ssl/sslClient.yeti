@@ -16,7 +16,7 @@
 
 module sslClient; 
 
-load yvertx;
+load yeb.yvertx;
 
 verticle do :
     _ = createAndConnectNetClient "localhost:1234" 

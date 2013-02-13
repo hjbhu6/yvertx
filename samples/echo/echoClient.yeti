@@ -18,7 +18,7 @@ module echoClient;
  
 import org.vertx.java.core.buffer.Buffer;
 
-load yvertx;
+load yeb.yvertx;
 
 verticle do :
     _ = createAndConnectNetClient "localhost:1234" \() \() do socket:

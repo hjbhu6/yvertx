@@ -16,7 +16,7 @@
 
 module clientExample;
  
-load yvertx;
+load yeb.yvertx;
 
 import java.lang.Exception;
 import org.vertx.java.core.Handler;

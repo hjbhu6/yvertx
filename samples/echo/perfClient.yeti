@@ -18,7 +18,7 @@ module perfClient;
 
 import org.vertx.java.core:Vertx;
 
-load yvertx;
+load yeb.yvertx;
 
 import java.lang:System;
 

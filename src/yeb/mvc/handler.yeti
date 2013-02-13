@@ -36,6 +36,7 @@ load yeb.async;
 load yeb.mvc.webutils;
 load yeb.validation;
 
+yvertx = load yeb.yvertx;
 
 //HandlerAdapters
 
@@ -240,7 +241,6 @@ runHandlers handlers req responder is list<handler> -> handler =
  */
 requestToStruct opts nextHandler is 'o -> 'h -> handler =
     (load yeb.validation;
-    yvertx = load yvertx;
 
     values = [:];
     var functionName = "";
@@ -463,19 +463,18 @@ newRouter () = _routerFact [];
  */
 yebHandlerToVertxHandler opts yebhandler =
     (import org.vertx.java.core.http:HttpServerRequest;
-    load yvertx;
-    fileHandler = serveStaticFileAtPath opts;
+    fileHandler = yvertx.serveStaticFileAtPath opts;
     do reqO:            
-        bodyHandler (reqO is ~HttpServerRequest) do buffer:
+        yvertx.bodyHandler (reqO is ~HttpServerRequest) do buffer:
             
             req = {
-                headers = requestHeaders reqO,
+                headers = yvertx.requestHeaders reqO,
                 uri = reqO#uri,
                 path = reqO#path,
                 method = reqO#method,
                 params = 
                     ret = [:];
-                    forHash (params reqO) do k v: ret[k]:=[v] done;
+                    forHash (yvertx.params reqO) do k v: ret[k]:=[v] done;
                     ret,
                 body = buffer#getBytes(),
                 resHeaders = [:],
@@ -496,9 +495,9 @@ yebHandlerToVertxHandler opts yebhandler =
                             fileHandler path reqO;
                         else
                             reqO#response#statusCode := res.statusCode;
-                            putResponseHeaders reqO res.headers;
+                            yvertx.putResponseHeaders reqO res.headers;
                             if not res.body == noneBody then
-                                buffer = newByteBuffer res.body;
+                                buffer = yvertx.newByteBuffer res.body;
                                 reqO#response#putHeader("Content-Length", 
                                         string buffer#length());
                                 reqO#response#write(buffer);
@@ -522,12 +521,11 @@ yebHandlerToVertxHandler opts yebhandler =
  */
 createRequestWorkers numberOfWorkers yebHandlerFactoryFn = 
     (load yeb.async;
-    load yvertx;
 
-    fibre = newFibre();
+    fibre = yvertx.newFibre();
 
     [1 .. numberOfWorkers]
-    |>map' \(newWorker 
+    |>map' \(yvertx.newWorker 
         \(handler is handler = yebHandlerFactoryFn ();
         _ = fibre.register do {req,res}: handler req res done;
         ))
@@ -542,12 +540,11 @@ createRequestWorkers numberOfWorkers yebHandlerFactoryFn =
  */
 createYebHttpServer timeOutMs httpOpts numberOfWorkers yebHandlerFactoryFn =
     (load yeb.async;
-    load yvertx;
 
     createRequestWorkers numberOfWorkers yebHandlerFactoryFn
         |> bind (return . yebHandlerToVertxHandler httpOpts)
         |> await timeOutMs
-        |> createHttpServerWithHandler);
+        |> yvertx.createHttpServerWithHandler);
 
 /*
 requestToJson req = 

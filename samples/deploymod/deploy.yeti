@@ -1,6 +1,6 @@
 module deploy;
 
-load yvertx;
+load yeb.yvertx;
 
 verticle do :
     println "Deploying module";

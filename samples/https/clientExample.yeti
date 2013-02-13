@@ -18,7 +18,7 @@ module clientExample;
 
 import org.vertx.java.core.buffer.Buffer;
  
-load yvertx;
+load yeb.yvertx;
 load yeb.std;
 
 verticle do :

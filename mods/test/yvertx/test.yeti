@@ -6,9 +6,9 @@ import org.vertx.java.core.file:FileProps;
 load yeb.std;
 load yeb.async;
 
-load yvertx;
+load yeb.yvertx;
 
-load yvertx.testutils;
+load yeb.yvertx.testutils;
 
 
 fileDir = "../../target/yeti-test-output";

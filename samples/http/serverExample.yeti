@@ -16,7 +16,7 @@
 
 module serverExample;
 
-load yvertx;
+load yeb.yvertx;
  
 
 verticle do :
