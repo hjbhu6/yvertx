@@ -28,10 +28,8 @@ eval = load yeti.lang.compiler.eval;
 
 
 
-parseTeti src fileName =
-   (moduleName = strReplace "/" "." (strLeft fileName (strLength fileName - 5));
-    
-    tokens = matchAll '(<\?=)|(<\?)|(\?>)'
+parseTeti src =
+   (tokens = matchAll '(<\?=)|(<\?)|(\?>)'
         (avoid ((not) . defined?) . (++ ['']) . tail)
         id
         src;
@@ -79,8 +77,7 @@ parseTeti src fileName =
            (result = endToken :: result;
             strJoin "" (reverse result));
         esac;
-    ret = "module \(moduleName);" 
-        ^ (compile true "" tokens []); 
+    ret = compile true "" tokens []; 
     //println ret;
     ret);
 
@@ -153,11 +150,11 @@ tetiSourceReader reader arg =
             arg.name := oldN;
             undef_str
         else
-            parseTeti r2 arg.name;
+            parseTeti r2;
             //TetiParser#parseTeti(arg.name, r2)
         fi;
     elif strEnds? arg.name ".teti" then
-        parseTeti r arg.name;
+        parseTeti r;
         //TetiParser#parseTeti(arg.name,r);
     else
         r
