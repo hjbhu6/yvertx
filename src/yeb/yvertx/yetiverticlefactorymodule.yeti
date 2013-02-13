@@ -34,7 +34,6 @@ ycl = load yeb.yeticlassloadermodule;
 
 tetiReader pathS = 
     (import yeti.lang.compiler:CompileException;
-    println "pathS \(pathS)";
     yetiF = if defined? pathS.parent then
             new File(pathS.parent is string, pathS.name is string);
         else
