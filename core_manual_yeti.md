@@ -6,6 +6,25 @@ a letter to Creative Commons, 444 Castro Street, Suite 900, Mountain View, Calif
 
 [TOC]
 
+# Yvertx: Yeti on Vertx
+
+Yvertx is a yeti api for vertx. Yeti is a statically typed functional 
+language for the JVM.
+
+Yvertx is just a wrapper around the vertx Java api. It is itself written in 
+Yeti only. So everything Yvertx provides can be acomplished by using the vertx
+Java api direclty - albeit less convinient. 
+
+Often it is even necessary to use the Java Api directly because Yvertx
+only wraps the parts of the Java api, where it pays of in terms of convinience.
+
+To make working from yeti with the java api easier Yvertx provides two 
+fundamental utilities which are used through all the vertx api: Converting 
+JSONObjects to/from yeti structs and creating Vertx Handlers from yeti 
+functions.
+
+## Working with JSONObject
+
 # Writing Verticles
 
 We previously discussed how a verticle is the unit of deployment in vert.x. 
@@ -129,7 +148,7 @@ To deploy a verticle :
 
 Ie to deploy one instance of the verticle `server.yeti`
 
-    yvertx.deployVerticle 
+    _ = yvertx.deployVerticle 
         "server.yeti" 
         {for_json = E()}
         1
@@ -152,7 +171,7 @@ by yvertx to JSON. Inside the deployed verticle the configuration is accessed
 with the `yvertx.config` function. For example:
 
     config = { name= 'foo', age = 234, for_json = E() };
-    yvertx.deployVerticle
+    _ = yvertx.deployVerticle
         'server.yeti'
         config
         1
@@ -166,7 +185,7 @@ as previously explained.
 You can specify the number of instances of a verticle to deploy, when you 
 deploy a verticle:
 
-    vertx.deployVerticle 'my_verticle.js' emptyJS 5 \();   
+    _ = yvertx.deployVerticle 'my_verticle.js' emptyJS 5 \();   
   
 The above example would deploy 5 instances.
 
@@ -177,7 +196,7 @@ some time after the call to `deployVerticle` has returned. When the verticle
 has completed being deployed, you get notified throgh the handler you pass 
 as the final argument to `deployVerticle`:
 
-    yvertx.deployVerticle 'my_verticle.js' emptyJS 10 do:
+    _ = yvertx.deployVerticle 'my_verticle.js' emptyJS 10 do:
         yvertx.logger#info("It's been deployed!");
     done;  
     
@@ -206,9 +225,9 @@ For example, you could create a verticle `app.yeti` as follows:
     
     // Start the verticles that make up the app  
     
-    yvertx.deployVerticle "verticle1.yeti", appConfig.verticle1Config 1 \();
-    vertx.deployVerticle "verticle2.js"  appConfig.verticle2Config 5 \();
-    vertx.deployVerticle "verticle3.yeti", appConfig.verticle3Config 1 \();
+    _ = yvertx.deployVerticle "verticle1.yeti", appConfig.verticle1Config 1 \();
+    _ = yvertx.deployVerticle "verticle2.js"  appConfig.verticle2Config 5 \();
+    _ = yvertx.deployVerticle "verticle3.yeti", appConfig.verticle3Config 1 \();
         
 Then you can start your entire application by simply running:
 
@@ -221,29 +240,40 @@ or
 
 ## Deploying Worker Verticles
 
-The `vertx.deployVerticle` method deploys standard (non worker) verticles. 
-If you want to deploy worker verticles use the `vertx.deployWorkerVerticle` 
-function. This function takes the same parameters as `vertx.deployVerticle` 
+The `yvertx.deployVerticle` method deploys standard (non worker) verticles. 
+If you want to deploy worker verticles use the `yvertx.deployWorkerVerticle` 
+function. This function takes the same parameters as `yvertx.deployVerticle` 
 with the same meanings.
 
 ## Undeploying a Verticle
 
-Any verticles that you deploy programmatically from within a verticle, and all of their children are automatically undeployed when the parent verticle is undeployed, so in most cases you will not need to undeploy a verticle manually, however if you do want to do this, it can be done by calling the function `vertx.undeployVerticle` passing in the deployment id that was returned from the call to `vertx.deployVerticle`
+Any verticles that you deploy programmatically from within a verticle, 
+and all of their children are automatically undeployed when the parent 
+verticle is undeployed, so in most cases you will not need to undeploy a 
+verticle manually, however if you do want to do this, it can be done by 
+calling the function `vertx.undeployVerticle` passing in the deployment id 
+that was returned from the call to `vertx.deployVerticle`
 
-    var deploymentID = vertx.deployVerticle('my_verticle.js');    
+    var deploymentID = vertx.deployVerticle 'my_verticle.js' emptyJS 1 \();    
     
-    vertx.undeployVerticle(deploymentID);    
+    yvertx.undeployVerticle deploymentID ;    
 
             
 # The Event Bus
 
 The event bus is the nervous system of vert.x.
 
-It allows verticles to communicate with each other irrespective of what language they are written in, and whether they're in the same vert.x instance, or in a different vert.x instance. It even allows client side JavaScript running in a browser to communicate on the same event bus. (More on that later).
+It allows verticles to communicate with each other irrespective of what 
+language they are written in, and whether they're in the same vert.x instance, 
+or in a different vert.x instance. It even allows client side JavaScript 
+running in a browser to communicate on the same event bus. 
+(More on that later).
 
-It creates a distributed polyglot overlay network spanning multiple server nodes and multiple browsers.
+It creates a distributed polyglot overlay network spanning multiple server 
+nodes and multiple browsers.
 
-The event bus API is incredibly simple. It basically involves registering handlers, unregistering handlers and sending messages.
+The event bus API is incredibly simple. It basically involves registering 
+handlers, unregistering handlers and sending messages.
 
 First some theory:
 
@@ -253,37 +283,60 @@ First some theory:
 
 Messages are sent on the event bus to an *address*.
 
-Vert.x doesn't bother with any fancy addressing schemes. In vert.x an address is simply a string, any string is valid. However it is wise to use some kind of scheme, e.g. using periods to demarcate a namespace.
+Vert.x doesn't bother with any fancy addressing schemes. In vert.x an address 
+is simply a string, any string is valid. However it is wise to use some kind 
+of scheme, e.g. using periods to demarcate a namespace.
 
-Some examples of valid addresses are `europe.news.feed1`, `acme.games.pacman`, `sausages`, and `X`.
+Some examples of valid addresses are `europe.news.feed1`, 
+`acme.games.pacman`, `sausages`, and `X`.
 
 ### Handlers
 
-A handler is a thing that receives messages from the bus. You register a handler at an address.
+A handler is function that receives messages from the bus. 
+You register a handler at an address.
 
-Many different handlers from the same or different verticles can be registered at the same address. A single handler can be registered by the verticle at many different addresses.
+Many different handlers from the same or different verticles can be 
+registered at the same address. A single handler can be registered by the 
+verticle at many different addresses.
 
 ### Publish / subscribe messaging
 
-The event bus supports *publishing* messages. Messages are published to an address. Publishing means delivering the message to all handlers that are registered at that address. This is the familiar *publish/subscribe* messaging pattern.
+The event bus supports *publishing* messages. Messages are published to an 
+address. Publishing means delivering the message to all handlers that are 
+registered at that address. This is the familiar *publish/subscribe* messaging 
+pattern.
 
 ### Point to point messaging
 
-The event bus supports *point to point* messaging. Messages are sent to an address. This means a message is delivered to *at most* one of the handlers registered at that address. If there is more than one handler regsitered at the address, one will be chosen using a non-strict round-robin algorithm.
+The event bus supports *point to point* messaging. Messages are sent to 
+an address. This means a message is delivered to *at most* one of the handlers 
+registered at that address. If there is more than one handler regsitered at 
+the address, one will be chosen using a non-strict round-robin algorithm.
 
-With point to point messaging, an optional reply handler can be specified when sending the message. When a message is received by a recipient, and has been *processed*, the recipient can optionally decide to reply to the message. If they do so that reply handler will be called.
+With point to point messaging, an optional reply handler can be specified 
+when sending the message. When a message is received by a recipient, and has 
+been *processed*, the recipient can optionally decide to reply to the message.
+If they do so that reply handler will be called.
 
-When the reply is received back at the sender, it too can be replied to. This can be repeated ad-infinitum, and allows a dialog to be set-up between two different verticles. This is a common messaging pattern called the *Request-Response* pattern.
+When the reply is received back at the sender, it too can be replied to. 
+This can be repeated ad-infinitum, and allows a dialog to be set-up between 
+two different verticles. 
+This is a common messaging pattern called the *Request-Response* pattern.
 
 ### Transient
 
-*All messages in the event bus are transient, and in case of failure of all or parts of the event bus, there is a possibility messages will be lost. If your application cares about lost messages, you should code your handlers to be idempotent, and your senders to retry after recovery.*
+*All messages in the event bus are transient, and in case of failure of all 
+or parts of the event bus, there is a possibility messages will be lost. If 
+your application cares about lost messages, you should code your handlers to 
+be idempotent, and your senders to retry after recovery.*
 
-If you want to persist your messages you can use a persistent work queue module for that.
+If you want to persist your messages you can use a persistent work queue m
+odule for that.
 
 ### Types of messages
 
-Messages that you send on the event bus can be as simple as a string, a number or a boolean. You can also send vert.x buffers or JSON messages.
+Messages that you send on the event bus can be as simple as a string, 
+a number or a boolean. You can also send vert.x buffers or JSON messages.
 
 It's highly recommended you use JSON messages to communicate between verticles. JSON is easy to create and parse in all the languages that vert.x supports.
 
