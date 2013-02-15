@@ -34,19 +34,16 @@ ycl = load yeb.yeticlassloadermodule;
 
 tetiReader pathS = 
     (import yeti.lang.compiler:CompileException;
-    yetiF = if defined? pathS.parent then
-            new File(pathS.parent is string, pathS.name is string);
-        else
-            new File(pathS.name);
-        fi;
+    parentS = if defined? pathS.parent then
+        pathS.parent as ~String;
+    else
+        () as ~String
+    fi;
+    yetiF = new File(parentS, pathS.name is string);
 
     tetiName =  strLeft pathS.name (strLength pathS.name - 5)   
             ^ ".teti";
-    tetiF = if defined? pathS.parent then
-            new File(pathS.parent, tetiName);
-        else
-            new File(tetiName);
-        fi;
+    tetiF = new File(parentS, tetiName);
 
     if yetiF#exists()  then
         if tetiF#exists() then
