@@ -41,7 +41,8 @@ yvertx = load yeb.yvertx;
 //HandlerAdapters
 
 
-
+_patternMatchAll = 
+        matchAll '(/?\.?):([A-Za-z0-9]+)(\$([^\$]+)\$)?(\?)?' (Token . tail) Text;
 
 /**
  * Transform an url pattern to a regex. Patterns are used in routers to 
@@ -57,7 +58,7 @@ yvertx = load yeb.yvertx;
  * ie to specify that id should only contain digits:
  * :/entry/:id$d+$
  */
-urlPatternToRegex pat = 
+patternToRegex pat = 
    (//:a-z is name
     //:a-z? is optional
     //* at end means rest
@@ -71,40 +72,31 @@ urlPatternToRegex pat =
                     pat;
                fi;
                
-    tokens = matchAll '(/?\.?):(\w+)(\$([^\$]+)\$)?(\?)?' (Token . tail) Text paS;
+    tokens = _patternMatchAll paS;
     
-    names = tokens 
-        |> map do t:
-            case t of
-            Token [leading, name, foo, regex, mark]: Some name;
-            _ : none;
-            esac
-        done
-        |> catSome
-        |> array;
     
     reg = tokens
     |> map do x:
         case x of
-        Token [leading, name, foo, regex, mark]:
+        Token [leading, name, _, regex, mark]:
            (reg = if defined? regex and (strLength regex > 0) then 
                     regex;
                   else
                     '[^/\.]+'
                   fi;
-            reg2 = "(?<\(name)>\(reg))";
+            reg = "(?<\(name)>\(reg))";
             
             if defined? mark then
                 if defined? leading then
-                    "(?:\(Pattern#quote(leading))" ^ reg2 ^ ")?" ;
+                    "(?:\(Pattern#quote(leading))" ^ reg ^ ")?" ;
                 else
-                    reg2 ^ "?";
+                    reg ^ "?";
                 fi;
             else
                 if defined? leading then
-                    Pattern#quote(leading) ^ reg2
+                    Pattern#quote(leading) ^ reg
                 else
-                    reg2;
+                    reg;
                 fi;
             fi);
         Text tx:
@@ -115,26 +107,21 @@ urlPatternToRegex pat =
     |> strJoin "";
     
     regex = if strEnds? pat "/*" then
-        push names "rest";
         reg ^ '(?:/(?<rest>.*))?'
     else
         reg
     fi;
-    
-    {
-        names = nub names,
-        regex
-    }
-    );
+    regex);
 
-    
+_nameMatchAll = matchAll '\?\<([A-Za-z0-9]+)\>' 
+                        (Some . ((flip at) 1)) None;     
 
-regexHandlerImpl method regexPattern handler  = 
+_regexHandler method regex handler  = 
    (import java.util.regex.Pattern;
     meth = strUpper method;
     var checkMethod? = meth != "ALL";
     
-    {names, regex} = urlPatternToRegex regexPattern;
+    names = _nameMatchAll regex |> catSome;
     pattern = Pattern#compile(regex);
 
     do req res:
@@ -158,7 +145,15 @@ regexHandlerImpl method regexPattern handler  =
                          else
                             []
                          fi;
-                    params[name] := (string matcher#group(name)) :: ls;
+                    try
+                        v = matcher#group(name);
+                        if defined? v and strLength (string v) > 0 then
+                            params[name] := v :: ls;
+                        fi;
+                    catch IllegalArgumentException ex:
+                        println 
+                            "matcher for regex \(regex) has not name \(name)";
+                    yrt;        
                 done;
 
                 //set the new pathInfo and servletPath
@@ -177,29 +172,39 @@ regexHandlerImpl method regexPattern handler  =
         fi;
     done);
 
+_methodPattern requestUrl = 
+    case requestUrl of
+    Get us: pair "GET" us;
+    Post us: pair "POST" us;
+    Put us: pair "PUT" us;
+    Delete us: pair "DELETE" us;
+    Options us: pair "OPTIONS" us;
+    Head us: pair "HEAD" us;
+    All us: pair "ALL" us;
+    General {method, pattern} : pair method pattern;
+    esac;
+
+
 /**
- * Handleradapter which takes a request method and path pattern and 
+ * Handleradapter which takes a request method and a regexpattern and 
  * executes on match the given handler. 
  * Normally this is not used directly but a router is used.
- * The path pattern is the same as described in urlPatternToRegex.
  *
- * to handle the Get request for index:
- * :regexHandler (Get "index") do ctxt: ....; Completed "" done;
  */
-regexHandler requestUrl handler = 
-   ({fst = meth , snd = regexPattern} = 
-        case requestUrl of
-        Get us: pair "GET" us;
-        Post us: pair "POST" us;
-        Put us: pair "PUT" us;
-        Delete us: pair "DELETE" us;
-        Options us: pair "OPTIONS" us;
-        Head us: pair "HEAD" us;
-        All us: pair "ALL" us;
-        General {method, pattern} : pair method pattern;
-        esac;
-    regexHandlerImpl meth regexPattern handler);
-    
+regexHandler regex handler =
+    (pa = _methodPattern regex;
+    _regexHandler pa.fst pa.snd handler);
+
+/**
+ * Handleradapter which takes a request method and a pattern 
+ * (see patternToRegex) and 
+ * executes on match the given handler. 
+ * Normally this is not used directly but a router is used.
+ */
+patternHandler pattern handler =
+    (pa = _methodPattern pattern;
+    _regexHandler pa.fst (patternToRegex pa.snd) handler);
+
 runHandlers handlers req responder is list<handler> -> handler =
     if empty? handlers then
         responder continue;
@@ -398,13 +403,18 @@ lazyHandler moduleName  is string -> handler =
         done;
     fi);
 
+
 _routerFact oldVhs = 
    (vhs = array [];
     {
         add handler =
             push vhs handler,
         
-        handle regex handler = add ((regexHandler regex) handler),
+        pattern patternStr handler =
+            add (patternHandler patternStr handler),
+        
+        regex regexI handler = 
+            add (regexHandler regexI handler),
 
         convert regex handler = 
             add ((regexHandler regex) (requestToStruct [] handler)),  
@@ -588,9 +598,10 @@ requestFromBusHandler handler msg =
 */
 (load yeb.mvc.webutils) with {
 
-    urlPatternToRegex,
+    patternToRegex,
 
     regexHandler,
+    patternHandler,
     
     newRouter,
 
