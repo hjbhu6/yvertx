@@ -14,7 +14,7 @@
  * and limitations under the License.
  */
 
-module yeb.mvc.handler;
+module yeb.mvc.middleware;
 
 
 
