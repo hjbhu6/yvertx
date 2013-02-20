@@ -54,7 +54,7 @@ yvertx = load yeb.yvertx;
  * options - defaultValues and/or default funcitonName
  * route - route to call with the result
  */
-requestToStruct opts nextHandler is 'o -> 'h -> route =
+structRoute opts nextHandler is 'o -> 'h -> route =
     (load yeb.validation;
 
     values = [:];
@@ -137,7 +137,7 @@ requestToStruct opts nextHandler is 'o -> 'h -> route =
  * the 'requestToStruc' function and than invoces a function on the given
  * structure according to the name with the value.
  */
-jsonStructAdapter opts stru is 'a -> {jsonStru is boolean} -> route =
+restRoute opts stru is 'a -> {jsonStru is boolean} -> route =
     (import yeti.lang:Fun;
     fnHash = (
         ret = [:];
@@ -163,7 +163,7 @@ jsonStructAdapter opts stru is 'a -> {jsonStru is boolean} -> route =
             done;
         ret);
     
-    requestToStruct opts do req {functionName, values} res:
+    structRoute opts do req {functionName, values} res:
         {method} = req;
         sname = (strLower method)^"_"^functionName;
         
@@ -187,100 +187,12 @@ jsonStructAdapter opts stru is 'a -> {jsonStru is boolean} -> route =
         
     done);
 
-/**
- * Loads a route from a module by name
-lazyHandler moduleName  is string -> route =
-   (var myHandler is (Some route | None () ) = none;
-    loadHandler () = (
-        cl = Thread#currentThread()#getContextClassLoader()#loadClass(moduleName);
-        mod = cl#getMethod(
-            "eval",() as ~Class[])#invoke(() as ~Object, () as ~Object[]);
-        jmod = mod unsafely_as {route is route};
-        h = jmod.route;
-        myHandler := Some h;
-        h;
-    );
-    if not ((load yeb.mvc.config).webDynamicReload?) then
-        loadHandler();
-    else
-        do ctxt:
-            ha = case myHandler of
-                Some h: h;
-                None _ : loadHandler ();
-            esac;
-            ha ctxt;
-        done;
-    fi);
-
-
-_routerFact oldVhs = 
-   (vhs = array [];
-    {
-        add route =
-            push vhs route,
-        
-        pattern patternStr route =
-            add (patternHandler patternStr route),
-        
-        regex regexI route = 
-            add (regexHandler regexI route),
-
-        convert regex route = 
-            add ((regexHandler regex) (requestToStruct [] route)),  
-
-        jsonStruct regex opts stru = 
-            add (regexHandler (All regex) (jsonStructAdapter opts stru)),
-
-        //lazy regex moduleName = 
-        //    add ((regexHandler (All regex)) (lazyHandler moduleName)),
-
-        newHandler () =
-            runHandlers (vhs ++ oldVhs),
-
-        newSubRouter () =
-            _routerFact (vhs ++ oldVhs),
-    });
-*/    
-/**
- * Creates a router. A router is used to handle different requests.
- *
- * ie to specify differen request handlings do:
- * :router = newRouter id;
- * :router.get "index" do req res: //handle get request done
- * :router.post "someform" do req res: //handle post request done
- * :router.add customHandler; //use to add a route which is always executed
- * :
- * :route = router.newHandler; //cunstructs an route for all the routes
- *
- * The router will than try to match any route in the order given and execute
- * the routefunction if it fits.
- *
- * Each route function must return either 
- * - Completed if the request was handled by this route and the async Request
- *   context can be closed 
- * - NotHandled "" if the reuqest is not handled by this route and the next 
- *   routes/routes should be tried to match
- * - Handling "" means that the right route was found but the async RequestContext
- *   is kept open for further processing by the route
- *
- * The router creates itself a route with .newHandler. This route can be used
- * directly in yebWebMain.route or can be given to another router (with .add)
- * 
- * The adapter parameter is a function whith transforms each given route to 
- * another route. This adapter can be used to filter each request 
- *
- * ie to make sure each request is of a certain locale and has a logged in user:
- * 
- */
- 
-//newRouter () = _routerFact [];
-
 
 /**
  * Takes a yebroute and creates a vertx HttpHandler.
  * used to Brigde between Vertx http and yeb.
  */
-yebHandlerToVertxHandler opts yebroute =
+routeToHttpHandler opts yebroute =
     (import org.vertx.java.core.http:HttpServerRequest;
     fileHandler = yvertx.serveStaticFileAtPath opts;
     do reqO:            
@@ -361,7 +273,7 @@ createYebHttpServer timeOutMs httpOpts numberOfWorkers yebHandlerFactoryFn =
     (load yeb.async;
 
     createRequestWorkers numberOfWorkers yebHandlerFactoryFn
-        |> bind (return . yebHandlerToVertxHandler httpOpts)
+        |> bind (return . routeToHttpHandler httpOpts)
         |> await timeOutMs
         |> yvertx.createHttpServerWithHandler);
 
@@ -405,12 +317,12 @@ requestFromBusHandler route msg =
         respond res = msg.reply (Some  res)
         });
 */
-(load yeb.mvc.mvc) with {
+{
 
-
-    requestToStruct,
-    
-    yebHandlerToVertxHandler, 
+    restRoute,
+    structRoute,
+        
+    routeToHttpHandler, 
     createRequestWorkers,
 
     createYebHttpServer,
