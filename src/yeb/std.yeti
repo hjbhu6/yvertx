@@ -245,15 +245,27 @@ create hash is hash<'k, 'v> -> tableType<'k,'v> =
 
 /**
  * Group: digest
+ * calculates the hash for the given algorithm for the given bytes
+ * using java.security.MessageDigest
+ *
+ * Arguments:
+ * algorithm - the algorithm to use
+ * bytes - the message over which the hash sould be mad
+ */
+messageByteDigest algorithm message =
+    Digester#calc(algorithm is string, message is ~byte[]);
+
+/**
+ * Group: digest
  * calculates the hash for the given algorithm for the given messagen
  * using java.security.MessageDigest
  *
  * Arguments:
  * algorithm - the algorithm to use
- * message - the message over which the hash sould be mad
+ * message - the message-string over which the hash sould be mad
  */
 messageDigest algorithm message =
-    Digester#calc(algorithm is string, message is string);
+    messageByteDigest algorithm ((message is string) as ~String)#getBytes(); 
 
 {       
     messageDigest, 

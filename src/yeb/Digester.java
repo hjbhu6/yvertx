@@ -7,11 +7,12 @@ import java.security.MessageDigest;
 
 public class Digester 
 {
-    public static String calc(String algorithm, String message)
+
+    public static String calc(String algorithm, byte[] message)
 		throws Exception
     {
         MessageDigest md = MessageDigest.getInstance(algorithm);
-        md.update(message.getBytes());
+        md.update(message);
 		
         byte[] bytes = md.digest();
  
