@@ -58,14 +58,14 @@ oauthHandlers provider apiKey apiSecret callbackUrl opts =
         esac;
     
     
-    initHandler session exceptionHandler req = 
+    initHandler session exceptionHandler req res = 
         try
             token = service#getRequestToken();
             session["oauth.request_token"] := (token as ~Object);
             confirmURL = service#getAuthorizationUrl(token);
-            mvc.redirectView confirmURL req;
+            mvc.writeRedirect confirmURL req res;
         catch OAuthException ex:
-            exceptionHandler ex req
+            exceptionHandler ex req res
         yrt;
     
     handleCallback session req =

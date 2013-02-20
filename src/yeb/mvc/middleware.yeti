@@ -171,7 +171,7 @@ jsonStructAdapter opts stru is 'a -> {jsonStru is boolean} -> route =
             (fn = (fno is ~Object) unsafely_as ('a -> 'b);
             js = fn values;
             js = js with {for_json = E()};
-            res (writeJsonResponse (req as request) js));
+            writeJsonResponse js (req as request) res);
              
 
         if sname in fnHash then

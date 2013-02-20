@@ -173,14 +173,6 @@ getCookie headers name =
 
 
 
-response req statusCode headers body =
-    Some ({statusCode = statusCode, 
-     headers = 
-        (insertHash req.resHeaders headers;
-        (req is request).resHeaders),
-     body = body,
-     for_json = E()} is response); 
-
 params name req =
     if name in ((req is request).params) then
         req.params[name];
@@ -232,20 +224,26 @@ escape text =
      strJoin '' (matchAll '[<>&"]' escapeT id "\(text)"));
 
 //"     
+
+response req statusCode headers body =
+    Some ({statusCode = statusCode, 
+     headers = 
+        (insertHash req.resHeaders headers;
+        (req is request).resHeaders),
+     body = body,
+     for_json = E()} is response); 
+
     
-redirectView path req = 
-   (response req 301 ["Location":path] noneBody);
+writeRedirect path req res = 
+   res (response req 301 ["Location":path] noneBody);
 
-statusView status req = 
-    response req status [:] noneBody;
+writeStatus status req res = 
+    res (response req status [:] noneBody);
 
 
-okView req =
-    statusView 200 req;
-
-write req contentType content =
-    response  req 200 ["Content-Type":contentType^"; charset=utf-8"]
-        (toUTF8 content);
+write contentType content req res =
+    res (response  req 200 ["Content-Type":contentType^"; charset=utf-8"]
+        (toUTF8 content));
 
 newWriter () =
     (import java.lang.StringBuilder;
@@ -257,11 +255,11 @@ newWriter () =
         get value () = string stb#toString()
     });
 
-writeHtml req content =
-    write req "text/html" content;
+writeHtml content req res =
+    write "text/html" content req res;
 
-writeJsonResponse req json =
-    write req "application/json" (writeJson json);
+writeJsonResponse json req res =
+    write "application/json" (writeJson json) req res;
 
 cacheForSeconds seconds mustRevalidate res = 
     (headers = res.headers;
@@ -715,14 +713,16 @@ routes handlers req responder is list<route> -> route =
 
     isAjax,
     escape,
-    redirectView,
-    statusView,
-    okView,
+
+    writeRedirect,
+    writeStatus,
     write,
     newWriter,
     writeHtml,
     writeJsonResponse,
+    
     cacheForSeconds,
+    
     parseHttpDate,
     formatHttpDate,
     urlEncode,
