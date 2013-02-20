@@ -237,13 +237,20 @@ response req statusCode headers body =
 writeRedirect path req res = 
    res (response req 301 ["Location":path] noneBody);
 
-writeStatus status req res = 
-    res (response req status [:] noneBody);
 
+
+writeStatusType status contentType content req res =
+    res (response  req status ["Content-Type":contentType^"; charset=utf-8"]
+        (toUTF8 content));
 
 write contentType content req res =
-    res (response  req 200 ["Content-Type":contentType^"; charset=utf-8"]
-        (toUTF8 content));
+    writeStatusType 200 contentType content req res;
+
+writeStatus status content req res =
+    writeStatusType status "text/plain" content req res;
+
+write401 msg = writeStatus 401 msg;
+write500 msg = writeStatus 500 msg;
 
 newWriter () =
     (import java.lang.StringBuilder;
@@ -716,6 +723,9 @@ routes handlers req responder is list<route> -> route =
 
     writeRedirect,
     writeStatus,
+    write500,
+    write401,
+    writeStatusType,
     write,
     newWriter,
     writeHtml,

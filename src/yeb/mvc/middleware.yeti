@@ -30,8 +30,55 @@ load yeb.validation;
 
 yvertx = load yeb.yvertx;
 
-//HandlerAdapters
 
+
+
+route500 logger msg router req resF =
+    try
+        router req do res:
+            case res of
+            None ex: 
+                logger ex;
+                writeStatus 500 msg req resF;
+            Some res:
+                if res.statusCode == 500 then
+                    writeStatus 500 msg req resF;
+                else
+                    resF (Some res)
+                fi
+            esac
+        done
+    catch Exception ex:
+        logger ex;
+        writeStatus 500 msg req resF
+    yrt;
+
+interceptStatusRoute status newStatus msg router req resF =
+    router req \case of
+        None ex: resF (None ex);
+        Some res:
+            if res.statusCode == status then
+                writeStatus newStatus msg req resF;
+            else
+                resF (Some res);
+            fi
+        esac;
+    
+route401 msg = interceptStatusRoute 401 401 msg;
+
+ifReq fn route req res =
+    if fn req then
+        route req res
+    else
+        continue
+    fi;
+
+ifAll op conditions route req res = 
+    if fold do r cfn: op r (cfn req) done true conditions then
+        route req res
+    else
+        continue;
+    fi;
 
 
 /**
@@ -318,6 +365,10 @@ requestFromBusHandler route msg =
         });
 */
 {
+    ifAll,
+    ifReq,
+    route401,
+    route500,
 
     restRoute,
     structRoute,
