@@ -19,8 +19,9 @@ module yeb.mvc.mvc;
 import java.lang:Character,
                  Long;
 import java.util:Locale;
+import java.util.regex:Pattern;
 import java.net:URLEncoder, 
-        URLDecoder;
+            URLDecoder;
 
 import org.owasp.esapi:ESAPI,HTTPUtilitiess;
     
@@ -491,9 +492,199 @@ setFlash name value req =
 */
 
 
+///////////////////////////////////////////////
+//route things
+_patternMatchAll = 
+        matchAll '(/?\.?):([A-Za-z0-9]+)(\$([^\$]+)\$)?(\?)?' (Token . tail) Text;
+
+/**
+ * Transform an url pattern to a regex. Patterns are used in routers to 
+ * specify path pattern which should be handled.
+ *
+ * ie for the pattern:
+ * :/entry/:id/:date
+ * becomes the regex
+ * :/entry/([^/]+)/([^/]+)/(.*)
+ * and the matched parts are exposed as request-parameters
+ *
+ * to specify a custom regex put it between $ $ after the name of the part.
+ * ie to specify that id should only contain digits:
+ * :/entry/:id$d+$
+ */
+patternToRegex pat = 
+   (//:a-z is name
+    //:a-z? is optional
+    //* at end means rest
+    //$marks start regex $ marks end regex
+    
+    import java.util.regex.Pattern;
+    
+    paS = if strEnds? pat "/*" then 
+                    strLeft pat (strLength pat - 2)
+               else
+                    pat;
+               fi;
+               
+    tokens = _patternMatchAll paS;
+    
+    
+    reg = tokens
+    |> map do x:
+        case x of
+        Token [leading, name, _, regex, mark]:
+           (reg = if defined? regex and (strLength regex > 0) then 
+                    regex;
+                  else
+                    '[^/\.]+'
+                  fi;
+            reg = "(?<\(name)>\(reg))";
+            
+            if defined? mark then
+                if defined? leading then
+                    "(?:\(Pattern#quote(leading))" ^ reg ^ ")?" ;
+                else
+                    reg ^ "?";
+                fi;
+            else
+                if defined? leading then
+                    Pattern#quote(leading) ^ reg
+                else
+                    reg;
+                fi;
+            fi);
+        Text tx:
+           (Pattern#quote(tx));
+        _ : failWith "should not happen";
+        esac
+    done
+    |> strJoin "";
+    
+    regex = if strEnds? pat "/*" then
+        reg ^ '(?:/(?<rest>.*))?'
+    else
+        reg
+    fi;
+    regex);
+
+_nameMatchAll = matchAll '\?\<([A-Za-z0-9]+)\>' 
+                        (Some . ((flip at) 1)) None;     
+
+_regexRoute method regex handler  = 
+   (import java.util.regex.Pattern;
+    meth = strUpper method;
+    var checkMethod? = meth != "ALL";
+    
+    names = _nameMatchAll regex |> catSome;
+    pattern = Pattern#compile(regex);
+
+    do req res:
+        if checkMethod? and (meth != (strUpper req.method )) then
+            res continue;
+        else
+            matcher = pattern#matcher(req.path is string);
+            if matcher#matches() then
+                //add the paramters
+                params = copy req.params;
+                urlParams = array [];
+                for [0..matcher#groupCount()] do c:
+                    push urlParams matcher#group(c);
+                done;
+                params["urlPrams"] := list urlParams;
+                
+                //add the named parameters
+                for names do name:
+                    ls = if name in params then
+                            params[name];
+                         else
+                            []
+                         fi;
+                    try
+                        v = matcher#group(name);
+                        if defined? v and strLength (string v) > 0 then
+                            params[name] := v :: ls;
+                        fi;
+                    catch IllegalArgumentException ex:
+                        println 
+                            "matcher for regex \(regex) has not name \(name)";
+                    yrt;        
+                done;
+
+                //set the new pathInfo and servletPath
+                path = if (contains? "rest" names) 
+                    and (defined? matcher#group("rest")) then
+                    string matcher#group("rest");        
+                else
+                    ""
+                fi;
+                nreq = req with { params, path};
+
+                handler nreq res
+            else
+                res continue;
+            fi;
+        fi;
+    done);
+
+_methodPattern requestUrl = 
+    case requestUrl of
+    Get us: pair "GET" us;
+    Post us: pair "POST" us;
+    Put us: pair "PUT" us;
+    Delete us: pair "DELETE" us;
+    Options us: pair "OPTIONS" us;
+    Head us: pair "HEAD" us;
+    All us: pair "ALL" us;
+    General {method, pattern} : pair method pattern;
+    esac;
+
+
+/**
+ * Handleradapter which takes a request method and a regexpattern and 
+ * executes on match the given route. 
+ * Normally this is not used directly but a router is used.
+ *
+ */
+regexRoute regex route =
+    (pa = _methodPattern regex;
+    _regexRoute pa.fst pa.snd route);
+
+/**
+ * Handleradapter which takes a request method and a pattern 
+ * (see patternToRegex) and 
+ * executes on match the given route. 
+ * Normally this is not used directly but a router is used.
+ */
+patternRoute pattern route =
+    (pa = _methodPattern pattern;
+    _regexRoute pa.fst (patternToRegex pa.snd) route);
+
+routes handlers req responder is list<route> -> route =
+    if empty? handlers then
+        responder continue;
+    else
+        try
+        (head handlers) req \case of
+            None ex: responder (None (ex is ~Exception));
+            Some res:
+                if res.statusCode == continueStatusCode then
+                    routes (tail handlers) req responder;
+                else
+                    responder (Some res)
+                fi
+            esac;
+        catch Exception ex:
+            responder (None ex);
+        yrt
+    fi;
+
 
 
 {
+
+    patternToRegex,
+    regexRoute,
+    patternRoute,
+    routes,
 
     HEADER_PRAGMA = "Pragma",
     HEADER_EXPIRES = "Expires",

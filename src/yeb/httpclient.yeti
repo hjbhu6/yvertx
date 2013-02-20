@@ -28,7 +28,7 @@ oauthHandlers provider apiKey apiSecret callbackUrl opts =
     import org.scribe.model:Verifier,Token; 
     import org.scribe.builder:ServiceBuilder;
 
-    webutils = load yeb.mvc.webutils;
+    mvc = load yeb.mvc.mvc;
 
     var serviceBuilderOpt = none;
     for opts do opt:
@@ -63,15 +63,15 @@ oauthHandlers provider apiKey apiSecret callbackUrl opts =
             token = service#getRequestToken();
             session["oauth.request_token"] := (token as ~Object);
             confirmURL = service#getAuthorizationUrl(token);
-            webutils.redirectView confirmURL req;
+            mvc.redirectView confirmURL req;
         catch OAuthException ex:
             exceptionHandler ex req
         yrt;
     
     handleCallback session req =
         try
-            //oauth_token = webutils.param "oauth_token" req;
-            oauth_verifier = webutils.param "oauth_verifier" req;
+            //oauth_token = mvc.param "oauth_token" req;
+            oauth_verifier = mvc.param "oauth_verifier" req;
             
             verifier = new Verifier(oauth_verifier);
             requestToken = 

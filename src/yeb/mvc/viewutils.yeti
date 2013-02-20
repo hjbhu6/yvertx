@@ -1,5 +1,5 @@
 module yeb.mvc.viewutils;
-webutils = load yeb.mvc.webutils;
+webutils = load yeb.mvc.mvc;
 
 (webutils) with {
     styleLink url media =

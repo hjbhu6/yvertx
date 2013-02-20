@@ -18,22 +18,14 @@ module yeb.mvc.middleware;
 
 
 
-import java.lang: Thread, System, 
-				  ClassLoader, Character, CharSequence,
-				  Runnable;
 import java.util: Locale, Date, Collection;
-import java.util.regex:Pattern;
-import java.util.concurrent.ConcurrentHashMap;
-import java.text:NumberFormat, DecimalFormat, DateFormat, SimpleDateFormat;
-import java.net: URLEncoder, URLDecoder;
-import java.io:File;
 
 import yeti.lang: Fun, Struct;
 import org.yeb:ValidationException, YebUtils;
 
 load yeb.std;
 load yeb.async;
-load yeb.mvc.webutils;
+load yeb.mvc.mvc;
 load yeb.validation;
 
 yvertx = load yeb.yvertx;
@@ -41,188 +33,6 @@ yvertx = load yeb.yvertx;
 //HandlerAdapters
 
 
-_patternMatchAll = 
-        matchAll '(/?\.?):([A-Za-z0-9]+)(\$([^\$]+)\$)?(\?)?' (Token . tail) Text;
-
-/**
- * Transform an url pattern to a regex. Patterns are used in routers to 
- * specify path pattern which should be handled.
- *
- * ie for the pattern:
- * :/entry/:id/:date
- * becomes the regex
- * :/entry/([^/]+)/([^/]+)/(.*)
- * and the matched parts are exposed as request-parameters
- *
- * to specify a custom regex put it between $ $ after the name of the part.
- * ie to specify that id should only contain digits:
- * :/entry/:id$d+$
- */
-patternToRegex pat = 
-   (//:a-z is name
-    //:a-z? is optional
-    //* at end means rest
-    //$marks start regex $ marks end regex
-    
-    import java.util.regex.Pattern;
-    
-    paS = if strEnds? pat "/*" then 
-                    strLeft pat (strLength pat - 2)
-               else
-                    pat;
-               fi;
-               
-    tokens = _patternMatchAll paS;
-    
-    
-    reg = tokens
-    |> map do x:
-        case x of
-        Token [leading, name, _, regex, mark]:
-           (reg = if defined? regex and (strLength regex > 0) then 
-                    regex;
-                  else
-                    '[^/\.]+'
-                  fi;
-            reg = "(?<\(name)>\(reg))";
-            
-            if defined? mark then
-                if defined? leading then
-                    "(?:\(Pattern#quote(leading))" ^ reg ^ ")?" ;
-                else
-                    reg ^ "?";
-                fi;
-            else
-                if defined? leading then
-                    Pattern#quote(leading) ^ reg
-                else
-                    reg;
-                fi;
-            fi);
-        Text tx:
-           (Pattern#quote(tx));
-        _ : failWith "should not happen";
-        esac
-    done
-    |> strJoin "";
-    
-    regex = if strEnds? pat "/*" then
-        reg ^ '(?:/(?<rest>.*))?'
-    else
-        reg
-    fi;
-    regex);
-
-_nameMatchAll = matchAll '\?\<([A-Za-z0-9]+)\>' 
-                        (Some . ((flip at) 1)) None;     
-
-_regexHandler method regex handler  = 
-   (import java.util.regex.Pattern;
-    meth = strUpper method;
-    var checkMethod? = meth != "ALL";
-    
-    names = _nameMatchAll regex |> catSome;
-    pattern = Pattern#compile(regex);
-
-    do req res:
-        if checkMethod? and (meth != (strUpper req.method )) then
-            res continue;
-        else
-            matcher = pattern#matcher(req.path is string);
-            if matcher#matches() then
-                //add the paramters
-                params = copy req.params;
-                urlParams = array [];
-                for [0..matcher#groupCount()] do c:
-                    push urlParams matcher#group(c);
-                done;
-                params["urlPrams"] := list urlParams;
-                
-                //add the named parameters
-                for names do name:
-                    ls = if name in params then
-                            params[name];
-                         else
-                            []
-                         fi;
-                    try
-                        v = matcher#group(name);
-                        if defined? v and strLength (string v) > 0 then
-                            params[name] := v :: ls;
-                        fi;
-                    catch IllegalArgumentException ex:
-                        println 
-                            "matcher for regex \(regex) has not name \(name)";
-                    yrt;        
-                done;
-
-                //set the new pathInfo and servletPath
-                path = if (contains? "rest" names) 
-                    and (defined? matcher#group("rest")) then
-                    string matcher#group("rest");        
-                else
-                    ""
-                fi;
-                nreq = req with { params, path};
-
-                handler nreq res
-            else
-                res continue;
-            fi;
-        fi;
-    done);
-
-_methodPattern requestUrl = 
-    case requestUrl of
-    Get us: pair "GET" us;
-    Post us: pair "POST" us;
-    Put us: pair "PUT" us;
-    Delete us: pair "DELETE" us;
-    Options us: pair "OPTIONS" us;
-    Head us: pair "HEAD" us;
-    All us: pair "ALL" us;
-    General {method, pattern} : pair method pattern;
-    esac;
-
-
-/**
- * Handleradapter which takes a request method and a regexpattern and 
- * executes on match the given handler. 
- * Normally this is not used directly but a router is used.
- *
- */
-regexHandler regex handler =
-    (pa = _methodPattern regex;
-    _regexHandler pa.fst pa.snd handler);
-
-/**
- * Handleradapter which takes a request method and a pattern 
- * (see patternToRegex) and 
- * executes on match the given handler. 
- * Normally this is not used directly but a router is used.
- */
-patternHandler pattern handler =
-    (pa = _methodPattern pattern;
-    _regexHandler pa.fst (patternToRegex pa.snd) handler);
-
-runHandlers handlers req responder is list<handler> -> handler =
-    if empty? handlers then
-        responder continue;
-    else
-        try
-        (head handlers) req \case of
-            None ex: responder (None (ex is ~Exception));
-            Some res:
-                if res.statusCode == continueStatusCode then
-                    runHandlers (tail handlers) req responder;
-                else
-                    responder (Some res)
-                fi
-            esac;
-        catch Exception ex:
-            responder (None ex);
-        yrt
-    fi;
 
 /**
  * Converts the request parameters to a struct. 
@@ -235,16 +45,16 @@ runHandlers handlers req responder is list<handler> -> handler =
  * the body is converted to a JsonObject and added as "body" to the struct.
  *
  * The resulting struct is set as values field on the request struct and
- * than the given handler is called.
+ * than the given route is called.
  *
  * The optional special parameter '_function' is set as functionName on to
  * the request-struct. It is not part of values struct.
  *
  * Arguments:
  * options - defaultValues and/or default funcitonName
- * handler - handler to call with the result
+ * route - route to call with the result
  */
-requestToStruct opts nextHandler is 'o -> 'h -> handler =
+requestToStruct opts nextHandler is 'o -> 'h -> route =
     (load yeb.validation;
 
     values = [:];
@@ -323,11 +133,11 @@ requestToStruct opts nextHandler is 'o -> 'h -> handler =
    done); 
 
 /**
- * creates a handler which converts the request to struct using
+ * creates a route which converts the request to struct using
  * the 'requestToStruc' function and than invoces a function on the given
  * structure according to the name with the value.
  */
-jsonStructAdapter opts stru is 'a -> {jsonStru is boolean} -> handler =
+jsonStructAdapter opts stru is 'a -> {jsonStru is boolean} -> route =
     (import yeti.lang:Fun;
     fnHash = (
         ret = [:];
@@ -378,16 +188,15 @@ jsonStructAdapter opts stru is 'a -> {jsonStru is boolean} -> handler =
     done);
 
 /**
- * Loads a handler from a module by name
- */
-lazyHandler moduleName  is string -> handler =
-   (var myHandler is (Some handler | None () ) = none;
+ * Loads a route from a module by name
+lazyHandler moduleName  is string -> route =
+   (var myHandler is (Some route | None () ) = none;
     loadHandler () = (
         cl = Thread#currentThread()#getContextClassLoader()#loadClass(moduleName);
         mod = cl#getMethod(
             "eval",() as ~Class[])#invoke(() as ~Object, () as ~Object[]);
-        jmod = mod unsafely_as {handler is handler};
-        h = jmod.handler;
+        jmod = mod unsafely_as {route is route};
+        h = jmod.route;
         myHandler := Some h;
         h;
     );
@@ -407,17 +216,17 @@ lazyHandler moduleName  is string -> handler =
 _routerFact oldVhs = 
    (vhs = array [];
     {
-        add handler =
-            push vhs handler,
+        add route =
+            push vhs route,
         
-        pattern patternStr handler =
-            add (patternHandler patternStr handler),
+        pattern patternStr route =
+            add (patternHandler patternStr route),
         
-        regex regexI handler = 
-            add (regexHandler regexI handler),
+        regex regexI route = 
+            add (regexHandler regexI route),
 
-        convert regex handler = 
-            add ((regexHandler regex) (requestToStruct [] handler)),  
+        convert regex route = 
+            add ((regexHandler regex) (requestToStruct [] route)),  
 
         jsonStruct regex opts stru = 
             add (regexHandler (All regex) (jsonStructAdapter opts stru)),
@@ -431,7 +240,7 @@ _routerFact oldVhs =
         newSubRouter () =
             _routerFact (vhs ++ oldVhs),
     });
-    
+*/    
 /**
  * Creates a router. A router is used to handle different requests.
  *
@@ -439,39 +248,39 @@ _routerFact oldVhs =
  * :router = newRouter id;
  * :router.get "index" do req res: //handle get request done
  * :router.post "someform" do req res: //handle post request done
- * :router.add customHandler; //use to add a handler which is always executed
+ * :router.add customHandler; //use to add a route which is always executed
  * :
- * :handler = router.newHandler; //cunstructs an handler for all the routes
+ * :route = router.newHandler; //cunstructs an route for all the routes
  *
  * The router will than try to match any route in the order given and execute
- * the handlerfunction if it fits.
+ * the routefunction if it fits.
  *
- * Each handler function must return either 
- * - Completed if the request was handled by this handler and the async Request
+ * Each route function must return either 
+ * - Completed if the request was handled by this route and the async Request
  *   context can be closed 
- * - NotHandled "" if the reuqest is not handled by this handler and the next 
- *   routes/handlers should be tried to match
- * - Handling "" means that the right handler was found but the async RequestContext
- *   is kept open for further processing by the handler
+ * - NotHandled "" if the reuqest is not handled by this route and the next 
+ *   routes/routes should be tried to match
+ * - Handling "" means that the right route was found but the async RequestContext
+ *   is kept open for further processing by the route
  *
- * The router creates itself a handler with .newHandler. This handler can be used
- * directly in yebWebMain.handler or can be given to another router (with .add)
+ * The router creates itself a route with .newHandler. This route can be used
+ * directly in yebWebMain.route or can be given to another router (with .add)
  * 
- * The adapter parameter is a function whith transforms each given handler to 
- * another handler. This adapter can be used to filter each request 
+ * The adapter parameter is a function whith transforms each given route to 
+ * another route. This adapter can be used to filter each request 
  *
  * ie to make sure each request is of a certain locale and has a logged in user:
  * 
  */
  
-newRouter () = _routerFact [];
+//newRouter () = _routerFact [];
 
 
 /**
- * Takes a yebhandler and creates a vertx HttpHandler.
+ * Takes a yebroute and creates a vertx HttpHandler.
  * used to Brigde between Vertx http and yeb.
  */
-yebHandlerToVertxHandler opts yebhandler =
+yebHandlerToVertxHandler opts yebroute =
     (import org.vertx.java.core.http:HttpServerRequest;
     fileHandler = yvertx.serveStaticFileAtPath opts;
     do reqO:            
@@ -490,7 +299,7 @@ yebHandlerToVertxHandler opts yebhandler =
                 resHeaders = [:],
             } is request;
             try
-                (yebhandler is handler) req 
+                (yebroute is route) req 
                     \case of
                     None ex:
                         reqO#response#statusCode := 404;
@@ -525,9 +334,9 @@ yebHandlerToVertxHandler opts yebhandler =
 
 /**
  * Creates an  yebHandler which fans out to many vertx workers yebHandlers.
- * Takes a factory function which produdes handlers and returns an
- * async function from which one yebhandler can be gotten. This handler will
- * fan out its request to the handler produced by the factory function
+ * Takes a factory function which produdes routes and returns an
+ * async function from which one yebroute can be gotten. This route will
+ * fan out its request to the route produced by the factory function
  */
 createRequestWorkers numberOfWorkers yebHandlerFactoryFn = 
     (load yeb.async;
@@ -536,8 +345,8 @@ createRequestWorkers numberOfWorkers yebHandlerFactoryFn =
 
     [1 .. numberOfWorkers]
     |>map' \(yvertx.newWorker 
-        \(handler is handler = yebHandlerFactoryFn ();
-        _ = fibre.register do {req,res}: handler req res done;
+        \(route is route = yebHandlerFactoryFn ();
+        _ = fibre.register do {req,res}: route req res done;
         ))
     |>parallel 
     |>bind \(return do req res:
@@ -583,9 +392,9 @@ requestToBusHandler bustarget req =
         (req is request).respond res;
     done);
 
-requestFromBusHandler handler msg =
+requestFromBusHandler route msg =
     (b = msg.body;
-    (handler is handler) {
+    (route is route) {
         headers = maybeDefined \[:] id b.headers,
         uri = isString b.uri,
         path = isString b.path,
@@ -596,14 +405,8 @@ requestFromBusHandler handler msg =
         respond res = msg.reply (Some  res)
         });
 */
-(load yeb.mvc.webutils) with {
+(load yeb.mvc.mvc) with {
 
-    patternToRegex,
-
-    regexHandler,
-    patternHandler,
-    
-    newRouter,
 
     requestToStruct,
     

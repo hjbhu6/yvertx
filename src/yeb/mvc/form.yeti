@@ -21,11 +21,10 @@ module yeb.mvc.form;
 import yeb.Message;
 
 load yeb.std;
-load yeb.mvc.webutils;
+load yeb.mvc.mvc;
 load yeb.validation;
 
 
-handlerModule = load yeb.mvc.handler;
 
  
 
@@ -109,7 +108,7 @@ createField minValues maxValues form unprefixedName converter toString
         ),
         read req = (
             clear();
-            ps = (handlerModule.params name req);
+            ps = params name req;
             if not empty? ps then
                 //remember the stringValues
                 displayStrings := ps;
