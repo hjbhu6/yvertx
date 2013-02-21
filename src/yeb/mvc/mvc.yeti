@@ -62,6 +62,12 @@ typedef request = {
 
 typedef route = request -> asyncFunction<response>;
 
+
+addEtag response = 
+    (digest = messageByteDigest "MD5" response.body;
+    response.header["Etag",digest];
+    response);
+    
 noneBody = new byte[0];
 
 continueStatusCode = -1;
@@ -700,6 +706,8 @@ routes handlers req responder is list<route> -> route =
 
     noneBody,
     fileResponse,
+
+    addEtag,
 
     cookie,
     setCookies,

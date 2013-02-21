@@ -80,6 +80,26 @@ ifAll op conditions route req res =
         continue;
     fi;
 
+etagRoute route req resF =
+    route req \case of
+        None ex: resF (None ex);
+        Some res:
+            etag = messageByteDigest "MD5" res.body;
+            case maybeHeader "If-None-Match" req of
+            None _: 
+                res.headers["ETag"] := etag;
+                resF (Some res);
+            Some et:
+                if et == etag then
+                    writeStatus 304 "Not modified" req resF
+                else
+                    res.headers["ETag"] := etag;
+                    resF (Some res);
+                fi
+            esac;
+        esac;
+            
+            
 
 /**
  * Converts the request parameters to a struct. 
@@ -369,6 +389,7 @@ requestFromBusHandler route msg =
     ifReq,
     route401,
     route500,
+    etagRoute,
 
     restRoute,
     structRoute,

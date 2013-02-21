@@ -270,6 +270,8 @@ messageDigest algorithm message =
 {       
     messageDigest, 
 
+    messageByteDigest,
+
     /**
      * Group: digest
      * MD5 hash using messageDigest function
