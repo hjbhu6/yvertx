@@ -1,0 +1,2 @@
+- remove dependencies
+- factor netclient and oauth out
