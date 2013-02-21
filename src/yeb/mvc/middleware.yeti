@@ -27,7 +27,6 @@ load yeb.std;
 load yeb.async;
 load yeb.mvc.mvc;
 load yeb.validation;
-
 yvertx = load yeb.yvertx;
 
 
@@ -255,94 +254,6 @@ restRoute opts stru is 'a -> {jsonStru is boolean} -> route =
     done);
 
 
-/**
- * Takes a yebroute and creates a vertx HttpHandler.
- * used to Brigde between Vertx http and yeb.
- */
-routeToHttpHandler opts yebroute =
-    (import org.vertx.java.core.http:HttpServerRequest;
-    fileHandler = yvertx.serveStaticFileAtPath opts;
-    do reqO:            
-        yvertx.bodyHandler (reqO is ~HttpServerRequest) do buffer:
-            
-            req = {
-                headers = yvertx.requestHeaders reqO,
-                uri = reqO#uri,
-                path = reqO#path,
-                method = reqO#method,
-                params = 
-                    ret = [:];
-                    forHash (yvertx.params reqO) do k v: ret[k]:=[v] done;
-                    ret,
-                body = buffer#getBytes(),
-                resHeaders = [:],
-            } is request;
-            try
-                (yebroute is route) req 
-                    \case of
-                    None ex:
-                        reqO#response#statusCode := 404;
-                        _ = reqO#response#end();
-                        throw (ex is ~Exception);
-                    Some res: 
-                        if res.statusCode == continueStatusCode then
-                            reqO#response#statusCode := 404;
-                            _ = reqO#response#end();
-                        elif res.statusCode == -2 then
-                            path = res.headers["file"];
-                            fileHandler path reqO;
-                        else
-                            reqO#response#statusCode := res.statusCode;
-                            yvertx.putResponseHeaders reqO res.headers;
-                            if not res.body == noneBody then
-                                buffer = yvertx.newByteBuffer res.body;
-                                reqO#response#putHeader("Content-Length", 
-                                        string buffer#length());
-                                reqO#response#write(buffer);
-                            fi;
-                            _ = reqO#response#end();
-                        fi;
-                    esac;
-            catch Exception ex:
-                reqO#response#statusCode := 404;
-                _ = reqO#response#end();
-                throw (ex is ~Exception);
-            yrt;
-        done
-    done);
-
-/**
- * Creates an  yebHandler which fans out to many vertx workers yebHandlers.
- * Takes a factory function which produdes routes and returns an
- * async function from which one yebroute can be gotten. This route will
- * fan out its request to the route produced by the factory function
- */
-createRequestWorkers numberOfWorkers yebHandlerFactoryFn = 
-    (load yeb.async;
-
-    fibre = yvertx.newFibre();
-
-    [1 .. numberOfWorkers]
-    |>map' \(yvertx.newWorker 
-        \(route is route = yebHandlerFactoryFn ();
-        _ = fibre.register do {req,res}: route req res done;
-        ))
-    |>parallel 
-    |>bind \(return do req res:
-        fibre.send {req, res};
-    done));
-
-/**
- * Creates a VertxHttpHandler which bridges to a number of worker
- * yebHandlers
- */
-createYebHttpServer timeOutMs httpOpts numberOfWorkers yebHandlerFactoryFn =
-    (load yeb.async;
-
-    createRequestWorkers numberOfWorkers yebHandlerFactoryFn
-        |> bind (return . routeToHttpHandler httpOpts)
-        |> await timeOutMs
-        |> yvertx.createHttpServerWithHandler);
 
 /*
 requestToJson req = 
@@ -394,9 +305,5 @@ requestFromBusHandler route msg =
     restRoute,
     structRoute,
         
-    routeToHttpHandler, 
-    createRequestWorkers,
-
-    createYebHttpServer,
 }
 

@@ -310,43 +310,6 @@ collectAsync inex cb is ('b -> 'a) -> asyncFunction<'a>=
 run stru = (stru.f1 ()) \();
 
 
-/**
- * Group: async
- * blocks for the given time in ms on the asnyc function and returns the
- * result or throws an exception.
- *
- * If the asyncFunction sends a None ~Exception. The exception is thrown.
- * If the timeout is 0 or negative blocks for ever
- */
-await timeoutMs asyncFn is number -> asyncFunction<'a> -> 'a =
-    (import java.lang.RuntimeException;
-    import java.util.concurrent:CountDownLatch,
-                                 TimeUnit;
-    import org.vertx.java.core.impl:VertxInternal;
-    import org.vertx.java.deploy.impl:VertxLocator;
-
-    latch = new CountDownLatch(1);
-    avalue = atomic (failNone "notset");
-
-    //run the async function in it's own context otherwise
-    //it will never be called because the latch will block
-    _ = ((VertxLocator#vertx) unsafely_as ~VertxInternal)
-            #startInBackground(runnable do:
-        asyncFn do v:
-            avalue.value := v;
-            latch#countDown();
-        done;
-    done);
-
-    if timeoutMs < 1 then
-        latch#await();
-    elif not latch#await(timeoutMs,TimeUnit#MILLISECONDS) then
-        failWith "timeout"
-    fi;
-    case avalue.value of
-    None ex: throw (ex is ~Exception);
-    Some v: v;
-    esac);
 
 {
     //callback functions
@@ -360,5 +323,4 @@ await timeoutMs asyncFn is number -> asyncFunction<'a> -> 'a =
     parallel,
     setAsync,
     collectAsync,
-    await,
 }

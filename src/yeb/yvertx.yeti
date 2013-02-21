@@ -62,6 +62,44 @@ load yeb.async;
 typedef json<a> = {.for_json is a};
 
 /**
+ * Group: async
+ * blocks for the given time in ms on the asnyc function and returns the
+ * result or throws an exception.
+ *
+ * If the asyncFunction sends a None ~Exception. The exception is thrown.
+ * If the timeout is 0 or negative blocks for ever
+ */
+await timeoutMs asyncFn is number -> asyncFunction<'a> -> 'a =
+    (import java.lang.RuntimeException;
+    import java.util.concurrent:CountDownLatch,
+                                 TimeUnit;
+    import org.vertx.java.core.impl:VertxInternal;
+    import org.vertx.java.deploy.impl:VertxLocator;
+
+    latch = new CountDownLatch(1);
+    avalue = atomic (failNone "notset");
+
+    //run the async function in it's own context otherwise
+    //it will never be called because the latch will block
+    _ = ((VertxLocator#vertx) unsafely_as ~VertxInternal)
+            #startInBackground(runnable do:
+        asyncFn do v:
+            avalue.value := v;
+            latch#countDown();
+        done;
+    done);
+
+    if timeoutMs < 1 then
+        latch#await();
+    elif not latch#await(timeoutMs,TimeUnit#MILLISECONDS) then
+        failWith "timeout"
+    fi;
+    case avalue.value of
+    None ex: throw (ex is ~Exception);
+    Some v: v;
+    esac);
+
+/**
  * Group: json (JSON)
  * Empty json element (should repsenet an empty struct as this is not
  * possible in yeti
@@ -1206,8 +1244,6 @@ serveStaticFileAtPath opts =
         ()
     done);
 
-//http client things
-
 /**
  * Group: http (HTTP)
  * Add a bodyHandler to HttpServerReqeust or HttpClientResponse
@@ -1220,6 +1256,105 @@ bodyHandler response handler =
    (import org.vertx.java.core.http.impl:HttpReadStreamBase; 
    (response is ~HttpReadStreamBase)#bodyHandler(
         toBufferHandler handler));
+
+/**
+ * Group: httpServer
+ * Takes a yebroute and creates a vertx HttpHandler.
+ * used to Brigde between Vertx http and yeb.
+ */
+routeToHttpHandler opts yebroute =
+    (import org.vertx.java.core.http:HttpServerRequest;
+    //load yeb.mvc.mvc;
+    fileHandler = serveStaticFileAtPath opts;
+    do reqO:            
+        bodyHandler (reqO is ~HttpServerRequest) do buffer:
+            
+            req = {
+                headers = requestHeaders reqO,
+                uri = reqO#uri,
+                path = reqO#path,
+                method = reqO#method,
+                params = 
+                    ret = [:];
+                    forHash (params reqO) do k v: ret[k]:=[v] done;
+                    ret,
+                body = buffer#getBytes(),
+                resHeaders = [:],
+            };
+            try
+                (yebroute) req 
+                    \case of
+                    None ex:
+                        reqO#response#statusCode := 404;
+                        _ = reqO#response#end();
+                        throw (ex is ~Exception);
+                    Some res: 
+                        if res.statusCode == -1 //continueStatusCode 
+                            then
+                            reqO#response#statusCode := 404;
+                            _ = reqO#response#end();
+                        elif res.statusCode == -2 then
+                            path = res.headers["file"];
+                            fileHandler path reqO;
+                        else
+                            reqO#response#statusCode := res.statusCode;
+                            putResponseHeaders reqO res.headers;
+                            if not res.body == new byte[0]//noneBody then
+                                then
+                                buffer = new Buffer(res.body is ~byte[]);
+                                reqO#response#putHeader("Content-Length", 
+                                        string buffer#length());
+                                reqO#response#write(buffer);
+                            fi;
+                            _ = reqO#response#end();
+                        fi;
+                    esac;
+            catch Exception ex:
+                reqO#response#statusCode := 404;
+                _ = reqO#response#end();
+                throw (ex is ~Exception);
+            yrt;
+        done
+    done);
+
+/**
+ * Group: httpServer
+ *
+ * Creates an  yebHandler which fans out to many vertx workers yebHandlers.
+ * Takes a factory function which produdes routes and returns an
+ * async function from which one yebroute can be gotten. This route will
+ * fan out its request to the route produced by the factory function
+ */
+createRequestWorkers numberOfWorkers yebHandlerFactoryFn = 
+    (load yeb.async;
+
+    fibre = newFibre();
+
+    [1 .. numberOfWorkers]
+    |>map' \(newWorker 
+        \(route = yebHandlerFactoryFn ();
+        _ = fibre.register do {req,res}: route req res done;
+        ))
+    |>parallel 
+    |>bind \(return do req res:
+        fibre.send {req, res};
+    done));
+
+/**
+ * Group: httpServer
+ *
+ * Creates a VertxHttpHandler which bridges to a number of worker
+ * yebHandlers
+ */
+createYebHttpServer timeOutMs httpOpts numberOfWorkers yebHandlerFactoryFn =
+    (load yeb.async;
+
+    createRequestWorkers numberOfWorkers yebHandlerFactoryFn
+        |> bind (return . routeToHttpHandler httpOpts)
+        |> await timeOutMs
+        |> createHttpServerWithHandler);
+//http client things
+
 
 /**
  * Group: httpClient (HTTP_CLIENT)
@@ -2008,6 +2143,7 @@ fileSystem = ({
 
  
 {
+    await,
     /**
      * Group: vertx
      * context property calls gets the context from VertxInternal
@@ -2143,6 +2279,10 @@ fileSystem = ({
     params,
     requestHeaders,
     serveStaticFileAtPath,
+
+    routeToHttpHandler, 
+    createRequestWorkers,
+    createYebHttpServer,
 
     //http client functions
     createHttpClient,
