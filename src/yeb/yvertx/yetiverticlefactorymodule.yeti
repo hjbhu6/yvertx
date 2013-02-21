@@ -24,12 +24,11 @@ import java.io.File;
 import java.net:URLDecoder,
                 URLClassLoader;
 
-import org.vertx.java.core.impl:VertxInternal;
-import org.vertx.java.deploy: Verticle;
-import org.vertx.java.deploy.impl: VerticleFactory,
-                                    VerticleManager,
-                                    VertxLocator;
-
+import org.vertx.java.core:Vertx;
+import org.vertx.java.core.logging:Logger;
+import org.vertx.java.platform: Verticle,
+                                 Container,
+                                 VerticleFactory;
 ycl = load yeb.yeticlassloadermodule;                                    
 
 tetiReader pathS = 
@@ -66,21 +65,22 @@ class MockVerticle extends Verticle
         println "\nFix Error and save to redeploy.";
         println "waiting for redeploy ....",
 end;
-    
+
+vhl = load yeb.yvertx.vertxholder;
+
 
 class YetiVerticleFactory extends VerticleFactory
-    var manager = () as ~VerticleManager,
+    var loader = () as ~ClassLoader,
     
-    void init(VerticleManager mgr)
-        manager := mgr,
+    void init(Vertx ve, Container cont, ClassLoader c)
+        loader := c;
+        vhl.vertx := ve;
+        vhl.container := cont,
     
-    String getLanguage() "yeti",
-    
-    boolean isFactoryFor(String main)
-        (strEnds? main ".yeti"),
-    
-    Verticle createVerticle(String verticleName, ClassLoader loader)
-        import yeb:YetiClassLoader;
+    void close() 
+        (),
+
+    Verticle createVerticle(String verticleName)
         import yeti.lang.compiler:CompileException;
         import java.lang.RuntimeException;
         import yeti.lang:Fun,
@@ -190,10 +190,10 @@ class YetiVerticleFactory extends VerticleFactory
             Thread#currentThread()#setContextClassLoader(ocl);
         yrt,
 
-    void reportException(Throwable t)
-        manager#getLogger()#error("Exception in Yeti verticle script", t),
+    void reportException(Throwable t, Logger logger)
+        logger#error("Exception in Yeti verticle script", t),
 
 end;
 
 
-none;
+none

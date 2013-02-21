@@ -39,20 +39,22 @@ config.deployRepository.url :=
         "file:///${basedir}/../../chrisis-maven-repo/snapshots/";
 
 config = createBaseConfig config [
-    remoteRepository "sonatype-nexus-releases" 
+    remoteRepository "sonatype-nexus-snapshots" 
         "https://oss.sonatype.org/content/repositories/snapshots",
     remoteRepository "typesafe" 
         "http://repo.typesafe.com/typesafe/releases/",
 
     //yeti dependency
-    dependency "org.yeti" "yeti" "0.9.7-SNAPSHOT" [],
-    dependency "org.vert-x" "vertx-platform" "1.3.1.final"
+    dependency "org.yeti" "yeti" "0.9.8-SNAPSHOT" [],
+    dependency "io.vertx" "vertx-core" "2.0.0-SNAPSHOT"
         [ProvidedScope ()],
-    dependency "org.vert-x" "vertx-testframework" "1.3.1.final" 
+    dependency "io.vertx" "vertx-platform" "2.0.0-SNAPSHOT"
         [ProvidedScope ()],
+    dependency "io.vertx" "testtools" "1.0.0-SNAPSHOT"
+        [ProvidedScope ()],
+        
 
 
-    dependency "org.yeti" "yeti" "0.9.7-SNAPSHOT" [],
     dependency "org.owasp.esapi" "esapi" "2.0GA" 
         [exclusion "javax.servlet" "servlet-api"],
     dependency "commons-lang" "commons-lang" "2.0" [],
@@ -78,7 +80,7 @@ config = createBaseConfig config [
         "spring-jdbc" "3.0.5.RELEASE" [TestScope ()],
 ];
 
-config = config with createVertxConfig true config;
+config = config with createVertxConfig config;
 
 //register targets
 
