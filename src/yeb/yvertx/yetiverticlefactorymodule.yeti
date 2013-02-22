@@ -164,7 +164,7 @@ class YetiVerticleFactory extends VerticleFactory
             Thread#currentThread()#setContextClassLoader(ocl);
         yrt,
 
-    void reportException(Throwable t, Logger logger)
+    void reportException(Logger logger, Throwable t)
         logger#error("Exception in Yeti verticle script", t),
 
 end;
