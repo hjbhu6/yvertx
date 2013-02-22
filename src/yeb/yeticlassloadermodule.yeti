@@ -16,15 +16,7 @@
 
 module yeb.yeticlassloadermodule;
 
-import java.lang.ClassLoader;
-import java.lang.ClassNotFoundException;
-import java.lang.Thread;
-import java.io.InputStream;
-import java.io.ByteArrayInputStream;
-import yeti.lang.compiler.CodeWriter;
-
-eval = load yeti.lang.compiler.eval;
-
+import java.io.File;
 
 
 
@@ -81,182 +73,37 @@ parseTeti src =
     //println ret;
     ret);
 
-fileSourceReader baseDirs {name,fullpath}  =
-    if fullpath or (empty? (baseDirs is list<string>)) then
-        try 
-            (openInFile name "UTF-8").contents() 
-        catch Exception ex: 
-            undef_str 
-        yrt;
+tetiSourceReader pathS = 
+    (import yeti.lang.compiler:CompileException;
+    parentS = if defined? pathS.parent then
+        pathS.parent as ~String;
     else
-        fold do v lv: 
-            if v == undef_str then
-                bd = if strEnds? lv "/" then lv else lv ^ "/" fi;
-                try (openInFile (bd ^ name) "UTF-8").contents() catch Exception ex: undef_str yrt;
-            else 
-                v 
-            fi
-        done undef_str baseDirs;
+        () as ~String
     fi;
+    yetiF = new File(parentS, pathS.name is string);
 
-classSourceReader classLoader {name} =
-    (fname = if strStarts? name "/" then strRight name 1 else name fi;
-     stream = (classLoader is ~ClassLoader)#getResourceAsStream(fname);
-     if nullptr? stream then
+    tetiName =  strLeft pathS.name (strLength pathS.name - 5)   
+            ^ ".teti";
+    tetiF = new File(parentS, tetiName);
+
+    if yetiF#exists()  then
+        if tetiF#exists() then
+            throw new CompileException(0,0,"A teti and yeti file with" 
+            ^ "same name \(yetiF#getCanonicalPath()) found");
+        else
+            undef_str;
+        fi
+    elif tetiF#exists() then
+        src = (openInFile tetiF#getPath() "UTF-8").contents();
+        pathS.name := tetiF#getCanonicalPath();
+        parseTeti src;
+    else
         undef_str;
-     else
-        try 
-            (inputHandle stream "UTF-8").contents() 
-        catch Exception ex: 
-            undef_str 
-        yrt
-     fi);
-
-delegateSourceReader readers arg =
-    case readers of
-        r::rest :
-            (ret = r arg;
-             if ret == undef_str then 
-                delegateSourceReader rest arg;
-             else 
-                ret 
-            fi);
-        [r] : r arg;
-        _ : undef_str;
-    esac;
-
-classParentLimitedSourceReader reader classLoader arg =
-   (name = if strStarts? arg.name "/" then 
-        strRight arg.name 1 
-    else 
-        arg.name 
-    fi;
-    clName = strReplace '/' '.' 
-            (strLeft name (strLastIndexOf name '.' (strLength name)));
-    try
-        (classLoader is ~ClassLoader)#loadClass(clName); undef_str
-    catch ClassNotFoundException: reader arg
-    catch Exception ex: throw ex;
-    yrt);
-
-tetiSourceReader reader arg =
-    (r = reader arg;
-    if r == undef_str and (strEnds? arg.name ".yeti") then
-        //retry with teti
-        oldN = arg.name;
-        arg.name := (strLeft oldN (strLength oldN - 5)) ^ ".teti";
-        r2 = reader arg;
-        if r2 == undef_str then
-            arg.name := oldN;
-            undef_str
-        else
-            parseTeti r2;
-            //TetiParser#parseTeti(arg.name, r2)
-        fi;
-    elif strEnds? arg.name ".teti" then
-        parseTeti r;
-        //TetiParser#parseTeti(arg.name,r);
-    else
-        r
     fi);
-
-sourceReader sourceDirs readFromClassPath parentClassLoaderOpt =
-   (parentClassLoader = maybe Thread#currentThread()#getContextClassLoader() id
-        parentClassLoaderOpt;
-    r = if readFromClassPath then
-        if empty? sourceDirs then 
-            classSourceReader parentClassLoader;
-        else 
-            delegateSourceReader [fileSourceReader sourceDirs, 
-                                  classSourceReader parentClassLoader] 
-        fi;
-    else 
-        fileSourceReader sourceDirs 
-    fi;
-    tetiSourceReader r);
-
-
-
-class YetiClassLoader(ClassLoader parentOrNull, String[] sourceDirsA, boolean readFromClassPath) extends
-        ClassLoader(if nullptr? parentOrNull then Thread#currentThread()#getContextClassLoader() else parentOrNull fi), CodeWriter
-
-    parent = if nullptr? parentOrNull then 
-                Thread#currentThread()#getContextClassLoader() 
-             else parentOrNull fi,
-    sr = sourceReader 
-        (if nullptr? sourceDirsA then [] else map string (list sourceDirsA) fi) 
-        readFromClassPath 
-        (Some parent),
-        
-    reader = classParentLimitedSourceReader sr parent,
-    classes = [:],
-
-    void writeClass(String name, byte[] code) synchronized this \(
-        cName = strReplace '/' '.' (strLeft name ((strLength name)-6));
-        classes[cName] := code;
-        ()),
-
-    Class findClass(String clName)
-        if clName in classes then
-            code = classes[clName];
-            this#defineClass(clName,code,0, length code);
-        else
-            flName = (strReplace '.' '/' clName) ^ ".yeti";
-            if undef_str == (reader {var name = flName, fullpath = false}) then
-                throw new ClassNotFoundException(clName);
-            fi;
-            oldCl = Thread#currentThread()#getContextClassLoader();
-            Thread#currentThread()#setContextClassLoader(parent);
-            try
-                //println "findClass compiling \(clName)";
-                eval.compileYetiFiles 
-                        [CodeWriter (this as ~CodeWriter), 
-                                   SourceReader reader] 
-                        [] 
-                        [flName]
-            finally
-                Thread#currentThread()#setContextClassLoader(oldCl);
-            yrt;
-
-            if clName in classes then
-                code = classes[clName];
-                this#defineClass(clName,code,0, length code);
-            else
-                throw new ClassNotFoundException(clName ^ "or" ^ flName);
-            fi
-       fi,
-
-    InputStream getResourceAsStream(String path)
-        superStream = super#getResourceAsStream(path);
-        if (not (nullptr? superStream)) or (not (strEnds? path "class")) then
-            superStream
-        else
-            clName = strReplace '/' '.' (strLeft path ((strLength path) - 6));
-            if clName in classes then
-                new ByteArrayInputStream(classes[clName]);
-            else
-                try
-                    this#loadClass(clName);
-                    new ByteArrayInputStream(classes[clName]);
-                catch Exception ex:
-                    () as ~ByteArrayInputStream;
-                yrt
-            fi;
-        fi,
-
-
-end;
-
-new YetiClassLoader(() as ~ClassLoader ,() as ~String[],false);
-
-
-
-
 
 
 {
-    sourceReader,
     parseTeti,
-
+    tetiSourceReader
 }
     

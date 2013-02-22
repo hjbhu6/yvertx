@@ -29,35 +29,10 @@ import org.vertx.java.core.logging:Logger;
 import org.vertx.java.platform: Verticle,
                                  Container,
                                  VerticleFactory;
-ycl = load yeb.yeticlassloadermodule;                                    
 
-tetiReader pathS = 
-    (import yeti.lang.compiler:CompileException;
-    parentS = if defined? pathS.parent then
-        pathS.parent as ~String;
-    else
-        () as ~String
-    fi;
-    yetiF = new File(parentS, pathS.name is string);
+teti = load yeb.yeticlassloadermodule;                                    
+vhl = load yeb.yvertx.vertxholder;
 
-    tetiName =  strLeft pathS.name (strLength pathS.name - 5)   
-            ^ ".teti";
-    tetiF = new File(parentS, tetiName);
-
-    if yetiF#exists()  then
-        if tetiF#exists() then
-            throw new CompileException(0,0,"A teti and yeti file with" 
-            ^ "same name \(yetiF#getCanonicalPath()) found");
-        else
-            undef_str;
-        fi
-    elif tetiF#exists() then
-        src = (openInFile tetiF#getPath() "UTF-8").contents();
-        pathS.name := tetiF#getCanonicalPath();
-        ycl.parseTeti src;
-    else
-        undef_str;
-    fi);
         
 
 class MockVerticle extends Verticle
@@ -66,7 +41,6 @@ class MockVerticle extends Verticle
         println "waiting for redeploy ....",
 end;
 
-vhl = load yeb.yvertx.vertxholder;
 
 
 class YetiVerticleFactory extends VerticleFactory
@@ -136,7 +110,7 @@ class YetiVerticleFactory extends VerticleFactory
             eval = load yeti.lang.compiler.eval;
             println "[yetic] Compiling to: \(targetDir#getAbsolutePath())";
             eval.compileYetiFiles [To targetDir#getAbsolutePath(),
-                                   SourceReader tetiReader,
+                                   SourceReader teti.tetiSourceReader,
                                    Warn println] 
                                   [] [sourceFile#getAbsolutePath()];
 
