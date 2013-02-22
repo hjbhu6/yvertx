@@ -18,13 +18,10 @@ module yeb.validation;
 
 import java.lang:String,IllegalArgumentException;
 import java.util.regex:Pattern;
-import yeti.lang: Fun;
 import java.text:NumberFormat, DecimalFormat, DateFormat, SimpleDateFormat;
 import java.util: Locale, Date, List,ArrayList, Collections;
 import java.net: URLEncoder, URLDecoder;
 
-import org.owasp.esapi:ESAPI;
-import org.owasp.validator.html:AntiSamy,Policy;
 
 load yeb.std; 
 
@@ -51,13 +48,6 @@ maybeValid notValidFn valueFn validFn value =
     yrt;
         
 
-//validator () = ESAPI#validator();
-esapiToValiEx ex wrong = 
-   (msg = message 
-            "esapi" 
-            (ex is ~org.owasp.esapi.errors.ValidationException)#getUserMessage()
-            [];
-    newValidationException msg wrong);
 
 valiCheck fun value =
     if fun value then
@@ -100,71 +90,29 @@ valiNum min max num =
         num
     fi;
 
-valiHtml policy input =
-    (pol = Policy#getInstance(policy is string);
-    aS = new AntiSamy();
-    string aS#scan(input,pol,AntiSamy#SAX)#getCleanHTML() );
-
-
-valiSafeHtml max input =
-    string try 
-        ESAPI#validator()#getValidSafeHTML("",input is string, max, false)
-    catch org.owasp.esapi.errors.ValidationException ex: 
-        throw (esapiToValiEx ex input) 
-    yrt;
-
-
-valiEmail max input =
-    string try 
-        ESAPI#validator()#getValidInput("",input is string, 
-            "Email", max, false)
-    catch org.owasp.esapi.errors.ValidationException ex: 
-        throw (esapiToValiEx ex input) 
-    yrt;
-
-valiIPAddress max input =
-    string try 
-        ESAPI#validator()#getValidInput("",input is string, 
-            "IPAddress", max, false)
-    catch org.owasp.esapi.errors.ValidationException ex: 
-        throw (esapiToValiEx ex input) 
-    yrt;
-
-valiURL max input =
-    string try 
-        ESAPI#validator()#getValidInput("",input is string, "URL", max, false)
-    catch org.owasp.esapi.errors.ValidationException ex: 
-        throw (esapiToValiEx ex input) 
-    yrt;
 
 valiList vali listIn = 
     listIn |> map (maybeValid \none Some vali)
         |> catSome;
 
-
 valiString min max str = 
-    try
-        ret = ESAPI#validator()#getValidPrintable("",str is string, 
-                                                max is number, false);
-        if (strLength ret) < min then
+        if (strLength str) > max then
+            failWithValidation
+                (message "stringtoolong"
+                "string %1$s is %2$n long but should be max %3$n long"
+                        [obj str,obj (strLength str), obj max])
+                str
+
+        elif (strLength str) < min then
             failWithValidation
                 (message "stringtooschort" 
-                "string %1$s is only %2$n long but should be at leas %3$n long"
-                        [obj str,obj (strLength ret), obj min])
-                ret;
+                "string %1$s is only %2$n long but should be at least %3$n long"
+                     [obj str,obj (strLength str), obj min])
+                str
         else
-            ret
+            str
         fi;
-    catch org.owasp.esapi.errors.ValidationException ex: 
-        throw (esapiToValiEx ex str) 
-    yrt;
 
-valiRedirectLocation input =
-    try 
-        ESAPI#validator()#getValidRedirectLocation("",input is string, false)
-    catch org.owasp.esapi.errors.ValidationException ex: 
-        throw (esapiToValiEx ex input) 
-    yrt;
 
 
 valiRegex regexPattern str =
@@ -183,23 +131,6 @@ strToNum str =
         failWithValidation(message "numpattern" 
                             "string %1$s is no number" [obj str]) str;
     yrt;
-
-valiDirectory parent path =
-    try 
-        ESAPI#validator()#getValidDirectoryPath("",path is string,
-            new java.io.File(parent is string),  false)
-    catch org.owasp.esapi.errors.ValidationException ex: 
-        throw (esapiToValiEx ex path) 
-    yrt;
-
-valiFileName extensions path =
-    try 
-        ESAPI#validator()#getValidFileName("",path is string,
-                        extensions is list<string>,  false)
-    catch org.owasp.esapi.errors.ValidationException ex: 
-        throw (esapiToValiEx ex path) 
-    yrt;
-
 
 numberFormat formatOpt =
     case formatOpt of
@@ -252,31 +183,9 @@ dateFormat formatOpt =
         None _ : DateFormat#getDateInstance();
      esac;
      
-strFormatedToDate formatOpt str =
-    try
-          ESAPI#validator()#getValidDate("",str is string, 
-                                (dateFormat formatOpt),false)
-    catch org.owasp.esapi.errors.ValidationException ex:
-          failWithValidation (message "nodate" "%1$s is no date" 
-                                    [obj str]) str;
-    yrt;
-
-dateToFormatedStr formatOpt date = 
-    (dateFormat formatOpt)#format(date);
-
-
-
 strToBoolean str is string -> boolean=
     if (strLower str) == "true" then true else false fi;
 
-valiCreditCard str =
-    string try 
-        ESAPI#validator()#getValidCreditCard("",str is string, false)
-    catch org.owasp.esapi.errors.ValidationException ex: 
-        throw (esapiToValiEx ex str) 
-    yrt;
-
-    
 {
     failWithValidation,
     newValidationException,
@@ -284,12 +193,6 @@ valiCreditCard str =
     maybeValid,
 
     
-    valiHtml, 
-    valiSafeHtml,
-    valiCreditCard, 
-    valiEmail, 
-    valiIPAddress, 
-    valiURL,
 
     valiListLength, 
     valiList,
@@ -302,9 +205,6 @@ valiCreditCard str =
     valiMsg,
 
     strToNum,
-    valiDirectory, 
-    valiFileName,
-    valiRedirectLocation,
 
     numberFormat, 
     strFormatedToNum,
@@ -312,8 +212,6 @@ valiCreditCard str =
     strNumberToDate, 
     dateToNumberStr, 
     dateFormat, 
-    strFormatedToDate, 
-    dateToFormatedStr,
     strToBoolean
 
 }
