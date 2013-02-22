@@ -23,7 +23,6 @@ import java.util.regex:Pattern;
 import java.net:URLEncoder, 
             URLDecoder;
 
-import org.owasp.esapi:ESAPI,HTTPUtilitiess;
     
 
 load yeb.std;
@@ -756,33 +755,4 @@ routes handlers req responder is list<route> -> route =
     (@) text = escape text,
 
         
-    decryptHiddenField encrypted = 
-        string (ESAPI#httpUtilities()#decryptHiddenField(encrypted is string)),
-    decryptQueryString encrypted = 
-       (ret = [:];
-        forJavaMap (ESAPI#httpUtilities()#decryptQueryString(encrypted)) do k v:
-            ret[string k] := string v;
-        done;
-        ret),
-    encryptHiddenField value = 
-        string (ESAPI#httpUtilities()#encryptHiddenField(value is string)),
-    encryptQueryString value = 
-        string (ESAPI#httpUtilities()#encryptQueryString(value is string)),
-
-
-    encodeForBase64 bytes wrap = 
-        string ESAPI#encoder()
-            #encodeForBase64(bytes is ~byte[],wrap is boolean),
-    decodeFromBase64 str = 
-        ESAPI#encoder()#decodeFromBase64(str is string),
-    encodeForCSS str = 
-        ESAPI#encoder()#encodeForCSS(str is string),
-    encodeForHTML str = 
-        ESAPI#encoder()#encodeForHTML(str is string),
-    encodeForHTMAttribute str = 
-        ESAPI#encoder()#encodeForHTMLAttribute(str is string),
-    encodeForURL str = 
-        ESAPI#encoder()#encodeForURL(str is string),
-    encodeForXML str = 
-        ESAPI#encoder()#encodeForXML(str is string)
 }
