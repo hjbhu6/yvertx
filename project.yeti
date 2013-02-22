@@ -51,7 +51,6 @@ config = createBaseConfig config [
     dependency "io.vertx" "vertx-platform" "2.0.0-SNAPSHOT"
         [ProvidedScope ()],
 
-    //dependency "org.slf4j" "jcl-over-slf4j" "1.6.4" [],
     dependency "org.slf4j" "slf4j-log4j12" "1.6.4" [],
 
     /*
