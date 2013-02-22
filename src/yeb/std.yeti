@@ -198,55 +198,6 @@ parseJson str =
     ob = new JsonObject(str is string);
     json.fromJS ob);
 
-//+++++++++++++++++++++++table things ++++++++++++++++++++++++++++++++
-
-typedef tableType<k,v> = {
-   .add is k -> v -> tableType,
-   .remove is k -> tableType,
-   .valAt is k -> (None() | Some(v)),
-   .count is number,
-   .seq is () -> list<{key is k, value is v}>,
-   .getDefault is 'k -> 'v -> 'v,
-}
-
-addAll table ha is tableType<'k,'v> -> hash<'k,'v> -> tableType<'k,'v>= 
-    (var t = table;
-    forHash ha do k v: t := (t.add k v) done;
-    t);
-
-
-create hash is hash<'k, 'v> -> tableType<'k,'v> = 
-   (newTable pm is ~TMap -> tableType<'k,'v>  = 
-       ({
-          add k v is 'k -> 'v -> tableType<'k,'v> = newTable (pm#update(k,v)),
-
-          remove k is 'k -> tableType<'k,'v> = newTable (pm#remove(k)),
-
-          valAt k is 'k -> (None() | Some 'v) = (
-            v = pm#get(k, TMap#NULL_VALUE);
-            if same? v TMap#NULL_VALUE then None() else Some (v unsafely_as 'v)  fi
-          ),
-
-          getDefault key defaultV is 'k -> 'v -> 'v = (
-            vr = pm#get(key,defaultV);
-            vr unsafely_as 'v
-          ),
-
-
-          count is number= pm#size(),
-
-          seq ()  = (
-            r = pm#keyValueList();
-            r unsafely_as list<{key is 'k ,value is 'v}>;
-          ),
-        } //unsafely_as tableType<'k,'v>
-    );
-    t = newTable TMap#EMPTY;
-    if empty? hash then
-        t;
-    else 
-       addAll t hash
-    fi);
 
 /**
  * Group: digest
@@ -418,24 +369,5 @@ messageDigest algorithm message =
     writeJson,
     parseJson,
 
-    tableCreate = create,
-    tableAddAll = addAll,
-    tableRemoveAll table keys =
-        fold do t k: tableRemove t k done table keys,
-
-    tableAdd table k v is tableType<'k,'v> -> 'k -> 'v -> tableType<'k,'v>=
-        table.add k v,
-
-    tableRemove table k is tableType<'k,'v> -> 'k -> tableType<'k,'v> =
-        table.remove k,
-
-    tableAt table k is tableType<'k,'v> -> 'k -> (None() | Some('v)) =
-        table.valAt k,
-
-    tableLength table is tableType<'k,'v> -> number =
-        table.count,
-
-    tableKeyValues table is tableType<'k,'v> -> list<{key is 'k, value is 'v}> =
-        table.seq(),
 
 }
