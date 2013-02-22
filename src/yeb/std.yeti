@@ -143,28 +143,33 @@ maybe' defaultFn fn opt =
     esac;
 
 findCodeAtLine sourceDirs fileName lineNumber linesSourround =
-   (prov = (load yeb.yeticlassloadermodule).sourceReader 
-                    sourceDirs false
-                    none;
-    arg = {
-        var name = fileName, 
-        fullpath = false
-    };
-    code = prov arg;
-    if not defined? code then
-        none
+    (srcs = sourceDirs 
+        |> concatMap do d: 
+            f =new File(d is string, fileName is string);
+            if f#exists() then
+                [string f#getPath()]
+            else
+                []
+            fi
+        done;
+
+    if empty? srcs then
+       none
     else
         fromLineNumber = 
           (max 0 (lineNumber - linesSourround)) + 1;
-        toLineNumber = lineNumber + linesSourround;
-        lines = list (strSplit '\n' code)
+        
+        lines = readFile (head srcs) '' getLines
             |> drop (fromLineNumber - 1)
             |> take (2 *linesSourround);
-        Some {fileName,
-        lines,
-        lineNumber,
-        fromLineNumber,
-        toLineNumber}
+        
+        Some {
+            fileName,
+            lines,
+            lineNumber,
+            fromLineNumber,
+            toLineNumber = fromLineNumber + linesSourround
+        }
     fi);
         
                         
