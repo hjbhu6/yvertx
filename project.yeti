@@ -28,11 +28,7 @@ load ybuilder.core.build;
 load ybuilder.core.base;
 load ybuilder.core.vertxbase;
 
-config = baseConfig ();
-config.name := "yvertx";
-config.groupId :="org.yvertx";
-config.artifactId := "yvertx-yeti-lang-impl";
-config.version := "0.9.6a";
+config = baseConfig "com.github.chrisichris" "yvertx" "0.9.8-SNAPSHOT";
 config.description := "Yeti support for vert.x";
 
 config.deployRepository.url :=
