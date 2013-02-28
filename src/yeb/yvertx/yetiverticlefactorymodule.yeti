@@ -157,8 +157,7 @@ class YetiVerticleFactory extends VerticleFactory
             if autoRedeploy then
                 (new MockVerticle()) as ~Verticle;
             else
-                import java.lang:ClassNotFoundException;
-                throw new ClassNotFoundException(ex#getMessage());
+                System#exit(-1);
             fi
         finally
             Thread#currentThread()#setContextClassLoader(ocl);
