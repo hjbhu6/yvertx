@@ -31,8 +31,10 @@ load ybuilder.core.vertxbase;
 config = baseConfig "com.github.chrisichris" "yvertx" "0.9.8-SNAPSHOT";
 config.description := "Yeti support for vert.x";
 
-config.deployRepository.url :=
+config.snapshotRepository.url :=
         "file:///${basedir}/../../chrisis-maven-repo/snapshots/";
+config.deployRepository.url :=
+        "file:///${basedir}/../../chrisis-maven-repo/releases/";
 
 config = createBaseConfig config [
     remoteRepository "sonatype-nexus-snapshots" 
