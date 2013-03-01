@@ -75,6 +75,7 @@ parseTeti src =
 
 tetiSourceReader pathS = 
     (import yeti.lang.compiler:CompileException;
+    
     parentS = if defined? pathS.parent then
         pathS.parent as ~String;
     else

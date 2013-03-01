@@ -84,7 +84,13 @@ class YetiVerticleFactory extends VerticleFactory
         fi;
         sourceFile = 
             new File(URLDecoder#decode(resourceURL#getFile(), "UTF-8"));
-        
+       
+        srcDir =
+            (fn = sourceFile#getPath() as string;
+            dir = strLeft fn (strLength fn - strLength fileName);
+            if dir == "" then "."
+            else dir fi);
+
         if not sourceFile#canRead() then
             failWith ("can not read file \(sourceFile#getAbsolutePath())"
                     ^"current dir is: \((new File("."))#getAbsolutePath())");
@@ -112,7 +118,8 @@ class YetiVerticleFactory extends VerticleFactory
             eval.compileYetiFiles [To targetDir#getAbsolutePath(),
                                    SourceReader teti.tetiSourceReader,
                                    Warn println] 
-                                  [] [sourceFile#getAbsolutePath()];
+                                  [SourceDir srcDir] 
+                                  [sourceFile#getAbsolutePath()];
 
             cl = new URLClassLoader(array [targetDir#toURI()#toURL()],
                                        loader);

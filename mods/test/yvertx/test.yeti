@@ -10,7 +10,7 @@ load yeb.yvertx;
 
 load yeb.yvertx.testutils;
 
-load yvertx.deploy.child;
+_ = load yvertx.deploy.child;
 
 
 fileDir = "../../target/yeti-test-output";
