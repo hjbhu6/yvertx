@@ -131,6 +131,40 @@ public class YebUtils {
     }
 
 	
+  public static byte[] generateRandomByteArray(int length) {
+    byte[] line = new byte[length];
+    for (int i = 0; i < length; i++) {
+      //Choose a random byte - if we're generating delimited lines 
+	  //then make sure we don't
+      //choose first byte of delim
+      byte rand = (byte) ((int) (Math.random() * 255) - 128);
+
+      line[i] = rand;
+    }
+    return line;
+  }
+
+  public static String randomUnicodeString(int length) {
+    StringBuilder builder = new StringBuilder(length);
+    for (int i = 0; i < length; i++) {
+      char c;
+      do {
+        c = (char) (0xFFFF * Math.random());
+      } while ((c >= 0xFFFE && c <= 0xFFFF) || (c >= 0xD800 && c <= 0xDFFF)); 
+	  //Illegal chars
+      builder.append(c);
+    }
+    return builder.toString();
+  }
+
+  public static String randomAlphaString(int length) {
+    StringBuilder builder = new StringBuilder(length);
+    for (int i = 0; i < length; i++) {
+      char c = (char) (65 + 25 * Math.random());
+      builder.append(c);
+    }
+    return builder.toString();
+  }
 
 
 

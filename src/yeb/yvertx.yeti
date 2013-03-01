@@ -2216,7 +2216,14 @@ fileSystem = ({
      */
     newByteBuffer bytes =
         new Buffer(bytes is ~byte[]),
-    
+   
+    /**
+     * Group: buffer
+     * creates a new random Byte Buffer with the given length
+     */
+    newRandomBuffer len =
+        new Buffer(YebUtils#generateRandomByteArray(len is number)),
+
     /**
      * Group: pump (PUMP)
      * creates a pump between a read and a write stream

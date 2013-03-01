@@ -359,6 +359,10 @@ messageDigest algorithm message =
         f () = ran#nextFloat()  :. f;
         f();
     ),
+    
+    randomByteArray len = YebUtils#generateRandomByteArray(len is number),
+    randomString len = YebUtils#randomUnicodeString(len is number),
+    randomAlphaString len = YebUtils#randomAlphaString(len is number),
 
     regexPattern patstr =
        (import java.util.regex.Pattern;
