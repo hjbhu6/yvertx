@@ -209,7 +209,7 @@ parseJson str =
  * bytes - the message over which the hash sould be mad
  */
 messageByteDigest algorithm message =
-    Digester#calc(algorithm is string, message is ~byte[]);
+    YebUtils#calcDigest(algorithm is string, message is ~byte[]);
 
 /**
  * Group: digest
