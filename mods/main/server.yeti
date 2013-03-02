@@ -23,13 +23,17 @@ load yeb.async;
 load yeb.mvc.handler;
 load yeb.yvertx;
 
-router = newRouter ();
 
-router.handle 
-(Get "/") do req res: 
-    println "received request \(req)";
-    writeHtml req "Hello World!" |> res;
-done;
+route = routes [ 
+    Get "/" ==> do req res: 
+        println "received request \(req)";
+        writeHtml req "Hello World!" |> res;
+    done,
+    Get "/index" ==> do req res: 
+        println "received request \(req)";
+        writeHtml req "Hello Index!" |> res;
+    done
+];
 
 verticle do:
     /*fibre2 = newFibre();
@@ -63,7 +67,11 @@ verticle do:
         None _ : ()
         esac;*/
     //    (httpToHandler [] yebHandler);
+    
+    //_ = deployVerticle "subserver.yeti" emptyJS 1 \();
+
     server = createYebHttpServer 0 [] 1 router.newHandler;
+    
     println "server running";
     server#listen(8080);
     \();

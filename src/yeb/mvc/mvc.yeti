@@ -696,8 +696,8 @@ routes handlers req responder is list<route> -> route =
     patternRoute,
     routes,
 
-    (:>) = patternRoute,
-    (~>) = regexRoute,
+    (==>) = patternRoute,
+    (~~>) = regexRoute,
 
     HEADER_PRAGMA = "Pragma",
     HEADER_EXPIRES = "Expires",
