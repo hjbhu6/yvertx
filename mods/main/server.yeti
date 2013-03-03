@@ -20,19 +20,16 @@ module server;
 
 load yeb.std;
 load yeb.async;
-load yeb.mvc.handler;
+load yeb.mvc.mvc;
 load yeb.yvertx;
 
 
-route = routes [ 
-    Get "/" ==> do req res: 
+router = routes [ 
+    Get "/" ==>> do req res: 
         println "received request \(req)";
-        writeHtml req "Hello World!" |> res;
+        res <== writeHtml "Hello World!" req;
     done,
-    Get "/index" ==> do req res: 
-        println "received request \(req)";
-        writeHtml req "Hello Index!" |> res;
-    done
+    Get "/index" ==> writeHtml "Hello Index!"
 ];
 
 verticle do:
@@ -70,7 +67,7 @@ verticle do:
     
     //_ = deployVerticle "subserver.yeti" emptyJS 1 \();
 
-    server = createYebHttpServer 0 [] 1 router.newHandler;
+    server = createYebHttpServer 0 [] 1 \router;
     
     println "server running";
     server#listen(8080);

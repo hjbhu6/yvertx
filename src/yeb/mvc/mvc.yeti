@@ -89,7 +89,7 @@ request {method,uri,path,headers} =
     body = noneBody,
     params = [:],
     resHeaders = [:],
-    respond res = ()} is request;
+    } is request;
 
 
 
@@ -228,31 +228,31 @@ escape text =
          "&#\(Character#codePointAt(s[0] is string, 0));";
      strJoin '' (matchAll '[<>&"]' escapeT id "\(text)"));
 
-//"     
+//"   
 
 response req statusCode headers body =
-    Some ({statusCode = statusCode, 
+    {statusCode = statusCode, 
      headers = 
         (insertHash req.resHeaders headers;
         (req is request).resHeaders),
      body = body,
-     for_json = E()} is response); 
+     for_json = E()} is response; 
 
     
-writeRedirect path req res = 
-   res (response req 301 ["Location":path] noneBody);
+writeRedirect path req = 
+   response req 301 ["Location":path] noneBody;
 
 
 
-writeStatusType status contentType content req res =
-    res (response  req status ["Content-Type":contentType^"; charset=utf-8"]
-        (toUTF8 content));
+writeStatusType status contentType content req =
+    response  req status ["Content-Type":contentType^"; charset=utf-8"]
+        (toUTF8 content);
 
-write contentType content req res =
-    writeStatusType 200 contentType content req res;
+write contentType content req =
+    writeStatusType 200 contentType content req;
 
-writeStatus status content req res =
-    writeStatusType status "text/plain" content req res;
+writeStatus status content req =
+    writeStatusType status "text/plain" content req;
 
 write401 msg = writeStatus 401 msg;
 write500 msg = writeStatus 500 msg;
@@ -267,11 +267,11 @@ newWriter () =
         get value () = string stb#toString()
     });
 
-writeHtml content req res =
-    write "text/html" content req res;
+writeHtml content req =
+    write "text/html" content req;
 
-writeJsonResponse json req res =
-    write "application/json" (writeJson json) req res;
+writeJsonResponse json req =
+    write "application/json" (writeJson json) req;
 
 cacheForSeconds seconds mustRevalidate res = 
     (headers = res.headers;
@@ -696,8 +696,17 @@ routes handlers req responder is list<route> -> route =
     patternRoute,
     routes,
 
-    (==>) = patternRoute,
-    (~~>) = regexRoute,
+    (==>>) = patternRoute,
+    (~~>>) = regexRoute,
+    (==>) p h = patternRoute p do req res:
+        try res (Some (h req)) catch Exception ex: res (None ex) yrt
+    done,
+    (~~>) p h = regexRoute p do req res:
+        try res (Some (h req)) catch Exception ex: res (None ex) yrt
+    done,
+
+    (<==) fn res is callback<response> -> response -> ()= 
+        fn (Some res),
 
     HEADER_PRAGMA = "Pragma",
     HEADER_EXPIRES = "Expires",

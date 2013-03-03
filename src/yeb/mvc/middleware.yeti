@@ -38,18 +38,18 @@ route500 logger msg router req resF =
             case res of
             None ex: 
                 logger ex;
-                writeStatus 500 msg req resF;
+                resF <== writeStatus 500 msg req;
             Some res:
                 if res.statusCode == 500 then
-                    writeStatus 500 msg req resF;
+                    resF <== writeStatus 500 msg req;
                 else
-                    resF (Some res)
+                    resF <== res
                 fi
             esac
         done
     catch Exception ex:
         logger ex;
-        writeStatus 500 msg req resF
+        resF <== writeStatus 500 msg req
     yrt;
 
 interceptStatusRoute status newStatus msg router req resF =
@@ -57,9 +57,9 @@ interceptStatusRoute status newStatus msg router req resF =
         None ex: resF (None ex);
         Some res:
             if res.statusCode == status then
-                writeStatus newStatus msg req resF;
+                resF <== writeStatus newStatus msg req;
             else
-                resF (Some res);
+                resF <== res;
             fi
         esac;
     
@@ -87,13 +87,13 @@ etagRoute route req resF =
             case maybeHeader "If-None-Match" req of
             None _: 
                 res.headers["ETag"] := etag;
-                resF (Some res);
+                resF <== res;
             Some et:
                 if et == etag then
-                    writeStatus 304 "Not modified" req resF
+                    resF <== writeStatus 304 "Not modified" req
                 else
                     res.headers["ETag"] := etag;
-                    resF (Some res);
+                    resF <== res;
                 fi
             esac;
         esac;
@@ -237,7 +237,7 @@ restRoute opts stru is 'a -> {jsonStru is boolean} -> route =
             (fn = (fno is ~Object) unsafely_as ('a -> 'b);
             js = fn values;
             js = js with {for_json = E()};
-            writeJsonResponse js (req as request) res);
+            res <== writeJsonResponse js (req as request));
              
 
         if sname in fnHash then
