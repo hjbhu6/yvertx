@@ -1,0 +1,8 @@
+module subserver;
+
+load yeb.yvertx;
+
+verticle do:
+	println "subserver running";
+	\()
+done;
