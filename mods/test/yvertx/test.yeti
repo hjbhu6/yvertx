@@ -191,14 +191,12 @@ websocketEcho binary rs =
 verticle do :
         
 
-
     runTests [Exclude "websocket:"] [
-
 "common load": do rs:
    // rs.assure "" ("foo" == load yvertx.common.module1);
    rs.assure "" true;
 done,
-
+/*
 "deploy" : do rs:
     registerBusHandler "test-handler"
         \(_ = deployVerticle 
@@ -225,7 +223,7 @@ done,
             undeployVerticle did \();
         done;
 done,
-
+*/
 "cb:return" : do rs:
    (return 2) do v: rs.assure "" ((Some 2) == v) done;
 done,
