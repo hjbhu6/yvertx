@@ -44,10 +44,10 @@ end;
 
 
 class YetiVerticleFactory extends VerticleFactory
-    var loader = () as ~ClassLoader,
+    //var loader = () as ~ClassLoader,
     
     void init(Vertx ve, Container cont, ClassLoader c)
-        loader := c;
+        //loader := c;
         vhl.vertx := ve;
         vhl.container := cont,
     
@@ -60,6 +60,8 @@ class YetiVerticleFactory extends VerticleFactory
         import yeti.lang:Fun,
                          Struct;
        
+        loader = Thread#currentThread()#getContextClassLoader();
+        
         //load the mod.json to see wheter autoredeploy
         autoRedeploy = 
             (std = load yeb.std;
@@ -110,8 +112,6 @@ class YetiVerticleFactory extends VerticleFactory
             newFile);
         
         //compile with current loader
-        ocl = Thread#currentThread()#getContextClassLoader();
-        Thread#currentThread()#setContextClassLoader(loader);
         try
             eval = load yeti.lang.compiler.eval;
             println "[yetic] Compiling to: \(targetDir#getAbsolutePath())";
@@ -167,7 +167,7 @@ class YetiVerticleFactory extends VerticleFactory
                 System#exit(-1);
             fi
         finally
-            Thread#currentThread()#setContextClassLoader(ocl);
+            Thread#currentThread()#setContextClassLoader(loader);
         yrt,
 
     void reportException(Logger logger, Throwable t)
