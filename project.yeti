@@ -62,6 +62,8 @@ config = createBaseConfig config [
 
 config = config with createVertxConfig config;
 
+config.vertxSysProps["vertx.lang.yeti"] := "yeb.yvertx.YetiVerticleFactory";
+
 //register targets
 
 config = config with registerBaseTargets config;
