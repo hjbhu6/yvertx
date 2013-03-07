@@ -1821,6 +1821,26 @@ _toMessageJS v =
     Some va: toJS va;
     esac;
 
+
+toRequestMessageHandler fn =
+    (class YvertxRequestMessageHandler extends Handler
+        void handle(Object ob)
+            msg = ob unsafely_as ~Message;
+            body = fromJS (msg#body unsafely_as ~JsonObject);
+            if defined? body.status and body.status == "error" then
+                emg = if defined? body.message then
+                          string body.message
+                      else 
+                          "error but no message" 
+                      fi;
+                fn (failNone emg);
+            else
+                fn (Some body)
+            fi,
+
+    end;
+    new YvertxRequestMessageHandler() as ~Handler);
+
 toEitherJsonMessageHandler fn =
     (class YvertxEitherMessageHandler extends Handler
         void handle(Object ob)
@@ -1838,8 +1858,7 @@ toEitherJsonMessageHandler fn =
                 fn (Some  
                     {message = msg is ~Message,
                     handler =  this as ~Handler,
-                    get body () = 
-                        fromJS (msg#body unsafely_as ~JsonObject),
+                    body,
                     get replyAddress () = string msg#replyAddress,
                     reply v = 
                         msg#reply(_toMessageJS (Some v)),
@@ -1961,10 +1980,7 @@ sendToBusWithHandler address msg handler =
  */
 requestFromBus address msg handler =
     (getVertx ())#eventBus()#send(address is string, toJS msg, 
-            toEitherJsonMessageHandler \case of
-            Some {body}: handler (Some body);
-            None ex: handler (None (ex is ~Exception))
-            esac);
+            toRequestMessageHandler handler);
 
 /**
  * Group: eventbus
