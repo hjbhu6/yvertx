@@ -363,7 +363,7 @@ from `eventBus` property of yvertx.
 
 To set a message handler on the address `test.address`, you do the following:
 
-    yvertx.registerBusHandler "test.address" \() do {message, reply}:
+    _ = yvertx.registerBusHandler "test.address" \() do {message, reply}:
         logger#info("I received a message \(message)");
     done;
     
@@ -377,34 +377,46 @@ readyHandler is the second argument to the `registerBusHandler`. This function
 will then be called once the information has reached all nodes of the cluster. 
 E.g. :
 
-    yvertx.registerBusHandler 'test.address' 
+    _ = yvertx.registerBusHandler 'test.address' 
         \(logger#info 'Yippee! The handler info has been propagated across the cluster')
         do {message, reply}:
             //message handling
         done;
 
 To unregister a handler it's just as straightforward. You simply call 
-`unregisterBusHandler` passing in the address and the handler object given
-to the callback:
+`unregisterBusHandler` passing in the structure returned from 
+`registerBusHandler`, respectively given as `handler` to the callbacks of 
 
-    yvertx.registerBusHandler 'test.address' \()
-        do {message, handler}:
-            yvertx.unregisterBusHandler 'test.address' handler;
+    handlerId = yvertx.registerBusHandler 'test.address' \()
+        do {message}:
+            //handler message;
         done;
-    
-A single handler can be registered multiple times on the same, or different, addresses so in order to identify it uniquely you have to specify both the address and the handler. 
+    yvertx.unregisterBusHandler handlerId \();
 
-As with registering, when you unregister a handler and you're in a cluster it can also take some time for the knowledge of that unregistration to be propagated across the entire to cluster. If you want to be notified when that has completed you can optionally specify another function to the registerHandler as the third argument. E.g. :
+    //or using the callback
+    _ = yvertx.registerBusHandler 'test.address' \()
+        do {message, handler}:
+            yvertx.unregisterBusHandler handler \();
+        done;
 
-    eb.unregisterHandler('test.address', myHandler, function() {
-        log.info('Yippee! The handler unregister has been propagated across the cluster');
-    });
+
+As with registering, when you unregister a handler and you're in a cluster 
+it can also take some time for the knowledge of that unregistration to be 
+propagated across the entire to cluster. If you want to be notified when that 
+has completed you provide a callback as the second argument to
+`unregisterBusHandler` :
+
+    yvertx.unregisterBusHandler handlerId
+    \(logger#info('Yippee! The handler unregister has been propagated across the cluster'));
     
-If you want your handler to live for the full lifetime of your verticle there is no need to unregister it explicitly - vert.x will automatically unregister any handlers when the verticle is stopped.    
+If you want your handler to live for the full lifetime of your verticle there 
+is no need to unregister it explicitly - vert.x will automatically unregister 
+any handlers when the verticle is stopped.    
 
 ### Publishing messages
 
-Publishing a message is also trivially easy. Just publish it specifying the address, for example:
+Publishing a message is also trivially easy. Just publish it specifying the 
+address, for example:
 
     eb.publish('test.address', 'hello world');
 
