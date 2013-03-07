@@ -177,7 +177,7 @@ class YetiVerticleFactory extends VerticleFactory
 end;
 
 
-class YetiVerticle extends Verticle 
+class MainVerticle extends Verticle 
     var verticle = () as ~Verticle,
     
     void start(VoidResult startedResult) 
