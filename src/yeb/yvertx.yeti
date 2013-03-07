@@ -1857,7 +1857,7 @@ toEitherJsonMessageHandler address fn =
             else
                 fn (Some  
                     {message = msg is ~Message,
-                    handler =  
+                    handlerId =  
                         {object = this as ~Handler,
                         address is string},
                     body,
@@ -1887,7 +1887,7 @@ toJsonMessageHandler address fn =
             msg = ob unsafely_as ~Message;
             try
             fn {message = msg is ~Message,
-                handler =  
+                handlerId =  
                     {object = this as ~Handler,
                     address is string},
                 get body () = 
