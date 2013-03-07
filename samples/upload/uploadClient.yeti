@@ -15,7 +15,7 @@
  */
 module uploadClient;
 
-load yvertx;
+load yeb.yvertx;
  
 import org.vertx.java.core.AsyncResult;
 import org.vertx.java.core.AsyncResultHandler;

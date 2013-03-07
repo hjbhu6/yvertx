@@ -15,7 +15,7 @@
  */
 module echoServer;
 
-load yvertx;
+load yeb.yvertx;
 
 import org.vertx.java.core.streams:Pump,
                                    ReadStream,

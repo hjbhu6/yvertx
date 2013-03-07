@@ -15,7 +15,7 @@
  */
 module proxyServer;
 
-load yvertx;
+load yeb.yvertx;
 
 import org.vertx.java.core.Handler;
 import org.vertx.java.core.SimpleHandler;

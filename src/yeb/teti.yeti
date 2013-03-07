@@ -1,0 +1,110 @@
+/*
+ * Copyright 2011 Christian Essl
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions
+ * and limitations under the License.
+ */
+
+module yeb.teti;
+
+import java.io.File;
+
+
+
+parseTeti src =
+   (tokens = matchAll '(<\?=)|(<\?)|(\?>)'
+        (avoid ((not) . defined?) . (++ ['']) . tail)
+        id
+        src;
+    
+    //skip everything till first code
+    tokens = find (=="<?") tokens; 
+    tokens = if empty? tokens then
+            []
+        else
+            tail tokens
+        fi;
+    compile inCode endToken tokens result =
+        case tokens of
+        "<?=" :: rest : 
+            if inCode then
+                compile true endToken rest ("<?=" :: result)
+            else
+                result = " ctxt.print (string(" :: endToken :: result;
+                compile true ")); " rest result;
+            fi;
+        "<?" :: rest :
+            if inCode then
+                compile true endToken rest ("<?" :: result)
+            else
+                compile true "" rest (endToken :: result);
+            fi;
+        "?>" :: rest :
+            if inCode then
+                result = " ctxt.echo ('" :: endToken :: result; 
+                compile false "'); " rest result
+            else
+                compile false endToken rest ("?>" :: result);
+            fi;
+        '' :: rest : compile inCode endToken rest result;
+        
+        x :: rest :
+            if inCode then
+                compile inCode endToken rest (x :: result);
+            else
+                rx = strReplace "'" "'^\"'\"^'" x;
+                compile inCode endToken rest (rx :: result);
+            fi;
+            
+        _ : 
+           (result = endToken :: result;
+            strJoin "" (reverse result));
+        esac;
+    ret = compile true "" tokens []; 
+    //println ret;
+    ret);
+
+tetiSourceReader pathS = 
+    (import yeti.lang.compiler:CompileException;
+    
+    parentS = if defined? pathS.parent then
+        pathS.parent as ~String;
+    else
+        () as ~String
+    fi;
+    yetiF = new File(parentS, pathS.name is string);
+
+    tetiName =  strLeft pathS.name (strLength pathS.name - 5)   
+            ^ ".teti";
+    tetiF = new File(parentS, tetiName);
+
+    if yetiF#exists()  then
+        if tetiF#exists() then
+            throw new CompileException(0,0,"A teti and yeti file with" 
+            ^ "same name \(yetiF#getCanonicalPath()) found");
+        else
+            undef_str;
+        fi
+    elif tetiF#exists() then
+        src = (openInFile tetiF#getPath() "UTF-8").contents();
+        pathS.name := tetiF#getCanonicalPath();
+        parseTeti src;
+    else
+        undef_str;
+    fi);
+
+
+{
+    parseTeti,
+    tetiSourceReader
+}
+    

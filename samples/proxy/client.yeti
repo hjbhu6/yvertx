@@ -15,7 +15,7 @@
  */
 module client;
 
-load yvertx;
+load yeb.yvertx;
 
 verticle do :
     req = httpRequest 

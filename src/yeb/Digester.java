@@ -7,19 +7,6 @@ import java.security.MessageDigest;
 
 public class Digester 
 {
-    public static String calc(String algorithm, String message)
-		throws Exception
-    {
-        MessageDigest md = MessageDigest.getInstance(algorithm);
-        md.update(message.getBytes());
-		
-        byte[] bytes = md.digest();
- 
-        StringBuilder hex = new StringBuilder();
-    	for (int i=0;i<bytes.length;i++) {
-    	  hex.append(Integer.toHexString(0xFF & bytes[i]));
-    	}
- 		return hex.toString();
-    }
+
 }
 

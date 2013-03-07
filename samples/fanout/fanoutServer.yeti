@@ -18,7 +18,7 @@ module fanoutServer;
 
 import org.vertx.java.core:Vertx;
 
-load yvertx; 
+load yeb.yvertx; 
 
 verticle do :
    connections = sharedData#getSet("conns");

@@ -6,9 +6,11 @@ import org.vertx.java.core.file:FileProps;
 load yeb.std;
 load yeb.async;
 
-load yvertx;
+load yeb.yvertx;
 
-load yvertx.testutils;
+load yeb.yvertx.testutils;
+
+_ = load yvertx.deploy.child;
 
 
 fileDir = "../../target/yeti-test-output";
@@ -97,7 +99,7 @@ httpMethod opts method variant rstu =
     //wait for server to be ready
     _ = setTimer 1000 do:
 
-        sentBuff = generateRandomBuffer(1000);
+        sentBuff = newRandomBuffer(1000);
         
         
         client = createHttpClient "localhost:8080";
@@ -115,7 +117,7 @@ httpMethod opts method variant rstu =
             done;
 
             endHandler resp do:
-                rstu.assert "sentBuff" (buffersEqual sentBuff body);
+                rstu.assert "sentBuff" (sentBuff == body);
                 if chunked then
                     rstu.assert "rTrailers" (responseTrailers resp ==
                                     ["trailer1":"vtrailer1",
@@ -160,9 +162,9 @@ websocketEcho binary rs =
         client = createHttpClient "localhost:8080";
         
         {buff,str} = if binary then
-                {buff = generateRandomBuffer 1000, str = ""};
+                {buff = newRandomBuffer 1000, str = ""};
             else
-                str = randomUnicodeString(1000);
+                str = randomString(1000);
                 {buff = newStringBuffer str, str};
             fi;
 
@@ -171,7 +173,7 @@ websocketEcho binary rs =
             dataHandler ws do data:
                 _ = received#appendBuffer(data);
                 if received#length() == buff#length() then
-                    rs.assert "be" (buffersEqual received buff);
+                    rs.assert "be" (received == buff);
                     client#close();
                     closeHttpServer server do:
                         rs.assure "finished" true;
@@ -189,14 +191,12 @@ websocketEcho binary rs =
 verticle do :
         
 
-
     runTests [Exclude "websocket:"] [
-
 "common load": do rs:
    // rs.assure "" ("foo" == load yvertx.common.module1);
    rs.assure "" true;
 done,
-
+/*
 "deploy" : do rs:
     registerBusHandler "test-handler"
         \(_ = deployVerticle 
@@ -223,7 +223,7 @@ done,
             undeployVerticle did \();
         done;
 done,
-
+*/
 "cb:return" : do rs:
    (return 2) do v: rs.assure "" ((Some 2) == v) done;
 done,
@@ -458,7 +458,7 @@ done,
     fshelper.clean dir \(
         from = dir^"/foo.tmp";
         to = dir^"/bar.tmp";
-        content = generateRandomBuffer(10000);
+        content = newRandomBuffer(10000);
         fileSystem.writeFile from content (maybe ()do:
             fileSystem.open [] from (maybe ()do file1:
                 fileSystem.open [] to (maybe ()do file2:
@@ -470,7 +470,7 @@ done,
                         file1#close(toAsyncResultHandler (maybe ()do:
                             file2#close(toAsyncResultHandler (maybe ()do:
                                 fileSystem.readFile to (maybe ()do res:
-                                    tests.assert "" (buffersEqual content res);
+                                    tests.assert "" (content == res);
                                 done);
                             done));
                         done));
@@ -518,15 +518,11 @@ done,
 
 "http:post" : httpMethod [] "POST" Post,
 
-"http:head" : httpMethod [] "HEAD" Head,
+//"http:head" : httpMethod [] "HEAD" Head,
 
 "http:options" : httpMethod [] "OPTIONS" Options,
 
-"http:delete" : httpMethod [] "DELETE" Delete,
-
 "http:trace" : httpMethod [] "TRACE" Trace,
-
-"http:connect" : httpMethod [] "CONNECT" Connect,
 
 "http:path" : httpMethod [] "PATCH" Patch,
 
@@ -581,7 +577,7 @@ done,
 
     input = newBuffer 0;
     for [1..numChunks] do:
-        _ = input#appendBuffer(generateRandomBuffer chunkSize);
+        _ = input#appendBuffer(newRandomBuffer chunkSize);
     done;
     parser input;
 done,

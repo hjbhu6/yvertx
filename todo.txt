@@ -1,0 +1,4 @@
+- remove dependencies
+- factor netclient and oauth out
+- async block to yvertx
+- middleware yvertx specific also to yvertx

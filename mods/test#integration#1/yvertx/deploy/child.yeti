@@ -1,6 +1,6 @@
 module yvertx.deploy.child;
 
-load yvertx;
+load yeb.yvertx;
 
 verticle do :
    sendToBus "test-handler" {started=true, for_json=E()}; 

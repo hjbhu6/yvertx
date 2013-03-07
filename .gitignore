@@ -4,5 +4,11 @@ lib/unmanaged
 lib/ybuilder/extlib_managed
 lib/ybuilder/project
 target
-mods/**/lib/*
 temp/
+
+mods/**/lib/*
+mods/*
+!mods/main#main#1/
+!mods/test#test#1/
+!mods/test#integration#1/
+!mods/conf/

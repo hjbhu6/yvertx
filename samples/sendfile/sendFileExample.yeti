@@ -18,7 +18,7 @@ module sendFileExample;
 
 import org.vertx.java.core.http.HttpServerRequest;
 
-load yvertx;
+load yeb.yvertx;
 
 webroot = "sendfile/";
 

@@ -14,15 +14,17 @@
  * and limitations under the License.
  */
 
-module yeb.mvc.webutils;
+module yeb.mvc.mvc;
 
 import java.lang:Character,
                  Long;
 import java.util:Locale;
+import java.util.regex:Pattern;
 import java.net:URLEncoder, 
-        URLDecoder;
+            URLDecoder;
 
-import org.owasp.esapi:ESAPI,HTTPUtilitiess;
+import yeb.ValidationException;
+
     
 
 load yeb.std;
@@ -59,8 +61,14 @@ typedef request = {
 };
 
 
-typedef handler = request -> asyncFunction<response>;
+typedef route = request -> asyncFunction<response>;
 
+
+addEtag response = 
+    (digest = messageByteDigest "MD5" response.body;
+    response.header["Etag",digest];
+    response);
+    
 noneBody = new byte[0];
 
 continueStatusCode = -1;
@@ -83,7 +91,7 @@ request {method,uri,path,headers} =
     body = noneBody,
     params = [:],
     resHeaders = [:],
-    respond res = ()} is request;
+    } is request;
 
 
 
@@ -172,14 +180,6 @@ getCookie headers name =
 
 
 
-response req statusCode headers body =
-    Some ({statusCode = statusCode, 
-     headers = 
-        (insertHash req.resHeaders headers;
-        (req is request).resHeaders),
-     body = body,
-     for_json = E()} is response); 
-
 params name req =
     if name in ((req is request).params) then
         req.params[name];
@@ -201,7 +201,7 @@ param name ctx =
        head ls;
     else
         failWithValidation 
-            (message "noparam" "No request-parameter for name %1$s" [obj name]) 
+            "No request-parameter for name \(name)" 
             "";
     fi);
 
@@ -230,21 +230,34 @@ escape text =
          "&#\(Character#codePointAt(s[0] is string, 0));";
      strJoin '' (matchAll '[<>&"]' escapeT id "\(text)"));
 
-//"     
+//"   
+
+response req statusCode headers body =
+    {statusCode = statusCode, 
+     headers = 
+        (insertHash req.resHeaders headers;
+        (req is request).resHeaders),
+     body = body,
+     for_json = E()} is response; 
+
     
-redirectView path req = 
-   (response req 301 ["Location":path] noneBody);
-
-statusView status req = 
-    response req status [:] noneBody;
+writeRedirect path req = 
+   response req 301 ["Location":path] noneBody;
 
 
-okView req =
-    statusView 200 req;
 
-write req contentType content =
-    response  req 200 ["Content-Type":contentType^"; charset=utf-8"]
+writeStatusType status contentType content req =
+    response  req status ["Content-Type":contentType^"; charset=utf-8"]
         (toUTF8 content);
+
+write contentType content req =
+    writeStatusType 200 contentType content req;
+
+writeStatus status content req =
+    writeStatusType status "text/plain" content req;
+
+write401 msg = writeStatus 401 msg;
+write500 msg = writeStatus 500 msg;
 
 newWriter () =
     (import java.lang.StringBuilder;
@@ -256,11 +269,11 @@ newWriter () =
         get value () = string stb#toString()
     });
 
-writeHtml req content =
-    write req "text/html" content;
+writeHtml content req =
+    write "text/html" content req;
 
-writeJsonResponse req json =
-    write req "application/json" (writeJson json);
+writeJsonResponse json req =
+    write "application/json" (writeJson json) req;
 
 cacheForSeconds seconds mustRevalidate res = 
     (headers = res.headers;
@@ -490,7 +503,216 @@ setFlash name value req =
     m[name] := value as ~Object);
 */
 
+
+///////////////////////////////////////////////
+//route things
+_patternMatchAll = 
+        matchAll '(/?\.?):([A-Za-z0-9]+)(\$([^\$]+)\$)?(\?)?' (Token . tail) Text;
+
+/**
+ * Transform an url pattern to a regex. Patterns are used in routers to 
+ * specify path pattern which should be handled.
+ *
+ * ie for the pattern:
+ * :/entry/:id/:date
+ * becomes the regex
+ * :/entry/([^/]+)/([^/]+)/(.*)
+ * and the matched parts are exposed as request-parameters
+ *
+ * to specify a custom regex put it between $ $ after the name of the part.
+ * ie to specify that id should only contain digits:
+ * :/entry/:id$d+$
+ */
+patternToRegex pat = 
+   (//:a-z is name
+    //:a-z? is optional
+    //* at end means rest
+    //$marks start regex $ marks end regex
+    
+    import java.util.regex.Pattern;
+    
+    paS = if strEnds? pat "/*" then 
+                    strLeft pat (strLength pat - 2)
+               else
+                    pat;
+               fi;
+               
+    tokens = _patternMatchAll paS;
+    
+    
+    reg = tokens
+    |> map do x:
+        case x of
+        Token [leading, name, _, regex, mark]:
+           (reg = if defined? regex and (strLength regex > 0) then 
+                    regex;
+                  else
+                    '[^/\.]+'
+                  fi;
+            reg = "(?<\(name)>\(reg))";
+            
+            if defined? mark then
+                if defined? leading then
+                    "(?:\(Pattern#quote(leading))" ^ reg ^ ")?" ;
+                else
+                    reg ^ "?";
+                fi;
+            else
+                if defined? leading then
+                    Pattern#quote(leading) ^ reg
+                else
+                    reg;
+                fi;
+            fi);
+        Text tx:
+           (Pattern#quote(tx));
+        _ : failWith "should not happen";
+        esac
+    done
+    |> strJoin "";
+    
+    regex = if strEnds? pat "/*" then
+        reg ^ '(?:/(?<rest>.*))?'
+    else
+        reg
+    fi;
+    regex);
+
+_nameMatchAll = matchAll '\?\<([A-Za-z0-9]+)\>' 
+                        (Some . ((flip at) 1)) None;     
+
+_regexRoute method regex handler  = 
+   (import java.util.regex.Pattern;
+    meth = strUpper method;
+    var checkMethod? = meth != "ALL";
+    
+    names = _nameMatchAll regex |> catSome;
+    pattern = Pattern#compile(regex);
+
+    do req res:
+        if checkMethod? and (meth != (strUpper req.method )) then
+            res continue;
+        else
+            matcher = pattern#matcher(req.path is string);
+            if matcher#matches() then
+                //add the paramters
+                params = copy req.params;
+                urlParams = array [];
+                for [0..matcher#groupCount()] do c:
+                    push urlParams matcher#group(c);
+                done;
+                params["urlPrams"] := list urlParams;
+                
+                //add the named parameters
+                for names do name:
+                    ls = if name in params then
+                            params[name];
+                         else
+                            []
+                         fi;
+                    try
+                        v = matcher#group(name);
+                        if defined? v and strLength (string v) > 0 then
+                            params[name] := v :: ls;
+                        fi;
+                    catch IllegalArgumentException ex:
+                        println 
+                            "matcher for regex \(regex) has not name \(name)";
+                    yrt;        
+                done;
+
+                //set the new pathInfo and servletPath
+                path = if (contains? "rest" names) 
+                    and (defined? matcher#group("rest")) then
+                    string matcher#group("rest");        
+                else
+                    ""
+                fi;
+                nreq = req with { params, path};
+
+                try
+                    handler nreq res
+                catch ValidationException ex:
+                    res continue;
+                yrt;
+            else
+                res continue;
+            fi;
+        fi;
+    done);
+
+_methodPattern requestUrl = 
+    case requestUrl of
+    Get us: pair "GET" us;
+    Post us: pair "POST" us;
+    Put us: pair "PUT" us;
+    Delete us: pair "DELETE" us;
+    Options us: pair "OPTIONS" us;
+    Head us: pair "HEAD" us;
+    All us: pair "ALL" us;
+    General {method, pattern} : pair method pattern;
+    esac;
+
+
+/**
+ * Handleradapter which takes a request method and a regexpattern and 
+ * executes on match the given route. 
+ * Normally this is not used directly but a router is used.
+ *
+ */
+regexRoute regex route =
+    (pa = _methodPattern regex;
+    _regexRoute pa.fst pa.snd route);
+
+/**
+ * Handleradapter which takes a request method and a pattern 
+ * (see patternToRegex) and 
+ * executes on match the given route. 
+ * Normally this is not used directly but a router is used.
+ */
+patternRoute pattern route =
+    (pa = _methodPattern pattern;
+    _regexRoute pa.fst (patternToRegex pa.snd) route);
+
+routes handlers req responder is list<route> -> route =
+    if empty? handlers then
+        responder continue;
+    else
+        try
+        (head handlers) req \case of
+            None ex: responder (None (ex is ~Exception));
+            Some res:
+                if res.statusCode == continueStatusCode then
+                    routes (tail handlers) req responder;
+                else
+                    responder (Some res)
+                fi
+            esac;
+        catch Exception ex:
+            responder (None ex);
+        yrt
+    fi;
+
+
+
 {
+
+    patternToRegex,
+    regexRoute,
+    patternRoute,
+    routes,
+
+    (==>>) = patternRoute,
+    (~~>>) = regexRoute,
+    (==>) p h = patternRoute p do req res:
+        try res (Some (h req)) catch Exception ex: res (None ex) yrt
+    done,
+    (~~>) p h = regexRoute p do req res:
+        try res (Some (h req)) catch Exception ex: res (None ex) yrt
+    done,
+
+    (<==) fn res is callback<response> -> response -> ()= 
+        fn (Some res),
 
     HEADER_PRAGMA = "Pragma",
     HEADER_EXPIRES = "Expires",
@@ -498,6 +720,8 @@ setFlash name value req =
 
     noneBody,
     fileResponse,
+
+    addEtag,
 
     cookie,
     setCookies,
@@ -518,14 +742,19 @@ setFlash name value req =
 
     isAjax,
     escape,
-    redirectView,
-    statusView,
-    okView,
+
+    writeRedirect,
+    writeStatus,
+    write500,
+    write401,
+    writeStatusType,
     write,
     newWriter,
     writeHtml,
     writeJsonResponse,
+    
     cacheForSeconds,
+    
     parseHttpDate,
     formatHttpDate,
     urlEncode,
@@ -541,33 +770,4 @@ setFlash name value req =
     (@) text = escape text,
 
         
-    decryptHiddenField encrypted = 
-        string (ESAPI#httpUtilities()#decryptHiddenField(encrypted is string)),
-    decryptQueryString encrypted = 
-       (ret = [:];
-        forJavaMap (ESAPI#httpUtilities()#decryptQueryString(encrypted)) do k v:
-            ret[string k] := string v;
-        done;
-        ret),
-    encryptHiddenField value = 
-        string (ESAPI#httpUtilities()#encryptHiddenField(value is string)),
-    encryptQueryString value = 
-        string (ESAPI#httpUtilities()#encryptQueryString(value is string)),
-
-
-    encodeForBase64 bytes wrap = 
-        string ESAPI#encoder()
-            #encodeForBase64(bytes is ~byte[],wrap is boolean),
-    decodeFromBase64 str = 
-        ESAPI#encoder()#decodeFromBase64(str is string),
-    encodeForCSS str = 
-        ESAPI#encoder()#encodeForCSS(str is string),
-    encodeForHTML str = 
-        ESAPI#encoder()#encodeForHTML(str is string),
-    encodeForHTMAttribute str = 
-        ESAPI#encoder()#encodeForHTMLAttribute(str is string),
-    encodeForURL str = 
-        ESAPI#encoder()#encodeForURL(str is string),
-    encodeForXML str = 
-        ESAPI#encoder()#encodeForXML(str is string)
 }

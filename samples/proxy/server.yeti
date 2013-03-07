@@ -17,7 +17,7 @@ module server;
 
 import org.vertx.java.core.http.HttpServerRequest;
 
-load yvertx;
+load yeb.yvertx;
 
 verticle do :
     (createHttpServerWithHandler do req:

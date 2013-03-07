@@ -15,16 +15,16 @@
  */
 module resourceLoadExample;
 
-load yvertx;
+load yeb.yvertx;
 
 import org.vertx.java.deploy.Verticle;
 
 import java.net.URL;
 
 verticle do :
-    urlBar = (classOf yvertx)#getClassLoader()#getResource("bar.txt");
+    urlBar = (classOf yeb.yvertx)#getClassLoader()#getResource("bar.txt");
     println "bar url is \(urlBar)";
-    urlFoo = (classOf yvertx)#getClassLoader()#getResource("foo.xml");
+    urlFoo = (classOf yeb.yvertx)#getClassLoader()#getResource("foo.xml");
     println "foo url is \(urlFoo)";
     
     /*

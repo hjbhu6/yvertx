@@ -15,11 +15,11 @@
  */
 module routeMatchExample;
 
-load yvertx;
+load yeb.yvertx;
 
 verticle do :
     rm = newRouteMatcher ();
-    rm._get "/details/:user/:id" do req:
+    rm.get "/details/:user/:id" do req:
         p = params req;
         req#response#end("User: \(p['user']) ID: \(p['id'])");
     done;

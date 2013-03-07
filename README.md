@@ -5,8 +5,7 @@ yvertx
 
 Note this are still first steps and the module is in development.
 
-The module is also compile to vert.x to the vert.x version which is in current
-vert.x master (higher than 1.2.3final)
+The module is for vertx 1.3.1 
 
 building
 ======
@@ -15,34 +14,33 @@ You need JDK7 installed and the VERTX_HOME enviroment variable set to your vertx
 
 in the root of the project dir call:
 
-    java -jar ybuilder.jar clean, vertx-module
+    java -jar ybuilder.jar retrieveLibs
 
-This will create the vertx module `org.yvertx.yvertx-yeti-lang-impl-vXXX` in 
-the `target` directory.
+    java -jar ybuilder.jar clean, vertx:compile
 
 
-install for vert.x versions higher than 1.2.3.final (including current master)
-=======
+experimenting
+======
 
-1.) add following line to your `%VERTX_HOME%/conf/langs.properties` file:
-    
-    yeti=org.yvertx.deploy.YetiVerticleFactory
+After you have build yvertx run vertx with from the project root. 
 
-2.) copy the `org.yvertx.yvertx-yeti-lang-impl-vXXX` from the `target`
-direcotory to your `mods` directory (Please see the vert.x docs for more 
-information on installing modules)
+    vertx runmod main
 
-3.) add a dependency to your mod.json file to the yvertx module:
-    
-    {
-       main: "myapp.yeti",
-       includes: "org.yvertx.yvertx-yeti-lang-impl-vXXX"
-    }    
+This will start the main module found in the mods directory.
 
-4.) run your module as described in vertx
+Now you can change the code in the mods/main/server.yeti file and 
+the module will autoreload
+
 
 Examples
 ========
 
 To see how to code verticles in yeti take a look at the 'samples' directory.
+
+testing
+========
+
+The test-module is in mods/test to run it use
+
+    vertx runmod test
 

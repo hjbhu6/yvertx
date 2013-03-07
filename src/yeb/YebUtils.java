@@ -19,6 +19,8 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.regex.Pattern;
 
+import java.security.MessageDigest;
+
 import yeti.lang.Fun;
 
 /**
@@ -26,6 +28,22 @@ import yeti.lang.Fun;
  * @author Christian
  */
 public class YebUtils {
+
+    public static String calcDigest(String algorithm, byte[] message)
+		throws Exception
+    {
+        MessageDigest md = MessageDigest.getInstance(algorithm);
+        md.update(message);
+		
+        byte[] bytes = md.digest();
+ 
+        StringBuilder hex = new StringBuilder();
+    	for (int i=0;i<bytes.length;i++) {
+    	  hex.append(Integer.toHexString(0xFF & bytes[i]));
+    	}
+ 		return hex.toString();
+    }
+
 
     static public Object moduleLoad(ClassLoader classLoader,String moduleName) throws ClassNotFoundException, NoSuchMethodException, IllegalAccessException, IllegalArgumentException, InvocationTargetException {
         classLoader = classLoader == null ? Thread.currentThread().getContextClassLoader() : classLoader;
@@ -111,6 +129,42 @@ public class YebUtils {
         }
         return stb.toString();
     }
+
+	
+  public static byte[] generateRandomByteArray(int length) {
+    byte[] line = new byte[length];
+    for (int i = 0; i < length; i++) {
+      //Choose a random byte - if we're generating delimited lines 
+	  //then make sure we don't
+      //choose first byte of delim
+      byte rand = (byte) ((int) (Math.random() * 255) - 128);
+
+      line[i] = rand;
+    }
+    return line;
+  }
+
+  public static String randomUnicodeString(int length) {
+    StringBuilder builder = new StringBuilder(length);
+    for (int i = 0; i < length; i++) {
+      char c;
+      do {
+        c = (char) (0xFFFF * Math.random());
+      } while ((c >= 0xFFFE && c <= 0xFFFF) || (c >= 0xD800 && c <= 0xDFFF)); 
+	  //Illegal chars
+      builder.append(c);
+    }
+    return builder.toString();
+  }
+
+  public static String randomAlphaString(int length) {
+    StringBuilder builder = new StringBuilder(length);
+    for (int i = 0; i < length; i++) {
+      char c = (char) (65 + 25 * Math.random());
+      builder.append(c);
+    }
+    return builder.toString();
+  }
 
 
 

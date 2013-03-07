@@ -15,7 +15,7 @@
  */
 module sslServer;
 
-load yvertx;
+load yeb.yvertx;
 
 verticle do :
     _ = (createAndConnectNetServer do socket:

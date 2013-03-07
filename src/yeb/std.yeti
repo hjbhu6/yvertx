@@ -22,46 +22,16 @@ import java.util: Locale, Iterator,List,ListIterator;
 
 import yeti.lang.Struct;
 import java.io: File;
-//import org.yeb.TMap;
 import org.slf4j: Logger, LoggerFactory;
 
-json = load yvertx;
+json = load yeb.yvertx;
 
 
-class Message(String key, String defaultFormat, Object[] params) 
-    
-    message = String#format(defaultFormat, params),
-
-    String getDefaultFormat() defaultFormat,
-    String getKey() key,
-    String getMessage() message,
-    Object[] getParams() params,
-    String getLocalMessage(Locale loc) 
-        String#format(loc,defaultFormat,params),
-    String toString() message,
-end;
-
-class MessageException(Message messageObject) 
-    extends IllegalArgumentException(messageObject#getMessage()) 
-    Message getMessageObject() messageObject,
-    static MessageException create(Message msg)
-        new MessageException( msg),
-end;
-
-class ValidationException(Message message, Object wrongValue) 
-    extends MessageException(message)
+class ValidationException(String message, Object wrongValue) 
+    extends IllegalArgumentException(message)
     Object getWrongValue() wrongValue,
-    static ValidationException create(Message msg, Object wV)
-        new ValidationException(msg, wV),
 end;
 
-
-message key defaultFormat values =
-    new Message(key, defaultFormat, array values);
-
-plainMessage text = message "" text [];
-
-failWithMessage msg = throw new MessageException(msg);
 
 number' o is ~Object -> number = 
    (import java.lang: Double, Float,Number;
@@ -143,28 +113,33 @@ maybe' defaultFn fn opt =
     esac;
 
 findCodeAtLine sourceDirs fileName lineNumber linesSourround =
-   (prov = (load yeb.yeticlassloadermodule).sourceReader 
-                    sourceDirs false
-                    none;
-    arg = {
-        var name = fileName, 
-        fullpath = false
-    };
-    code = prov arg;
-    if not defined? code then
-        none
+    (srcs = sourceDirs 
+        |> concatMap do d: 
+            f =new File(d is string, fileName is string);
+            if f#exists() then
+                [string f#getPath()]
+            else
+                []
+            fi
+        done;
+
+    if empty? srcs then
+       none
     else
         fromLineNumber = 
           (max 0 (lineNumber - linesSourround)) + 1;
-        toLineNumber = lineNumber + linesSourround;
-        lines = list (strSplit '\n' code)
+        
+        lines = readFile (head srcs) '' getLines
             |> drop (fromLineNumber - 1)
             |> take (2 *linesSourround);
-        Some {fileName,
-        lines,
-        lineNumber,
-        fromLineNumber,
-        toLineNumber}
+        
+        Some {
+            fileName,
+            lines,
+            lineNumber,
+            fromLineNumber,
+            toLineNumber = fromLineNumber + linesSourround
+        }
     fi);
         
                         
@@ -193,55 +168,18 @@ parseJson str =
     ob = new JsonObject(str is string);
     json.fromJS ob);
 
-//+++++++++++++++++++++++table things ++++++++++++++++++++++++++++++++
 
-typedef tableType<k,v> = {
-   .add is k -> v -> tableType,
-   .remove is k -> tableType,
-   .valAt is k -> (None() | Some(v)),
-   .count is number,
-   .seq is () -> list<{key is k, value is v}>,
-   .getDefault is 'k -> 'v -> 'v,
-}
-
-addAll table ha is tableType<'k,'v> -> hash<'k,'v> -> tableType<'k,'v>= 
-    (var t = table;
-    forHash ha do k v: t := (t.add k v) done;
-    t);
-
-
-create hash is hash<'k, 'v> -> tableType<'k,'v> = 
-   (newTable pm is ~TMap -> tableType<'k,'v>  = 
-       ({
-          add k v is 'k -> 'v -> tableType<'k,'v> = newTable (pm#update(k,v)),
-
-          remove k is 'k -> tableType<'k,'v> = newTable (pm#remove(k)),
-
-          valAt k is 'k -> (None() | Some 'v) = (
-            v = pm#get(k, TMap#NULL_VALUE);
-            if same? v TMap#NULL_VALUE then None() else Some (v unsafely_as 'v)  fi
-          ),
-
-          getDefault key defaultV is 'k -> 'v -> 'v = (
-            vr = pm#get(key,defaultV);
-            vr unsafely_as 'v
-          ),
-
-
-          count is number= pm#size(),
-
-          seq ()  = (
-            r = pm#keyValueList();
-            r unsafely_as list<{key is 'k ,value is 'v}>;
-          ),
-        } //unsafely_as tableType<'k,'v>
-    );
-    t = newTable TMap#EMPTY;
-    if empty? hash then
-        t;
-    else 
-       addAll t hash
-    fi);
+/**
+ * Group: digest
+ * calculates the hash for the given algorithm for the given bytes
+ * using java.security.MessageDigest
+ *
+ * Arguments:
+ * algorithm - the algorithm to use
+ * bytes - the message over which the hash sould be mad
+ */
+messageByteDigest algorithm message =
+    YebUtils#calcDigest(algorithm is string, message is ~byte[]);
 
 /**
  * Group: digest
@@ -250,13 +188,15 @@ create hash is hash<'k, 'v> -> tableType<'k,'v> =
  *
  * Arguments:
  * algorithm - the algorithm to use
- * message - the message over which the hash sould be mad
+ * message - the message-string over which the hash sould be mad
  */
 messageDigest algorithm message =
-    Digester#calc(algorithm is string, message is string);
+    messageByteDigest algorithm ((message is string) as ~String)#getBytes(); 
 
 {       
     messageDigest, 
+
+    messageByteDigest,
 
     /**
      * Group: digest
@@ -276,13 +216,39 @@ messageDigest algorithm message =
      */
     hashSHA256 = messageDigest "SHA-256",
 
-    enviroment = 
-       (var v is Production string 
+    /**
+     * Group: enviroment
+     *
+     * The Development, Production or Test mode of the current runtime.
+     *
+     * The mode is set with the System-Property 'yvertx.mode'.
+     * A value of 'test' maps to Test mode and of 'production'
+     * to production. A dot seperated string after the mod is given as
+     * value to the mode ie 'test.integration' maps to mode 
+     * (Test "integration")
+     */
+    mode = 
+       (v is Production string 
                   | Development string
-                  | Test string = Development "default";
+                  | Test string =
+            (prop = System#getProperty("yvertx.mode", "development");
+            var main = "";
+            var ext = "";
+            cut = strIndexOf prop "." 0;
+            if cut < 0 then
+                main := prop;
+                ext := "";
+            else
+                main := strLeft prop cut;
+                ext := strRight prop (cut + 1);
+            fi;
+            case strLower main of
+            "production":Production ext;
+            "test": Test ext;
+            _ : Development ext;            
+            esac);
         {
-            set value vb = v := vb,
-            get value () = v,
+            value = v,
             production? = case v of Production _ : true; _ : false esac,
             test? = case v of Test _ : true; _ : false esac,
             development? = case v of Development _ : true; _ : false esac,
@@ -292,10 +258,6 @@ messageDigest algorithm message =
 
     (>>) fn1 fn2 = composeToRight fn1 fn2,
     
-
-    message,
-    plainMessage,
-    failWithMessage,
 
     composeToRight fn1 fn2 = do a: fn2 (fn1 a) done,
     maybeHead,
@@ -389,6 +351,10 @@ messageDigest algorithm message =
         f () = ran#nextFloat()  :. f;
         f();
     ),
+    
+    randomByteArray len = YebUtils#generateRandomByteArray(len is number),
+    randomString len = YebUtils#randomUnicodeString(len is number),
+    randomAlphaString len = YebUtils#randomAlphaString(len is number),
 
     regexPattern patstr =
        (import java.util.regex.Pattern;
@@ -399,24 +365,5 @@ messageDigest algorithm message =
     writeJson,
     parseJson,
 
-    tableCreate = create,
-    tableAddAll = addAll,
-    tableRemoveAll table keys =
-        fold do t k: tableRemove t k done table keys,
-
-    tableAdd table k v is tableType<'k,'v> -> 'k -> 'v -> tableType<'k,'v>=
-        table.add k v,
-
-    tableRemove table k is tableType<'k,'v> -> 'k -> tableType<'k,'v> =
-        table.remove k,
-
-    tableAt table k is tableType<'k,'v> -> 'k -> (None() | Some('v)) =
-        table.valAt k,
-
-    tableLength table is tableType<'k,'v> -> number =
-        table.count,
-
-    tableKeyValues table is tableType<'k,'v> -> list<{key is 'k, value is 'v}> =
-        table.seq(),
 
 }
