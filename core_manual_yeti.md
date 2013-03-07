@@ -13,7 +13,7 @@ language for the JVM.
 
 Yvertx is just a wrapper around the vertx Java api. It is itself written in 
 Yeti only. So everything Yvertx provides can be acomplished by using the vertx
-Java api direclty - albeit less convinient. 
+Java api direclty - although less convinient. 
 
 Often it is even necessary to use the Java Api directly because Yvertx
 only wraps the parts of the Java api, where it pays of in terms of convinience.
@@ -35,7 +35,7 @@ connections and any data received by it is echoed back on the connection.
 
 Copy the following into a text editor and save it as `server.yeti`
 
-    load yvertx;
+    load yeb.yvertx;
 
     verticle do:
         server = createNetServerWithHandler do sock:
@@ -61,9 +61,9 @@ Congratulations! You've written your first verticle.
 ## Loading other the yvertx module.
 
 If you want to access the vert.x core API from within your verticle 
-(which you almost certainly want to do), you need to call `load yvertx` at 
+(which you almost certainly want to do), you need to call `load yeb.yvertx` at 
 the top of your script. Normally this will be the first thing at the 
-top of your verticle main. `yvertx` is just the name of the module that 
+top of your verticle main. `yeb.yvertx` is just the name of the module that 
 contains the core API.
 
 ## Verticle clean-up
@@ -73,7 +73,7 @@ verticles is stopped. However if you need to provide any custom clean-up code
 you put it into the function returned from the verticle creation function. 
 This function will be invoked when the verticle stops. 
         
-    yvertx = load yvertx;
+    yvertx = load yeb.yvertx;
 
     yvertx.verticle do:
         //verticle start code goes here
@@ -96,7 +96,7 @@ is available to the verticle in the `vertx.config` variable. For example:
     
     println "Config is \(config)";
     
-The config returned is an struct which is generated from an underlying JSON 
+The config returned is a struct which is generated from an underlying JSON 
 object. You can use this struct to configure the verticle. Allowing verticles 
 to be configured in a consistent way like this allows configuration to be 
 easily passed to them irrespective of the language.
@@ -150,13 +150,13 @@ Ie to deploy one instance of the verticle `server.yeti`
 
     _ = yvertx.deployVerticle 
         "server.yeti" 
-        {for_json = E()}
+        emptyJS
         1
         do: println "finished deploy" done;
     
 ## Deploying a module programmatically
 
-You should use `deployModule` to deploy a module, for example:
+Use `deployModule` to deploy a module, for example:
 
     yvertx.deployModule name config numberOfInstances finishedCallback;
 
@@ -209,26 +209,32 @@ verticles. You can think of this as your application starter verticle.
 
 For example, you could create a verticle `app.yeti` as follows:
 
-    // Application config
-    
-    appConfig = {
-        verticle1Config = {
-            // Config for verticle1
-        },
-        verticle2Config = {
-            // Config for verticle2
-        }, 
-        verticle3Config = {
-            // Config for verticle3
-        }
-    }  
-    
-    // Start the verticles that make up the app  
-    
-    _ = yvertx.deployVerticle "verticle1.yeti", appConfig.verticle1Config 1 \();
-    _ = yvertx.deployVerticle "verticle2.js"  appConfig.verticle2Config 5 \();
-    _ = yvertx.deployVerticle "verticle3.yeti", appConfig.verticle3Config 1 \();
+    module app;
+    yvertx = load yeb.yvertx;
+
+    verticle do:
+        // Application config
         
+        appConfig = {
+            verticle1Config = {
+                // Config for verticle1
+            },
+            verticle2Config = {
+                // Config for verticle2
+            }, 
+            verticle3Config = {
+                // Config for verticle3
+            }
+        }  
+        
+        // Start the verticles that make up the app  
+        
+        yvertx.deployVerticle "verticle1.yeti", appConfig.verticle1Config 1 \();
+        yvertx.deployVerticle "verticle2.js"  appConfig.verticle2Config 5 \();
+        yvertx.deployVerticle "verticle3.yeti", appConfig.verticle3Config 1 \();
+        
+        \() //stop function
+    done;
 Then you can start your entire application by simply running:
 
     vertx run app.yeti
@@ -252,12 +258,11 @@ and all of their children are automatically undeployed when the parent
 verticle is undeployed, so in most cases you will not need to undeploy a 
 verticle manually, however if you do want to do this, it can be done by 
 calling the function `vertx.undeployVerticle` passing in the deployment id 
-that was returned from the call to `vertx.deployVerticle`
+that is given to the callback method provided to `deployVerticle`
 
-    var deploymentID = vertx.deployVerticle 'my_verticle.js' emptyJS 1 \();    
-    
-    yvertx.undeployVerticle deploymentID ;    
-
+    vertx.deployVerticle 'my_verticle.js' emptyJS 1 do deploymentId:
+        yvertx.undeployVerticle deploymentID ;    
+    done;    
             
 # The Event Bus
 
@@ -338,13 +343,21 @@ odule for that.
 Messages that you send on the event bus can be as simple as a string, 
 a number or a boolean. You can also send vert.x buffers or JSON messages.
 
-It's highly recommended you use JSON messages to communicate between verticles. JSON is easy to create and parse in all the languages that vert.x supports.
+However the yvertx api only supports JSON messages. If you want to send one
+of the other message-types vert.x supports you need to use the java api
+directly.
+
+It's highly recommended you use JSON messages to communicate between verticles.
+JSON is easy to create and parse in all the languages that vert.x supports.
 
 ## Event Bus API
 
 Let's jump into the API
 
-The eventbus is accessible as the `eventBus` property on the `vertx` instance.
+In most cases you do not have to use the eventbus object directly, because
+the yvertx functions wrap. However if you need the java EventBus-Object 
+(ie for sending other message-types than JSON) than it can be gotten
+from `eventBus` property of yvertx.
 
 ### Registering and Unregistering Handlers
 
