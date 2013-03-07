@@ -33,6 +33,7 @@ import org.vertx.java.platform: Verticle,
 
 teti = load yeb.teti;                                    
 vhl = load yeb.yvertx.vertxholder;
+std = load yeb.std;
 
         
 
@@ -184,7 +185,14 @@ class MainVerticle extends Verticle
         factory = new YetiVerticleFactory();
         factory#init(this#getVertx(), this#getContainer(), 
                     Thread#currentThread()#getContextClassLoader());
-        vname = this#getContainer()#getConfig()#getString("name", "main.yeti");
+        defaultName = 
+            if std.mode.test? then
+                "mainTest.yeti"
+            else
+                "main.yeti"
+            fi;
+        vname = 
+            this#getContainer()#getConfig()#getString("name", defaultName);
         verticle := factory#createVerticle(vname);
         verticle#setContainer(this#getContainer());
         verticle#setVertx(this#getVertx());
