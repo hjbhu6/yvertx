@@ -363,25 +363,34 @@ from `eventBus` property of yvertx.
 
 To set a message handler on the address `test.address`, you do the following:
 
-    var eb = vertx.eventBus;
+    yvertx.registerBusHandler "test.address" \() do {message, reply}:
+        logger#info("I received a message \(message)");
+    done;
     
-    var myHandler = function(message)) {
-      log.info('I received a message ' + message);
-    }
-    
-    eb.registerHandler('test.address', myHandler);
-    
-It's as simple as that. The handler will then receive any messages sent to that address.
+It's as simple as that. The handler will then receive any messages sent to 
+that address.
 
-When you register a handler on an address and you're in a cluster it can take some time for the knowledge of that new handler to be propagated across the entire cluster. If you want to be notified when that has completed you can optionally specify another function to the `registerHandler` function as the third argument. This function will then be called once the information has reached all nodes of the cluster. E.g. :
+When you register a handler on an address and you're in a cluster it can take 
+some time for the knowledge of that new handler to be propagated across the 
+entire cluster. When that has the readyHandler will be notified. The
+readyHandler is the second argument to the `registerBusHandler`. This function 
+will then be called once the information has reached all nodes of the cluster. 
+E.g. :
 
-    eb.registerHandler('test.address', myHandler, function() {
-        log.info('Yippee! The handler info has been propagated across the cluster');
-    });
+    yvertx.registerBusHandler 'test.address' 
+        \(logger#info 'Yippee! The handler info has been propagated across the cluster')
+        do {message, reply}:
+            //message handling
+        done;
 
-To unregister a handler it's just as straightforward. You simply call `unregisterHandler` passing in the address and the handler:
+To unregister a handler it's just as straightforward. You simply call 
+`unregisterBusHandler` passing in the address and the handler object given
+to the callback:
 
-    eb.unregisterHandler('test.address', myHandler);    
+    yvertx.registerBusHandler 'test.address' \()
+        do {message, handler}:
+            yvertx.unregisterBusHandler 'test.address' handler;
+        done;
     
 A single handler can be registered multiple times on the same, or different, addresses so in order to identify it uniquely you have to specify both the address and the handler. 
 
