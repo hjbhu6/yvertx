@@ -8,7 +8,7 @@ temp/
 
 mods/**/lib/*
 mods/*
-!mods/main/
-!mods/test/
-!mods/integration-test/
+!mods/main#main#1/
+!mods/test#test#1/
+!mods/test#integration#1/
 !mods/conf/
