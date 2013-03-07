@@ -1,4 +1,3 @@
 {
-	"main" : "yvertx.test.yeti",
-	"includes" : "main"
+	"main" : "yvertx.test.yeti"
 }
