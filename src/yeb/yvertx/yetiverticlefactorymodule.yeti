@@ -24,7 +24,8 @@ import java.io.File;
 import java.net:URLDecoder,
                 URLClassLoader;
 
-import org.vertx.java.core:Vertx;
+import org.vertx.java.core:Vertx,
+                           VoidResult;
 import org.vertx.java.core.logging:Logger;
 import org.vertx.java.platform: Verticle,
                                  Container,
@@ -176,4 +177,23 @@ class YetiVerticleFactory extends VerticleFactory
 end;
 
 
-none
+class YetiVerticle extends Verticle 
+    var verticle = () as ~Verticle,
+    
+    void start(VoidResult startedResult) 
+        factory = new YetiVerticleFactory();
+        factory#init(this#getVertx(), this#getContainer(), 
+                    Thread#currentThread()#getContextClassLoader());
+        vname = this#getContainer()#getConfig()#getString("name", "main.yeti");
+        verticle := factory#createVerticle(vname);
+        verticle#setContainer(this#getContainer());
+        verticle#setVertx(this#getVertx());
+        verticle#start(startedResult),
+
+    void stop()
+        verticle#stop(),
+end;
+
+
+
+()
