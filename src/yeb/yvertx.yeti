@@ -1841,7 +1841,7 @@ toRequestMessageHandler fn =
     end;
     new YvertxRequestMessageHandler() as ~Handler);
 
-toEitherJsonMessageHandler fn =
+toEitherJsonMessageHandler address fn =
     (class YvertxEitherMessageHandler extends Handler
         void handle(Object ob)
             msg = ob unsafely_as ~Message;
@@ -1857,7 +1857,9 @@ toEitherJsonMessageHandler fn =
             else
                 fn (Some  
                     {message = msg is ~Message,
-                    handler =  this as ~Handler,
+                    handler =  
+                        {object = this as ~Handler,
+                        address is string},
                     body,
                     get replyAddress () = string msg#replyAddress,
                     reply v = 
@@ -1866,10 +1868,10 @@ toEitherJsonMessageHandler fn =
                         msg#reply(_toMessageJS v),
                     request v handler = 
                         msg#reply(_toMessageJS (Some v), 
-                            toEitherJsonMessageHandler handler),
+                            toEitherJsonMessageHandler address handler),
                     requestEither v handler = 
                         msg#reply(_toMessageJS v, 
-                            toEitherJsonMessageHandler handler)
+                            toEitherJsonMessageHandler address handler)
                    });
             fi
             catch Exception ex:
@@ -1879,13 +1881,15 @@ toEitherJsonMessageHandler fn =
     end;
     new YvertxEitherMessageHandler() as ~Handler);
 
-toJsonMessageHandler fn =
+toJsonMessageHandler address fn =
     (class YvertxMessageHandler extends Handler
         void handle(Object ob)
             msg = ob unsafely_as ~Message;
             try
             fn {message = msg is ~Message,
-                handler =  this as ~Handler,
+                handler =  
+                    {object = this as ~Handler,
+                    address is string},
                 get body () = 
                     fromJS (msg#body unsafely_as ~JsonObject),
                 get replyAddress () = string msg#replyAddress,
@@ -1895,10 +1899,10 @@ toJsonMessageHandler fn =
                     msg#reply(_toMessageJS v),
                 request v handler = 
                     msg#reply(_toMessageJS (Some v), 
-                        toEitherJsonMessageHandler handler),
+                        toEitherJsonMessageHandler address handler),
                 requestEither v handler = 
                     msg#reply(_toMessageJS v, 
-                        toEitherJsonMessageHandler handler)
+                        toEitherJsonMessageHandler address handler)
                };
             catch Exception ex:
                 msg#reply(_toMessageJS (None ex));
@@ -1951,7 +1955,7 @@ sendToBus address msg =
  */
 sendToBusWithHandler address msg handler =
     (getVertx ())#eventBus()#send(address is string, toJS msg, 
-            toJsonMessageHandler handler);
+            toJsonMessageHandler address handler);
 
 
 /**
@@ -1997,9 +2001,12 @@ requestFromBus address msg handler =
  * messageHandler - the handler which receives the messages
  */
 registerBusHandler address resultHandler handler =
+    (ha = toJsonMessageHandler address handler;
+    ret = {object = ha, address};
     (getVertx ())#eventBus()#registerHandler(address is string,
-                            toJsonMessageHandler handler,
-                            toAsyncResultHandler resultHandler);
+                            ha,
+                            toAsyncResultHandler \(resultHandler ret));
+    ret);
 
 /**
  * Group: eventbus
@@ -2014,8 +2021,10 @@ registerBusHandler address resultHandler handler =
  * handler - the message handeler
  */
 registerLocalBusHandler address handler =
+    (ha = toJsonMessageHandler address handler;
     (getVertx ())#eventBus()#registerLocalHandler(address is string,
-                   toJsonMessageHandler handler);
+                   ha);
+    {object = ha, address});
         
 /**
  * Group: eventbus
@@ -2028,8 +2037,8 @@ registerLocalBusHandler address handler =
  * handler - the hanlder to deregister 
  *      (it is given to the handler on each call)
  */
-unregisterBusHandler id handler resultHandler =
-    (getVertx ())#eventBus()#unregisterHandler(id is string, handler, 
+unregisterBusHandler {address,object} resultHandler =
+    (getVertx ())#eventBus()#unregisterHandler(address is string, object, 
                           toAsyncResultHandler resultHandler);
 
 
