@@ -28,7 +28,4 @@ std = load yeb.std;
     var staticPrefix = "/static/",
     var messageBundles = ["yeb"],
     ///whter the YebFilter will reload the changes to yeti sourcefiles
-    var webDynamicReload? =
-        (not std.enviroment.production?) 
-         and (nullptr? Thread#currentThread()#getContextClassLoader()#getResource("yebWebMain.class")),
 }

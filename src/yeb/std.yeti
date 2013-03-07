@@ -246,13 +246,39 @@ messageDigest algorithm message =
      */
     hashSHA256 = messageDigest "SHA-256",
 
-    enviroment = 
-       (var v is Production string 
+    /**
+     * Group: enviroment
+     *
+     * The Development, Production or Test mode of the current runtime.
+     *
+     * The mode is set with the System-Property 'yvertx.mode'.
+     * A value of 'test' maps to Test mode and of 'production'
+     * to production. A dot seperated string after the mod is given as
+     * value to the mode ie 'test.integration' maps to mode 
+     * (Test "integration")
+     */
+    mode = 
+       (v is Production string 
                   | Development string
-                  | Test string = Development "default";
+                  | Test string =
+            (prop = System#getProperty("yvertx.mode", "development");
+            var main = "";
+            var ext = "";
+            cut = strIndexOf prop "." 0;
+            if cut < 0 then
+                main := prop;
+                ext := "";
+            else
+                main := strLeft prop cut;
+                ext := strRight prop (cut + 1);
+            fi;
+            case strLower main of
+            "production":Production ext;
+            "test": Test ext;
+            _ : Development ext;            
+            esac);
         {
-            set value vb = v := vb,
-            get value () = v,
+            value = v,
             production? = case v of Production _ : true; _ : false esac,
             test? = case v of Test _ : true; _ : false esac,
             development? = case v of Development _ : true; _ : false esac,
