@@ -18,7 +18,6 @@ module yeb.mvc.form;
 
 //+++++++++++++++++++++Form+++++++++++++++++++++++++++++
 
-import yeb.Message;
 
 load yeb.std;
 load yeb.mvc.mvc;
@@ -37,7 +36,7 @@ typedef field<a> = {
     toString is a -> string,
     var values is list<a>,
     var displayStrings is list<string>,
-    var errors is list<~Message>,
+    var errors is list<string>,
     minValues is number,
     maxValues is number,
     clear is () -> (),
@@ -46,15 +45,15 @@ typedef field<a> = {
 
 typedef formField = {
     read is request -> (),
-    errors is list<~Message>,
+    errors is list<string>,
 }
 
 typedef form = {
     fieldPrefix is string,
     var fields is array<formField>,
-    var errors is array<~Message>,
+    var errors is array<string>,
     read is request -> (),
-    formErrors is  list<~Message>,
+    formErrors is  list<string>,
     formErrors? is boolean,
 
 }
@@ -97,7 +96,7 @@ createField minValues maxValues form unprefixedName converter toString
         ),
 
         var displayStrings is list<string> = [],
-        var errors is list<~Message> = [],
+        var errors is list<string> = [],
 
         minValues,
         maxValues,
@@ -116,7 +115,7 @@ createField minValues maxValues form unprefixedName converter toString
                 //convert the string values
                 for ps (maybeValid
                         do ex: 
-                            errors := ex#getMessageObject() :: errors 
+                            errors := (string ex#getMessage()) :: errors 
                         done
                         do r: 
                             _values := r :: _values 
@@ -134,15 +133,13 @@ createField minValues maxValues form unprefixedName converter toString
             fi;
             //check the min size
             if (length _values) < minValues then
-                m =  (message "fewvalues" 
-                      "Not enough values: must be at least %1$s but where %2$s" 
-                        [obj minValues, obj (length _values)]);
+                m =  ("Not enough values: must be at least \(minValues)" 
+                    ^"but where \(length _values)"); 
                 errors := m :: errors;
             fi;
             if (maxValues > -1) and ((length _values) > maxValues) then
-                m = (message "manyvalues" 
-                    "Too many values: must be maximal %1$s but where %2$s" 
-                    [obj maxValues, obj (length _values)]);
+                m = "Too many values: must be maximal \(maxValues) but "
+                    ^ "where \(length _values)"; 
                 errors := m :: errors;
             fi;
             if not empty? errors then
@@ -165,7 +162,7 @@ listField min max form unprefixedName converter toString
     (f = createField min max form unprefixedName converter toString;
     //f;
     f with {
-              eitherValue _ is 'b -> (Errors list<~Message> | Some list<'a>) =
+              eitherValue _ is 'b -> (Errors list<string> | Some list<'a>) =
                 if empty? f.errors then
                     Some f.values
                 else
@@ -173,7 +170,8 @@ listField min max form unprefixedName converter toString
                 fi,
               get value () =
                     case eitherValue () of
-                        Errors ma: throw new yeb.MessageException(head ma);
+                        Errors ma: 
+                            throw new yeb.ValidationException(head ma, "");
                         Some v: v;
                     esac,
               set value values = f.values := values
@@ -188,7 +186,8 @@ optionalField form unprefixedName converter toString= (
                     esac,
               get value () =
                     case eitherValue () of
-                        Errors ma: throw new yeb.MessageException(head ma);
+                        Errors ma: 
+                            throw new yeb.ValidationException(head ma, "");
                         Some v: v;
                     esac,
               set value opt = f.values := catSome [opt],
@@ -206,15 +205,16 @@ requiredField form unprefixedName converter toString=
     f with {
               eitherValue _ =
                    if not empty? f.errors then
-                      Errors (array [(message "novalue" 
-                        "no value in field %1$s" [obj f.unprefixedName])])
+                      Errors 
+                        (array ["no value in field \(f.unprefixedName)"])
                    else
                       Some (head f.values)
                    fi,
 
               get value () =
                     case eitherValue () of
-                        Errors ma: throw new yeb.MessageException(head ma);
+                        Errors ma: 
+                            throw new yeb.ValidationException(head ma,"");
                         Some v : v;
                     esac,
               set value value = f.values := [value],

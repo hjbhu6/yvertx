@@ -22,46 +22,16 @@ import java.util: Locale, Iterator,List,ListIterator;
 
 import yeti.lang.Struct;
 import java.io: File;
-//import org.yeb.TMap;
 import org.slf4j: Logger, LoggerFactory;
 
 json = load yeb.yvertx;
 
 
-class Message(String key, String defaultFormat, Object[] params) 
-    
-    message = String#format(defaultFormat, params),
-
-    String getDefaultFormat() defaultFormat,
-    String getKey() key,
-    String getMessage() message,
-    Object[] getParams() params,
-    String getLocalMessage(Locale loc) 
-        String#format(loc,defaultFormat,params),
-    String toString() message,
-end;
-
-class MessageException(Message messageObject) 
-    extends IllegalArgumentException(messageObject#getMessage()) 
-    Message getMessageObject() messageObject,
-    static MessageException create(Message msg)
-        new MessageException( msg),
-end;
-
-class ValidationException(Message message, Object wrongValue) 
-    extends MessageException(message)
+class ValidationException(String message, Object wrongValue) 
+    extends IllegalArgumentException(message)
     Object getWrongValue() wrongValue,
-    static ValidationException create(Message msg, Object wV)
-        new ValidationException(msg, wV),
 end;
 
-
-message key defaultFormat values =
-    new Message(key, defaultFormat, array values);
-
-plainMessage text = message "" text [];
-
-failWithMessage msg = throw new MessageException(msg);
 
 number' o is ~Object -> number = 
    (import java.lang: Double, Float,Number;
@@ -288,10 +258,6 @@ messageDigest algorithm message =
 
     (>>) fn1 fn2 = composeToRight fn1 fn2,
     
-
-    message,
-    plainMessage,
-    failWithMessage,
 
     composeToRight fn1 fn2 = do a: fn2 (fn1 a) done,
     maybeHead,

@@ -23,6 +23,8 @@ import java.util.regex:Pattern;
 import java.net:URLEncoder, 
             URLDecoder;
 
+import yeb.ValidationException;
+
     
 
 load yeb.std;
@@ -199,7 +201,7 @@ param name ctx =
        head ls;
     else
         failWithValidation 
-            (message "noparam" "No request-parameter for name %1$s" [obj name]) 
+            "No request-parameter for name \(name)" 
             "";
     fi);
 
@@ -628,7 +630,11 @@ _regexRoute method regex handler  =
                 fi;
                 nreq = req with { params, path};
 
-                handler nreq res
+                try
+                    handler nreq res
+                catch ValidationException ex:
+                    res continue;
+                yrt;
             else
                 res continue;
             fi;
