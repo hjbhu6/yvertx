@@ -1934,24 +1934,15 @@ sendToBusWithHandler address msg handler =
     (getVertx ())#eventBus()#send(address is string, toJS msg, 
             toJsonMessageHandler handler);
 
-/**
- * Group: eventbus
- * send a JSON message and receive a response
- *
- * Note only strcut can be send as message here
- *
- * Arguments:
- * address - the address to send to
- * structMessage - the struct whill will be send as JSON
- * responseHanlder - the handler which gets the response
- */
-requestMessageFromBus address msg handler =   
-    (getVertx ())#eventBus()#send(address is string, toJS msg, 
-            toEitherJsonMessageHandler handler);
 
 /**
  * Group: eventbus
- * send a Json message and recieve the response body directly
+ * send a Json message on the eventbus and receive either
+ * Some jsonResponse or None exception. 
+ *
+ * If the response has the field status with error (like busmods do)
+ * a None is given as value to the callback, Otherwise a Some with the
+ * the json value.
  *
  * Note only struct can be sent as message here.
  *
@@ -1960,11 +1951,20 @@ requestMessageFromBus address msg handler =
  * address - the address to send to
  * structMessage - the struct which will be sind as JSON
  * responseHandler - the handler which gets the response struct
+ *
+ * example:
+ * : requestFromBus "fooAdress" {msg="some", for_json=E()} \case of:
+ * :    None ex: //hanlde failure
+ * :    Some val: //handle json value
+ * : esac;
+ *
  */
 requestFromBus address msg handler =
-    (load yeb.async;
-    ((requestMessageFromBus address msg)
-        |> bind (return . (.body))) handler);
+    (getVertx ())#eventBus()#send(address is string, toJS msg, 
+            toEitherJsonMessageHandler \case of
+            Some {body}: handler (Some body);
+            None ex: handler (None (ex is ~Exception))
+            esac);
 
 /**
  * Group: eventbus
@@ -2016,35 +2016,6 @@ unregisterBusHandler id handler resultHandler =
     (getVertx ())#eventBus()#unregisterHandler(id is string, handler, 
                           toAsyncResultHandler resultHandler);
 
-/**
- * Group: eventbus
- * registers an async function as bushandler. The function is only given 
- * the body
- * of the message and a function to respond to the message
- */
-registerBusAsyncFunction readyHandler handlers =
-    forHash handlers do address handler:
-    registerBusHandler address readyHandler do msg:
-        handler msg.body msg.replyEither;
-    done;
-    done;
-
-/**
- * Group: eventbus
- * registers a function as bushandler. The function is given the body
- * of the message and the return value is send as response. If an
- * excpetion is thrown this es send as status error
- */
-registerBusFunction readyHandler fns =
-    forHash fns do address fn:
-    registerBusHandler address readyHandler do msg:
-        msg.replyEither try
-                Some (fn msg.body);
-            catch Exception ex:
-                None ex;
-            yrt;
-    done
-    done;
 
 //filesystem
 fsHelper = {
@@ -2386,12 +2357,9 @@ fileSystem = ({
     sendToBus,
     sendToBusWithHandler,
     requestFromBus,
-    requestMessageFromBus,
     registerBusHandler,
     registerLocalBusHandler,
     unregisterBusHandler,
-    registerBusAsyncFunction,
-    registerBusFunction,
 
     /**
      * Group: eventbus
