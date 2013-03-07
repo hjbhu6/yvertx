@@ -830,16 +830,70 @@ verticle runFn
         is ({vertx is ~Vertx, container is ~Container} 
             -> ({vertx is ~Vertx, container is ~Container} -> 'a)) 
             -> ( () -> ~Verticle) =
-   (class IYetiVerticle extends Verticle 
+   (import org.vertx.java.core:VoidResult;
+   class IYetiVerticle extends Verticle 
         var stopFn = \(println "No stopfuntion assigned yet"),
         
         void start()
             stopFn := 
-                runFn {vertx = this#getVertx(), container = this#getContainer()},
+                runFn {vertx = this#getVertx(), 
+                       container = this#getContainer()},
         void stop()
-            stopFn {vertx = this#getVertx(), container = this#getContainer()},
+            stopFn {vertx = this#getVertx(), 
+                    container = this#getContainer()},
     end;
     \(new IYetiVerticle() as ~Verticle));
+
+/**
+ * Group: container (CONTAINER)
+ * 
+ * Creates a new Verticle like the verticle function. However is
+ * also given a started parameter, which is used to indicate that the verticle
+ * is started. This is useful if the verticle deploys other modules and
+ * should only be considered started when the started is indicated.
+ *
+ * Note that the verticle is not considered started as long as the started
+ * funciton is not colled
+ *
+ * Examples:
+ * : module myverticle
+ * :
+ * : load yvertx;
+ * :
+ * : verticle do {started}:
+ * :     //do all the start work
+ * :     createSomeThingWithCallback do:
+ * :         //mark now as started
+ * :         started ();
+ * :     done;
+ * :     
+ * :     //return stop function
+ * :     do:
+ * :        ... do cleanup
+ * :     done;
+ * : done;
+ *
+ */
+lateVerticle runFn 
+        is ({vertx is ~Vertx, container is ~Container, started is () -> ()} 
+            -> ({vertx is ~Vertx, container is ~Container} -> 'a)) 
+            -> ( () -> ~Verticle) =
+   (import org.vertx.java.core:VoidResult;
+   class IYetiVerticle extends Verticle 
+        var stopFn = \(println "No stopfuntion assigned yet"),
+        
+        void start(VoidResult res)
+            stopFn := 
+                runFn {vertx = this#getVertx(), 
+                       container = this#getContainer(),
+                       started () = _ = res#setResult()},
+        void stop()
+            stopFn {vertx = this#getVertx(), 
+                    container = this#getContainer()},
+    end;
+    \(new IYetiVerticle() as ~Verticle));
+
+
 
 /**
  * Group: container
@@ -2191,6 +2245,8 @@ fileSystem = ({
     wsExceptionHandler,
     
     verticle,
+    lateVerticle,
+
     /**
      * Group: buffer (BUFFER)
      * creates a new Buffer of the given size
