@@ -64,7 +64,7 @@ yvf = load yeb.yvertx.vertxholder;
 typedef json<a> = {.for_json is a};
 
 /**
- * Group: async
+ * Group: async (ASYNC)
  * blocks for the given time in ms on the asnyc function and returns the
  * result or throws an exception.
  *
@@ -999,6 +999,7 @@ class TimeOutException(long time) extends RuntimeException("Timedout \(time)")
      long getTime()
         time,
 end;
+
 /**
  * Group: async
  * Wraps an async callback function with timeout behauviour.
@@ -2218,14 +2219,6 @@ fileSystem = ({
     addCloseHook key fn = 
         (_currentContext())#putCloseHook(key is string, runnable fn),
     
-    /**
-     * Group: vertx
-     * executes the given fn on a worker
-     *
-     * calls Context#executeOnWorker
-     */
-    //executeOnWorker fn = 
-    //    (_currentContext())#executeOnWorker(runnable fn),
     
 
     toHandler, 
@@ -2479,5 +2472,4 @@ fileSystem = ({
     blend,
     newFibre,
     newWorker,
-    toEitherJsonMessageHandler
 }
