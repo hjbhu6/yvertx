@@ -2204,26 +2204,37 @@ fileSystem = ({
 
     /**
      * Group: buffer (BUFFER)
-     * creates a new Buffer of the given size
+     * creates an empty new Buffer of the given initial length
+     *
+     * Arguments:
+     * length - the initial length of the buffer
      */
     newBuffer size = new Buffer(size is number),
     
     /**
      * Group: buffer
-     * creates a new Buffer from the given string
+     * creates a new Buffer from the given string.
+     * The string is encoded in UTF-8
      */
     newStringBuffer str = new Buffer(str is string),
     
     /**
      * Group: buffer
      * create a new Buffer from the given string with the given encoding
+     *
+     * Arguments:
+     * encoding - the encoding to use ie "UTF-16"
+     * str - the content of the buffer
      */
-    newEncodedBuffer str encoding = 
+    newEncodedBuffer encoding str = 
         new Buffer(str is string, encoding is string),
     
     /**
      * Group: buffer
      * creates a new Buffer from the given byte-array
+     *
+     * Arguments:
+     * bytes - the byte array contained in the new buffer
      */
     newByteBuffer bytes =
         new Buffer(bytes is ~byte[]),
