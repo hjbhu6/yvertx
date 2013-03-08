@@ -1821,7 +1821,27 @@ _toMessageJS v =
     Some va: toJS va;
     esac;
 
-toEitherJsonMessageHandler fn =
+
+toRequestMessageHandler fn =
+    (class YvertxRequestMessageHandler extends Handler
+        void handle(Object ob)
+            msg = ob unsafely_as ~Message;
+            body = fromJS (msg#body unsafely_as ~JsonObject);
+            if defined? body.status and body.status == "error" then
+                emg = if defined? body.message then
+                          string body.message
+                      else 
+                          "error but no message" 
+                      fi;
+                fn (failNone emg);
+            else
+                fn (Some body)
+            fi,
+
+    end;
+    new YvertxRequestMessageHandler() as ~Handler);
+
+toEitherJsonMessageHandler address fn =
     (class YvertxEitherMessageHandler extends Handler
         void handle(Object ob)
             msg = ob unsafely_as ~Message;
@@ -1837,9 +1857,10 @@ toEitherJsonMessageHandler fn =
             else
                 fn (Some  
                     {message = msg is ~Message,
-                    handler =  this as ~Handler,
-                    get body () = 
-                        fromJS (msg#body unsafely_as ~JsonObject),
+                    handlerId =  
+                        {object = this as ~Handler,
+                        address is string},
+                    body,
                     get replyAddress () = string msg#replyAddress,
                     reply v = 
                         msg#reply(_toMessageJS (Some v)),
@@ -1847,10 +1868,10 @@ toEitherJsonMessageHandler fn =
                         msg#reply(_toMessageJS v),
                     request v handler = 
                         msg#reply(_toMessageJS (Some v), 
-                            toEitherJsonMessageHandler handler),
+                            toEitherJsonMessageHandler address handler),
                     requestEither v handler = 
                         msg#reply(_toMessageJS v, 
-                            toEitherJsonMessageHandler handler)
+                            toEitherJsonMessageHandler address handler)
                    });
             fi
             catch Exception ex:
@@ -1860,13 +1881,15 @@ toEitherJsonMessageHandler fn =
     end;
     new YvertxEitherMessageHandler() as ~Handler);
 
-toJsonMessageHandler fn =
+toJsonMessageHandler address fn =
     (class YvertxMessageHandler extends Handler
         void handle(Object ob)
             msg = ob unsafely_as ~Message;
             try
             fn {message = msg is ~Message,
-                handler =  this as ~Handler,
+                handlerId =  
+                    {object = this as ~Handler,
+                    address is string},
                 get body () = 
                     fromJS (msg#body unsafely_as ~JsonObject),
                 get replyAddress () = string msg#replyAddress,
@@ -1876,10 +1899,10 @@ toJsonMessageHandler fn =
                     msg#reply(_toMessageJS v),
                 request v handler = 
                     msg#reply(_toMessageJS (Some v), 
-                        toEitherJsonMessageHandler handler),
+                        toEitherJsonMessageHandler address handler),
                 requestEither v handler = 
                     msg#reply(_toMessageJS v, 
-                        toEitherJsonMessageHandler handler)
+                        toEitherJsonMessageHandler address handler)
                };
             catch Exception ex:
                 msg#reply(_toMessageJS (None ex));
@@ -1932,26 +1955,17 @@ sendToBus address msg =
  */
 sendToBusWithHandler address msg handler =
     (getVertx ())#eventBus()#send(address is string, toJS msg, 
-            toJsonMessageHandler handler);
+            toJsonMessageHandler address handler);
+
 
 /**
  * Group: eventbus
- * send a JSON message and receive a response
+ * send a Json message on the eventbus and receive either
+ * Some jsonResponse or None exception. 
  *
- * Note only strcut can be send as message here
- *
- * Arguments:
- * address - the address to send to
- * structMessage - the struct whill will be send as JSON
- * responseHanlder - the handler which gets the response
- */
-requestMessageFromBus address msg handler =   
-    (getVertx ())#eventBus()#send(address is string, toJS msg, 
-            toEitherJsonMessageHandler handler);
-
-/**
- * Group: eventbus
- * send a Json message and recieve the response body directly
+ * If the response has the field status with error (like busmods do)
+ * a None is given as value to the callback, Otherwise a Some with the
+ * the json value.
  *
  * Note only struct can be sent as message here.
  *
@@ -1960,11 +1974,17 @@ requestMessageFromBus address msg handler =
  * address - the address to send to
  * structMessage - the struct which will be sind as JSON
  * responseHandler - the handler which gets the response struct
+ *
+ * example:
+ * : requestFromBus "fooAdress" {msg="some", for_json=E()} \case of:
+ * :    None ex: //hanlde failure
+ * :    Some val: //handle json value
+ * : esac;
+ *
  */
 requestFromBus address msg handler =
-    (load yeb.async;
-    ((requestMessageFromBus address msg)
-        |> bind (return . (.body))) handler);
+    (getVertx ())#eventBus()#send(address is string, toJS msg, 
+            toRequestMessageHandler handler);
 
 /**
  * Group: eventbus
@@ -1981,9 +2001,12 @@ requestFromBus address msg handler =
  * messageHandler - the handler which receives the messages
  */
 registerBusHandler address resultHandler handler =
+    (ha = toJsonMessageHandler address handler;
+    ret = {object = ha, address};
     (getVertx ())#eventBus()#registerHandler(address is string,
-                            toJsonMessageHandler handler,
-                            toAsyncResultHandler resultHandler);
+                            ha,
+                            toAsyncResultHandler \(resultHandler ret));
+    ret);
 
 /**
  * Group: eventbus
@@ -1998,8 +2021,10 @@ registerBusHandler address resultHandler handler =
  * handler - the message handeler
  */
 registerLocalBusHandler address handler =
+    (ha = toJsonMessageHandler address handler;
     (getVertx ())#eventBus()#registerLocalHandler(address is string,
-                   toJsonMessageHandler handler);
+                   ha);
+    {object = ha, address});
         
 /**
  * Group: eventbus
@@ -2012,39 +2037,10 @@ registerLocalBusHandler address handler =
  * handler - the hanlder to deregister 
  *      (it is given to the handler on each call)
  */
-unregisterBusHandler id handler resultHandler =
-    (getVertx ())#eventBus()#unregisterHandler(id is string, handler, 
+unregisterBusHandler {address,object} resultHandler =
+    (getVertx ())#eventBus()#unregisterHandler(address is string, object, 
                           toAsyncResultHandler resultHandler);
 
-/**
- * Group: eventbus
- * registers an async function as bushandler. The function is only given 
- * the body
- * of the message and a function to respond to the message
- */
-registerBusAsyncFunction readyHandler handlers =
-    forHash handlers do address handler:
-    registerBusHandler address readyHandler do msg:
-        handler msg.body msg.replyEither;
-    done;
-    done;
-
-/**
- * Group: eventbus
- * registers a function as bushandler. The function is given the body
- * of the message and the return value is send as response. If an
- * excpetion is thrown this es send as status error
- */
-registerBusFunction readyHandler fns =
-    forHash fns do address fn:
-    registerBusHandler address readyHandler do msg:
-        msg.replyEither try
-                Some (fn msg.body);
-            catch Exception ex:
-                None ex;
-            yrt;
-    done
-    done;
 
 //filesystem
 fsHelper = {
@@ -2386,12 +2382,9 @@ fileSystem = ({
     sendToBus,
     sendToBusWithHandler,
     requestFromBus,
-    requestMessageFromBus,
     registerBusHandler,
     registerLocalBusHandler,
     unregisterBusHandler,
-    registerBusAsyncFunction,
-    registerBusFunction,
 
     /**
      * Group: eventbus
