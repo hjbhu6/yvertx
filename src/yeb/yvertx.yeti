@@ -1446,8 +1446,9 @@ responseTrailers resp =
  *
  * Arguments:
  * client - the httpclient
- * muri - the uri with the method in as a Tag (Post, Get, Delete etc)
+ * muri - the uri with the method as a Tag (Post, Get, Delete etc)
  * the Request Tag takes a {method, uri} struct to 
+ * headers - a hash of headers to send with the request
  * handler - the reqeusthandler
  *
  * Examples:
@@ -1649,8 +1650,8 @@ bridgeSockJS server opts sjsConfig inboundPermitted outboundPermitted =
         esac
     done;
     (server is ~SockJSServer)#bridge(toJS sjsConfig, 
-             toJSArray inboundPermitted, 
-             toJSArray outboundPermitted,
+             toJSArray (inboundPermitted is list<json<'e>>), 
+             toJSArray (outboundPermitted is list<json<'f>>),
              authTimeout,
              authAddress));
 
