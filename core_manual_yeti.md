@@ -489,56 +489,16 @@ to form a distributed event bus.
       
 # Shared Data
 
-Sometimes it makes sense to allow different verticles instances to share data
-in a safe way. Vert.x allows simple *Map* and *Set* data structures to be 
-shared between verticles.
+Yvertx has no special support for shared data beside the normal java api.
 
-There is a caveat: To prevent issues due to mutable data, vert.x only allows 
-simple immutable types such as number, boolean and string or Buffer to be used
-in shared data. With a Buffer, it is automatically copied when retrieved from
-the shared data, so different verticle instances never see the same
-object instance.
+Please refer to the java api documentation for more information about shared
+data.
 
-Currently data can only be shared between verticles in the
-*same vert.x instance*. In later versions of vert.x we aim to extend this to
-allow data to be shared by all vert.x instances in the cluster.
+To get the `SharedData` object use the `vertx` property to get the current
+Vertx instance and get sharedData from that:
 
-## Shared Maps
-
-To use a shared map to share data between verticles first we get a reference
-to the map, and then we just use standard `put` and `get` to put and get data
-from the map:
-
-    var map = vertx.getMap('demo.mymap');
-    
-    map.put('some-key', 'some-value');
-    
-And then, in a different verticle:
-
-    var map = vertx.getMap('demo.mymap');
-    
-    log.info('value of some-key is ' + map.get('some-key');
-    
-**TODO** More on map API
-    
-## Shared Sets
-
-To use a shared set to share data between verticles first we get a reference 
-to the set.
-
-    var set = vertx.getSet('demo.myset');
-    
-    set.add('some-value');
-    
-And then, in a different verticle:
-
-    var set = vertx.getSet('demo.myset');
-    
-    // Do something with the set    
-        
-**TODO** - More on set API
-
-API - atomic updates etc    
+    v = yvertx.vertx;
+    sharedData = v#sharedData();
 
 # Buffers
 
@@ -553,12 +513,12 @@ bytes written to it. You can perhaps think of a buffer as smart byte array.
 Create a buffer from a String. The String will be encoded in the buffer 
 using UTF-8.
 
-    var buff = new vertx.Buffer('some-string');
+    buff = yvertx.newStringBuffer "some-string";
     
 Create a buffer from a String: The String will be encoded using the specified
 encoding, e.g:
 
-    var buff = new vertx.Buffer('some-string', 'UTF-16');
+    buff = yvertx.newEncodedBuffer 'UTF-16' 'some-string';
     
 Create a buffer with an initial size hint. If you know your buffer will have a
 certain amount of data written to it you can create the buffer and specify 
@@ -568,183 +528,76 @@ is written to it.
 
 Note that buffers created this way *are empty*. It does not create a buffer filled with zeros up to the specified size.
         
-    var buff = new vertx.Buffer(100000);   
-    
-## Writing to a Buffer
+    buff = yvertx.newBuffer 100000;   
 
-There are two ways to write to a buffer: appending, and random access. In either case buffers will always expand automatically to encompass the bytes. It's not possible to write outside the bounds of the buffer.
+You can create a Buffer which is filled with a certain length of random bytes. 
+This is useful for testing:
 
-### Appending to a Buffer
+    buff = yvertx.newRandomBuffer 10000;
 
-To append to a buffer, you use the `appendXXX` methods. Append methods exist for appending other buffers, strings and numbers.
+All buffer creation functions return a Buffer Object.
 
-The return value of the `appendXXX` methods is the buffer itself, so these can be chained:
+## Writing to and Reading from a Buffer
 
-    var buff = new vertx.Buffer();
-    
-    buff.appendInt(123).appendString("hello").appendChar('\n');
-    
-    socket.writeBuffer(buff);
-    
-If you want to append a number as an integer to a buffer you must specify how you want to encode it in the buffer
+Beside functions for creating Buffer Objects yvertx does not provide any 
+special Buffer support-functions. So for reading and writing you should use 
+the normal java api.
 
-    buff.appendByte(number);  // To append the number as 8 bits (signed)
-    
-    buff.appendShort(number); // To append the number as 16 bits (signed)
-    
-    buff.appendInt(number);   // To append the number as 32 bits (signed)
-    
-    buff.appendLong(number);  // To append the number as 64 bits (signed)
-    
-With floats, you have to specify whether you want to write the number as a 32 bit or 64 bit double precision float
+Please consult the java manual or java-docs for further info
 
-    buff.appendFloat(number);  // To append the number as a 32-bit IEEE 754 floating point number
-    
-    buff.appendDouble(number); // To append the number as a 64-bit IEEE 754 double precision floating point number
-    
-With strings you can specify the encoding, or it will default to UTF-8:
-
-    buff.appendString("hello"); // Write string as UTF-8
-    
-    buff.appendString("hello", "UTF-16"); // Write string in specified encoding    
-    
-Use `appendBuffer` to append another buffer
-
-    buff.appendBuffer(anotherBuffer);    
-
-### Random access buffer writes
-
-You can also write into the buffer at a specific index, by using the `setXXX` methods. Set methods exist for other buffers, string and numbers. All the set methods take an index as the first argument - this represents the position in the buffer where to start writing the data.
-
-The buffer will always expand as necessary to accomodate the data.
-
-    var buff = new vertx.Buffer();
-    
-    buff.setInt(1000, 123);
-    buff.setBytes(0, "hello");
-    
-Similarly to the `appendXXX` methods, when you set a number as an integer you must specify how you want to encode it in the buffer
-
-    buff.setByte(pos, number);  // To set the number as 8 bits (signed)
-    
-    buff.setShort(pos, number); // To set the number as 16 bits (signed)
-    
-    buff.setInt(pos, number);   // To set the number as 32 bits (signed)
-    
-    buff.setLong(pos, number);  // To set the number as 64 bits (signed)
-    
-Also with floats, you have to specify whether you want to set the number as a 32 bit or 64 bit double precision float
-
-    buff.setFloat(pos, number);  // To set the number as a 32-bit IEEE 754 floating point number
-    
-    buff.setDouble(pos, number); // To set the number as a 64-bit IEEE 754 double precision floating point number
-    
-To set strings use the `setString` methods:
-
-    buff.setString(pos, "hello");           // Write string in default UTF-8 encoding
-    
-    buff.setString(pos, "hello", "UTF-16"); // Write the string in the specified encoding     
-    
-Use `setBuffer` to set another buffer:
-
-    buff.setBuffer(pos, anotherBuffer);      
-    
-## Reading from a Buffer
-
-Data is read from a buffer using the `getXXX` methods. Get methods exist for strings and numbers. The first argument to these methods is an index in the buffer from where to get the data.
-
-    var buff = ...;
-    for (var i = 0; i < buff.length(); i += 4) {
-        console.log("int value at " + i + " is " + buff.getInt(i));
-    }
-    
-To read data as integers, you must specify how many bits you want to read:
-
-    var num = buff.getByte(pos);   // Read signed 8 bits
-    
-    var num = buff.getShort(pos);  // Read signed 16 bits
-    
-    var num = buff.getInt(pos);    // Read signed 32 bits
-    
-    var num = buff.getLong(pos);   // Read signed 64 bits  
-    
-And with floats, you must specify if you want to read the number as a 32 bit or 64 bit floating point number:
-
-    var num = buff.getFloat(pos);    // Read a 32-bit IEEE 754 floating point number
-    
-    var num = buff.getDouble(pos);   // Read as a 64-bit IEEE 754 double precision floating point number 
-    
-You can read data as strings
-
-    var str = buff.getString(pos, end); // Read from pos to end interpreted as a string in UTF-8 encoding.    
-    
-    var str = buff.getString(pos, end, 'UTF-16'); // Read from pos to end interpreted as a string in the specified encoding.
-    
-Or as buffers
-
-    var subBuffer = buff.getBuffer(pos, end); // Read from pos to end into another buffer    
-    
-## Other buffer methods:
-
-* `length()`. To obtain the length of the buffer. The length of a buffer is the index of the byte in the buffer with the largest index + 1.
-* `copy()`. Copy the entire buffer
-
-See the JavaDoc for more detailed method level documentation.    
-
-
-# Delayed and Periodic Tasks
-
-It's very common in vert.x to want to perform an action after a delay, or periodically.
-
-In standard verticles you can't just make the thread sleep to introduce a delay, as that will block the event loop thread.
-
-Instead you use vert.x timers. Timers can be *one-shot* or *periodic*. We'll discuss both
 
 ## One-shot Timers
 
-A one shot timer calls an event handler after a certain delay, expressed in milliseconds. 
+A one shot timer calls an event handler after a certain delay, expressed in 
+milliseconds. 
 
-To set a timer to fire once you use the `vertx.setTimer` function passing in the delay and the handler
+To set a timer to fire once you use the `yvertx.setTimer` function passing in 
+the delay in millisceonds and the handler
 
-    vertx.setTimer(1000, function() {
-        log.info('And one second later this is printed'); 
-    });
+    _ = yvertx.setTimer 1000
+        \(logger#info('And one second later this is printed'));
     
-    log.info('First this is printed');
+    logger#info('First this is printed');
      
 ## Periodic Timers
 
-You can also set a timer to fire periodically by using the `setPeriodic` function. There will be an initial delay equal to the period. The return value of `setPeriodic` is a unique timer id (number). This can be later used if the timer needs to be cancelled. The argument passed into the timer event handler is also the unique timer id:
+You can also set a timer to fire periodically by using the `setPeriodic` 
+function. There will be an initial delay equal to the period. The return value 
+of `setPeriodic` is a unique timer id (number). This can be later used if the 
+timer needs to be cancelled. The argument passed into the timer event handler 
+is also the unique timer id:
 
-    var id = vertx.setPeriodic(1000, function(id) {
-        log.info('And every second this is printed'); 
-    });
+    id = vyertx.setPeriodic 1000, do:
+        logger#info('And every second this is printed for');
+    done;
     
-    log.info('First this is printed');
+    logger#info('First this is printed');
     
 ## Cancelling timers
 
-To cancel a periodic timer, call the `cancelTimer` function specifying the timer id. For example:
+To cancel a periodic timer, call the `cancelTimer` function specifying the 
+timer id. For example:
 
-    var id = vertx.setPeriodic(1000, function(id) { 
-        log.info('This is not gonna be printed');
-    });
+    id = yvertx.setPeriodic 1000 do: 
+        logger#info('This is not gonna be printed');
+    done;
     
     // And immediately cancel it
     
-    vertx.cancelTimer(id);
+    _ = yvertx.cancelTimer id;
     
-Or you can cancel it from inside the event handler. The following example cancels the timer after it has fired 10 times.
+Or you can cancel it from inside the event handler. The following example 
+cancels the timer after it has fired 10 times.
 
     var count = 0;
     
-    vertx.setPeriodic(1000, function(id) {
-        log.info('In event handler ' + count); 
-        count++;
-        if (count === 10) {
-            vertx.cancelTimer(id);
-        }
-    });         
+    _ = yvertx.setPeriodic 1000 do id:
+        logger#info("In event handler \(count)"); 
+        count := count + 1;
+        if count == 10 then
+            _ = vertx.cancelTimer(id);
+        fi
+    done;         
       
     
 # Writing TCP Servers and Clients
@@ -755,219 +608,143 @@ Creating TCP servers and clients is incredibly easy with vert.x.
 
 ### Creating a Net Server
 
-To create a TCP server you invoke the `createNetServer` function on the `vertx` instance
+To create a TCP server you invoke the `createNetServer` function 
 
-    var server = vertx.createNetServer();
+    server = yvertx.createNetServer();
+
+The server returned ist java NetServer object.
+
+You connect a connection handler with the connectNetServer function
+
+    server = yvertx.connectNetServer server do netSocket:
+        logger#info("A client has connected");
+    done;
+
+The connection handler you have specified with `connectNetHandler` or
+`createAndConnectNetServer` is notified when a connection is made. 
+
+To create a TCP server and connect a connection-handler at the same time - 
+what you will usually do - use the `createAndConnectNetServer` function
+
+    server = yvertx.createAndConnectNetServer do netSocket:
+        logger#info("A client has connected!")
+    done;
+
     
 ### Start the Server Listening    
     
 To tell that server to listen for connections we do:    
 
-    var server = vertx.createNetServer();
+    server = vertx.createNetServer();
 
-    server.listen(1234, 'myhost');
+    server#listen(1234, 'myhost');
     
-The first parameter to `listen` is the port. The second parameter is the hostname or ip address. If it is omitted it will default to `0.0.0.0` which means it will listen at all available interfaces.
-
-
-### Getting Notified of Incoming Connections
-    
-Just having a TCP server listening creates a working server that you can connect to (try it with telnet!), however it's not very useful since it doesn't do anything with the connections.
-
-To be notified when a connection occurs we need to call the `connectHandler` function of the server, passing in a handler. The handler will be called when a connection is made:
-
-    var server = vertx.createNetServer();
-
-    server.connectHandler(function(sock) {
-        log.info('A client has connected!');
-    })  
-
-    server.listen(1234, 'localhost');
-    
-That's a bit more interesting. Now it displays 'A client has connected!' every time a client connects.   
-
-The return value of the `connectHandler` method is the server itself, so multiple invocations can be chained together. That means we can rewrite the above as:
-
-    var server = vertx.createNetServer();
-
-    server.connectHandler(function(sock) {
-        log.info('A client has connected!');
-    }).listen(1234, 'localhost');
-    
-or 
-
-    vertx.createNetServer().connectHandler(function(sock) {
-        log.info('A client has connected!');
-    }).listen(1234, 'localhost');
-    
-    
-This is a common pattern throughout the vert.x API.  
- 
+The first parameter to `listen` is the port. The second parameter is the 
+hostname or ip address (this is the normal java api). If it is omitted it will 
+default to `0.0.0.0` which means it will listen at all available interfaces.
 
 ### Closing a Net Server
 
 To close a net server just call the `close` function.
 
-    server.close();
+    server#close();
 
-The close is actually asynchronous and might not complete until some time after the `close` function has returned. If you want to be notified when the actual close has completed then you can pass in a handler to the `close` function.
+The close is actually asynchronous and might not complete until some time 
+after the `close` function has returned. If you want to be notified when the 
+actual close has completed then you can use the `cloaseNetServer` function 
+which takas an handler.
 
 This handler will then be called when the close has fully completed.
  
-    server.close(function() {
-      log.info('The server is now fully closed.');
-    });
+    yvertx.closeNetServer server do:
+      logger#info('The server is now fully closed.');
+    done;
     
-If you want your net server to last the entire lifetime of your verticle, you don't need to call `close` explicitly, the Vert.x container will automatically close any servers that you created when the verticle is stopped.    
+If you want your net server to last the entire lifetime of your verticle, you 
+don't need to call `close` explicitly, the Vert.x container will automatically 
+close any servers that you created when the verticle is stopped.    
     
 ### NetServer Properties
 
-NetServer has a set of properties you can set which affect its behaviour. Firstly there are bunch of properties used to tweak the TCP parameters, in most cases you won't need to set these:
+NetServer has a set of properties you can set which affect its behaviour and
+also to enalbe SSL.
 
-* `setTCPNoDelay(tcpNoDelay)` If `tcpNoDelay` is true then [Nagle's Algorithm](http://en.wikipedia.org/wiki/Nagle's_algorithm) is disabled. If false then it is enabled.
-
-* `setSendBufferSize(size)` Sets the TCP send buffer size in bytes.
-
-* `setReceiveBufferSize(size)` Sets the TCP receive buffer size in bytes.
-
-* `setTCPKeepAlive(keepAlive)` if `keepAlive` is true then [TCP keep alive](http://en.wikipedia.org/wiki/Keepalive#TCP_keepalive) is enabled, if false it is disabled. 
-
-* `setReuseAddress(reuse)` if `reuse` is true then addresses in TIME_WAIT state can be reused after they have been closed.
-
-* `setSoLinger(linger)`
-
-* `setTrafficClass(trafficClass)`
-
-NetServer has a further set of properties which are used to configure SSL. We'll discuss those later on.
-
+All this properties are set through the normal Java api. Please consult the java
+manual for furhter information.
 
 ### Handling Data
 
-So far we have seen how to create a NetServer, and accept incoming connections, but not how to do anything interesting with the connections. Let's remedy that now.
+So far we have seen how to create a NetServer, and accept incoming connections, 
+but not how to do anything interesting with the connections. 
+Let's remedy that now.
 
-When a connection is made, the connect handler is called passing in an instance of `NetSocket`. This is a socket-like interface to the actual connection, and allows you to read and write data as well as do various other things like close the socket.
+When a connection is made, the connect handler is called passing in an 
+instance of `NetSocket`. This is a socket-like interface to the actual 
+connection, and allows you to read and write data as well as do various other 
+things like close the socket.
 
 
 #### Reading Data from the Socket
 
-To read data from the socket you need to set the `dataHandler` on the socket. This handler will be called with a `Buffer` every time data is received on the socket. You could try the following code and telnet to it to send some data:
+To read data from the socket you need to set the `dataHandler` on the socket. 
+This handler will be called with a `Buffer` every time data is received on the 
+socket. You could try the following code and telnet to it to send some data:
 
-    var server = vertx.createNetServer();
+    server = yvertx.createAndConnectNetServer do socket:
+        yvertx.dataHandler sock do buffer:
+            logger#info("I received \(buffer#length()) bytes of data");
+        done;
+    done;
+    _ = server#listen(1234,"localhost");
 
-    server.connectHandler(function(sock) {
-    
-        sock.dataHandler(function(buffer) {
-            log.info('I received ' + buffer.length() + ' bytes of data');
-        });
-      
-    }).listen(1234, 'localhost');
     
 #### Writing Data to a Socket
 
-To write data to a socket, you invoke the `write` function. This function can be invoked in a few ways:
+To write data to a socket, you invoke the `write` method of the Socket class.
+This is the normal java- api. Please consult the java documentation.
 
-With a single buffer:
+#### Putting it all together.
 
-    var myBuffer = new vertx.Buffer(...);
-    sock.write(myBuffer);
-    
-A string. In this case the string will encoded using UTF-8 and the result written to the wire.
+Here's an example of a simple TCP echo server which simply writes back (echoes)
+everything that it receives on the socket:
 
-    sock.write('hello');    
-    
-A string and an encoding. In this case the string will encoded using the specified encoding and the result written to the wire.     
+    server = yvertx.createAndConnectNetServer do socket:
+        yvertx.dataHandler socket do buffer:
+            _ = sock#write(buffer);
+        done;
+    done;
 
-    sock.write('hello', 'UTF-16');
-    
-The `write` function is asynchronous and always returns immediately after the write has been queued.
-
-The actual write might occur some time later. If you want to be informed when the actual write has happened you can pass in a function as a final argument.
-
-This function will then be invoked when the write has completed:
-
-    sock.write('hello', function() {
-        log.info('It has actually been written');
-    });
-
-Let's put it all together.
-
-Here's an example of a simple TCP echo server which simply writes back (echoes) everything that it receives on the socket:
-
-    var server = vertx.createNetServer();
-
-    server.connectHandler(function(sock) {
-    
-        sock.dataHandler(function(buffer) {
-            sock.write(buffer);
-        });
-      
-    }).listen(1234, 'localhost');
+    server#listen(1234,"localhost");
     
 ### Closing a socket
 
-You can close a socket by invoking the `close` method. This will close the underlying TCP connection.
+You can close a socket by invoking the `close` method on the socket. 
+This will close the underlying TCP connection.
 
 ### Closed Handler
 
-If you want to be notified when a socket is closed, you can set the `closedHandler':
+If you want to be notified when a socket is closed, you can use the
+`netsocketClosed` function to close the socket and get informed:
 
 
-    var server = vertx.createNetServer();
+    server = yvertx.createAndConnectNetServer do socket:
+        yvertx.netsocketClosed socket 
+            \(logger#info("The socket is now closed"));
+    done;
 
-    server.connectHandler(function(sock) {
-        
-        sock.closedHandler(function() {        
-            log.info('The socket is now closed');            
-        });
-    });
-
-The closed handler will be called irrespective of whether the close was initiated by the client or server.
+The closed handler will be called irrespective of whether the close was 
+initiated by the client or server.
 
 ### Exception handler
 
-You can set an exception handler on the socket that will be called if an exception occurs:
+You can set an exception handler on the socket that will be called if an 
+exception occurs:
 
-    var server = vertx.createNetServer();
-
-    server.connectHandler(function(sock) {
-        
-        sock.exceptionHandler(function() {        
-            log.error('Oops. Something went wrong');            
-        });
-    });
-
+    server = yvertx.createAndConnectNetServer do socket:
+        yvertx.exceptionHandler socket 
+            \(logger#error("Oops. Something went wrong"));
+    done;
     
-### Read and Write Streams
-
-NetSocket also can at as a `ReadStream` and a `WriteStream`. This allows flow control to occur on the connection and the connection data to be pumped to and from other object such as HTTP requests and responses, WebSockets and asynchronous files.
-
-This will be discussed in depth in the chapter on streams and pumps.
-
-## Scaling TCP Servers
-
-A verticle instance is strictly single threaded.
-
-If you create a simple TCP server and deploy a single instance of it then all the handlers for that server are always executed on the same event loop (thread).
-
-This means that if you are running on a server with a lot of cores, and you only have this one instance deployed then you will have at most one core utilised on your server! That's not very good, right?
-
-To remedy this you can simply deploy more instances of the verticle in the server, e.g.
-
-    vertx run echo_server.js -instances 20
-    
-The above would run 20 instances of echo_server.js to a locally running vert.x instance.
-
-Once you do this you will find the echo server works functionally identically to before, but, *as if by magic*, all your cores on your server can be utilised and more work can be handled.
-
-At this point you might be asking yourself *'Hold on, how can you have more than one server listening on the same host and port? Surely you will get port conflicts as soon as you try and deploy more than one instance?'*
-
-*Vert.x does a little magic here*.
-
-When you deploy another server on the same host and port as an existing server it doesn't actually try and create a new server listening on the same host/port.
-
-Instead it internally maintains just a single server, and, as incoming connections arrive it distributes them in a round-robin fashion to any of the connect handlers set by the verticles.
-
-Consequently vert.x TCP servers can scale over available cores while each vert.x verticle instance remains strictly single threaded, and you don't have to do any special tricks like writing load-balancers in order to scale your server on your multi-core machine.
     
 ## NetClient
 
@@ -975,293 +752,204 @@ A NetClient is used to make TCP connections to servers.
 
 ### Creating a Net Client
 
-To create a TCP client you invoke the `createNetClient` function on the `vertx` instance.
+To create a TCP client you invoke the `createNetClient` function.
 
-    var client = vertx.createNetClient();
+    client = yvertx.createNetClient();
 
 ### Making a Connection
 
 To actually connect to a server you invoke the `connect` method:
 
-    var client = vertx.createNetClient();
+    client = yvertx.createNetClient();
     
-    client.connect(1234, 'localhost', function(sock) {
-        log.info('We have connected');
-    });
+    client = yvertx.connectNetClient client 'localhost:1234' do socket:
+        logger#info("We have connected");
+    done;
     
-The `connect` method takes the port number as the first parameter, followed by the hostname or ip address of the server. The third parameter is a connect handler. This handler will be called when the connection actually occurs.
+The `connectNetClient` method takes as first argument the netClient. Than the
+host:port as a one string argument. The third argument is a connect handler. 
+This handler will be called when the connection actually occurs.
 
-The argument passed into the connect handler is an instance of `NetSocket`, exactly the same as what is passed into the server side connect handler. Once given the `NetSocket` you can read and write data from the socket in exactly the same way as you do on the server side.
+Like with the net server you can create the server and register
+the handler in on path.
 
-You can also close it, set the closed handler, set the exception handler and use it as a `ReadStream` or `WriteStream` exactly the same as the server side `NetSocket`.
+    client = yvertx.createAndConnectNetClient "localhost:1234" do socket:
+        logger#info("We have connected");
+    done;
+
+The argument passed into the connect handler is an instance of `NetSocket`, 
+exactly the same as what is passed into the server side connect handler. 
+Once given the `NetSocket` you can read and write data from the socket in 
+exactly the same way as you do on the server side.
+
+You can also close it, set the closed handler, set the exception handler and 
+use it as a `ReadStream` or `WriteStream` exactly the same as the server 
+side `NetSocket`.
 
 ### Catching exceptions on the Net Client
 
-You can set an exception handler on the `NetClient`. This will catch any exceptions that occur during connection.
+You can set an exception handler on the `NetClient`. This will catch any 
+exceptions that occur during connection.
 
     var client = vertx.createNetClient();
     
-    client.exceptionHandler(function(ex) {
-      log.info('Cannot connect since the host does not exist!');
-    });
+    client#exceptionHandler(yvertx.toExceptionHandler do ex:
+        logger#info("Cannot connect since the host does not exist!");
+    done;
     
-    client.connect(4242, 'host-that-doesnt-exist', function(sock) {
-      log.info('this won't get called');
-    });
+    yvertx.connectNetClient client "host-doesnt-exist:4242" do sock:
+        logger#info("will not happen");
+    done;
 
 
-### Configuring Reconnection
+### Configuring Reconnection, SSL and other properties
 
-A NetClient can be configured to automatically retry connecting or reconnecting to the server in the event that it cannot connect or has lost its connection. This is done by invoking the functions `setReconnectAttempts` and `setReconnectInterval`:
-
-    var client = vertx.createNetClient();
-    
-    client.setReconnectAttempts(1000);
-    
-    client.setReconnectInterval(500);
-    
-`ReconnectAttempts` determines how many times the client will try to connect to the server before giving up. A value of `-1` represents an infinite number of times. The default value is `0`. I.e. no reconnection is attempted.
-
-`ReconnectInterval` detemines how long, in milliseconds, the client will wait between reconnect attempts. The default value is `1000`.
-
-If an exception handler is set on the client, and reconnect attempts is not equal to `0`. Then the exception handler will not be called until the client gives up reconnecting.
-
-
-### NetClient Properties
-
-Just like `NetServer`, `NetClient` also has a set of TCP properties you can set which affect its behaviour. They have the same meaning as those on `NetServer`.
-
-`NetClient` also has a further set of properties which are used to configure SSL. We'll discuss those later on.
-
-## SSL Servers
-
-Net servers can also be configured to work with [Transport Layer Security](http://en.wikipedia.org/wiki/Transport_Layer_Security) (previously known as SSL).
-
-When a `NetServer` is working as an SSL Server the API of the `NetServer` and `NetSocket` is identical compared to when it working with standard sockets. Getting the server to use SSL is just a matter of configuring the `NetServer` before `listen` is called.
-
-To enabled SSL the function `setSSL(true)` must be called on the Net Server.
-
-The server must also be configured with a *key store* and an optional *trust store*.
-
-These are both *Java keystores* which can be managed using the [keytool](http://docs.oracle.com/javase/6/docs/technotes/tools/solaris/keytool.html) utility which ships with the JDK.
-
-The keytool command allows you to create keystores, and import and export certificates from them.
-
-The key store should contain the server certificate. This is mandatory - the client will not be able to connect to the server over SSL if the server does not have a certificate.
-
-The key store is configured on the server using the `setKeyStorePath` and `setKeyStorePassword` functions.
-
-The trust store is optional and contains the certificates of any clients it should trust. This is only used if client authentication is required. 
-
-To configure a server to use server certificates only:
-
-    var server = vertx.createNetServer().
-                   .setSSL(true)
-                   .setKeyStorePath('/path/to/your/keystore/server-keystore.jks')
-                   .setKeyStorePassword('password');
-    
-Making sure that `server-keystore.jks` contains the server certificate.
-
-To configure a server to also require client certificates:
-
-    var server = vertx.createNetServer()
-                   .setSSL(true)
-                   .setKeyStorePath('/path/to/your/keystore/server-keystore.jks')
-                   .setKeyStorePassword('password')
-                   .setTrustStorePath('/path/to/your/truststore/server-truststore.jks')
-                   .setTrustStorePassword('password')
-                   .setClientAuthRequired(true);
-    
-Making sure that `server-truststore.jks` contains the certificates of any clients who the server trusts.
-
-If `clientAuthRequired` is set to `true` and the client cannot provide a certificate, or it provides a certificate that the server does not trust then the connection attempt will not succeed.
-
-## SSL Clients
-
-Net Clients can also be easily configured to use SSL. They have the exact same API when using SSL as when using standard sockets.
-
-To enable SSL on a `NetClient` the function `setSSL(true)` is called.
-
-If the `setTrustAll(true)` is invoked on the client, then the client will trust all server certificates. The connection will still be encrypted but this mode is vulnerable to 'man in the middle' attacks. I.e. you can't be sure who you are connecting to. Use this with caution. Default value is `false`.
-
-If `setTrustAll(true)` has not been invoked then a client trust store must be configured and should contain the certificates of the servers that the client trusts.
-
-The client trust store is just a standard Java key store, the same as the key stores on the server side. The client trust store location is set by using the function `setTrustStorePath` on the `NetClient`. If a server presents a certificate during connection which is not in the client trust store, the connection attempt will not succeed.
-
-If the server requires client authentication then the client must present its own certificate to the server when connecting. This certificate should reside in the client key store. Again it#s just a regular Java key store. The client keystore location is set by using the function `setKeyStorePath` on the `NetClient`. 
-
-To configure a client to trust all server certificates (dangerous):
-
-    var client = vertx.createNetClient()
-                   .setSSL(true)
-                   .setTrustAll(true);
-    
-To configure a client to only trust those certificates it has in its trust store:
-
-    var client = vertx.createNetClient()
-                   .setSSL(true)
-                   .setTrustStorePath('/path/to/your/client/truststore/client-truststore.jks')
-                   .setTrustStorePassword('password');
-                   
-To configure a client to only trust those certificates it has in its trust store, and also to supply a client certificate:
-
-    var client = vertx.createNetClient()
-                   .setSSL(true)
-                   .setTrustStorePath('/path/to/your/client/truststore/client-truststore.jks')
-                   .setTrustStorePassword('password')
-                   .setClientAuthRequired(true)
-                   .setKeyStorePath('/path/to/keystore/holding/client/cert/client-keystore.jks')
-                   .setKeyStorePassword('password');
-                     
- 
+Beside the described functions yvertx does not wrap the Java api. So to
+set Properties, configure reconnection and SSL, please consult the 
+java manual and api-docs.
 
 # Flow Control - Streams and Pumps
 
-There are several objects in vert.x that allow data to be read from and written to in the form of Buffers.
+There are several objects in vert.x that allow data to be read from and 
+written to in the form of Buffers.
 
-All operations in the vert.x API are non blocking; calls to write data return immediately and writes are internally queued.
+All operations in the vert.x API are non blocking; calls to write data return 
+immediately and writes are internally queued.
 
-It's not hard to see that if you write to an object faster than it can actually write the data to its underlying resource then the write queue could grow without bound - eventually resulting in exhausting available memory.
+It's not hard to see that if you write to an object faster than it can actually 
+write the data to its underlying resource then the write queue could grow 
+without bound - eventually resulting in exhausting available memory.
 
-To solve this problem a simple flow control capability is provided by some objects in the vert.x API.
+To solve this problem a simple flow control capability is provided by some 
+objects in the vert.x API.
 
-Any flow control aware object that can be written to is said to implement `ReadStream`, and any flow control object that can be read from is said to implement `WriteStream`.
+Any flow control aware object that can be written to is said to implement 
+`ReadStream`, and any flow control object that can be read from is said to 
+implement `WriteStream`.
 
-Let's take an example where we want to read from a `ReadStream` and write the data to a `WriteStream`.
+Let's take an example where we want to read from a `ReadStream` and write the 
+data to a `WriteStream`.
 
-A very simple example would be reading from a `NetSocket` on a server and writing back to the same `NetSocket` - since `NetSocket` implements both `ReadStream` and `WriteStream`, but you can do this between any `ReadStream` and any `WriteStream`, including HTTP requests and response, async files, WebSockets, etc.
+A very simple example would be reading from a `NetSocket` on a server and 
+writing back to the same `NetSocket` - since `NetSocket` implements both 
+`ReadStream` and `WriteStream`, but you can do this between any `ReadStream` 
+and any `WriteStream`, including HTTP requests and response, 
+async files, WebSockets, etc.
 
-A naive way to do this would be to directly take the data that's been read and immediately write it to the NetSocket, for example:
+A naive way to do this would be to directly take the data that's been read 
+and immediately write it to the NetSocket, for example:
 
-    var server = vertx.createNetServer();
-
-    server.connectHandler(function(sock) {
+    server = yvertx.createAndConnectNetServer do sock:
+        yvertx.dataHandler do buffer:
+            _ = sock#write(buffer);
+        done;
+    done;
     
-        sock.dataHandler(function(buffer) {
-      
-            // Write data straight back on the socket
-                  
-            sock.write(buffer); 
-        });
-                
-    }).listen(1234, 'localhost');
+    server#listen(1234, "localhost");
     
-There's a problem with the above example: If data is read from the socket faster than it can be written back to the socket, it will build up in the write queue of the AsyncFile, eventually running out of RAM. This might happen, for example if the client at the other end of the socket wasn't reading very fast, effectively putting back-pressure on the connection.
+There's a problem with the above example: If data is read from the socket 
+faster than it can be written back to the socket, it will build up in the 
+write queue of the AsyncFile, eventually running out of RAM. 
+This might happen, for example if the client at the other end of the socket 
+wasn't reading very fast, effectively putting back-pressure on the connection.
 
-Since `NetSocket` implements `WriteStream`, we can check if the `WriteStream` is full before writing to it:
+Since `NetSocket` implements `WriteStream`, we can check if the `WriteStream` 
+is full before writing to it:
 
-    var server = vertx.createNetServer();
-
-    server.connectHandler(function(sock) {
+    server = yvertx.createAndConnectNetServer do sock:
+        yvertx.dataHandler do buffer:
+            if not sock#writeQueueFull() then
+                _ = sock#write(buffer);
+            fi
+        done;
+    done;
     
-        sock.dataHandler(function(buffer) {
-      
-            if (!sock.writeQueueFull()) {      
-                sock.write(buffer); 
-            }
-        });
-                
-    }).listen(1234, 'localhost');
+    server#listen(1234, "localhost");
     
-This example won't run out of RAM but we'll end up losing data if the write queue gets full. What we really want to do is pause the `NetSocket` when the write queue is full. Let's do that:
+This example won't run out of RAM but we'll end up losing data if the write 
+queue gets full. What we really want to do is pause the `NetSocket` when the 
+write queue is full. Let's do that:
 
-    var server = vertx.createNetServer();
-
-    server.connectHandler(function(sock) {
+    server = yvertx.createAndConnectNetServer do sock:
+        yvertx.dataHandler do buffer:
+            if not sock#writeQueueFull() then
+                _ = sock#write(buffer);
+            else
+                _ = sock#pause();
+            fi
+        done;
+    done;
     
-        sock.dataHandler(function(buffer) {
-      
-            if (!sock.writeQueueFull()) {      
-                sock.write(buffer); 
-            } else {
-                sock.pause();
-            }
-        });
-                
-    }).listen(1234, 'localhost');
+    server#listen(1234, "localhost");
 
-We're almost there, but not quite. The `NetSocket` now gets paused when the file is full, but we also need to *unpause* it when the write queue has processed its backlog:
+We're almost there, but not quite. The `NetSocket` now gets paused when the 
+file is full, but we also need to *unpause* it when the write queue has 
+processed its backlog:
 
-    var server = vertx.createNetServer();
-
-    server.connectHandler(function(sock) {
+    server = yvertx.createAndConnectNetServer do sock:
+        yvertx.dataHandler do buffer:
+            if not sock#writeQueueFull() then
+                _ = sock#write(buffer);
+            else
+                _ = sock#pause();
+                yvertx.drainHandler sock \(sock#resume());
+            fi
+        done;
+    done;
     
-        sock.dataHandler(function(buffer) {
-      
-            if (!sock.writeQueueFull()) {      
-                sock.write(buffer); 
-            } else {
-                sock.pause();
-                
-                sock.drainHandler(function() {
-                    sock.resume();
-                });
-            }
-        });
-                
-    }).listen(1234, 'localhost');
+    server#listen(1234, "localhost");
 
-And there we have it. The `drainHandler` event handler will get called when the write queue is ready to accept more data, this resumes the `NetSocket` which allows it to read more data.
+And there we have it. The `drainHandler` event handler will get called when 
+the write queue is ready to accept more data, this resumes the `NetSocket` 
+which allows it to read more data.
 
-It's very common to want to do this when writing vert.x applications, so we provide a helper class called `Pump` which does all this hard work for you. You just feed it the `ReadStream` and the `WriteStream` and it tell it to start:
+It's very common to want to do this when writing vert.x applications, so we 
+provide a helper class called `Pump` which does all this hard work for you. 
+You just feed it the `ReadStream` and the `WriteStream` and it tell it to start:
 
-    var server = vertx.createNetServer();
-
-    server.connectHandler(function(sock) {
+    server = yvertx.createAndConnectNetServer do sock:
+        yvertx.dataHandler do buffer:
+            pump = yvertx.createPump sock sock;
+            pump#start();
+        done;
+    done;
     
-        var pump = new vertx.Pump(sock, sock);
-        pump.start();
-                
-    }).listen(1234, 'localhost');
+    server#listen(1234, "localhost");
     
 Which does exactly the same thing as the more verbose example.
 
-Let's look at the methods on `ReadStream` and `WriteStream` in more detail:
+As always there are some functions provided by yvertx which make working 
+with `ReadStream` and `WriteStream` more easy. However a wrapper functions
+would not bring any benefit than there is none and the normal java-api should
+be used:
 
-## ReadStream
+## ReadStream and WriteStream functions to register Handler
 
-`ReadStream` is implemented by `AsyncFile`, `HttpClientResponse`, `HttpServerRequest`, `WebSocket`, `NetSocket` and `SockJSSocket`.
+There are differnt functions to register Handlers on streams.
 
-Functions:
+* dataHandler to register a dataHandler
+* drainHanlder to register a drainHandler
+* endHandler to register an endHandler
+* exceptionHandler to register an excpetionHandler on a ReadStream
+* wsExcpetionHandler to register an excpetionHandler on a WriteStream
 
-* `dataHandler(handler)`: set a handler which will receive data from the `ReadStream`. As data arrives the handler will be passed a Buffer.
-* `pause()`: pause the handler. When paused no data will be received in the `dataHandler`.
-* `resume()`: resume the handler. The handler will be called if any data arrives.
-* `exceptionHandler(handler)`: Will be called if an exception occurs on the `ReadStream`.
-* `endHandler(handler)`: Will be called when end of stream is reached. This might be when EOF is reached if the `ReadStream` represents a file, or when end of request is reached if it's an HTTP request, or when the connection is closed if it's a TCP socket.
+There is also the `createPump` function to create a pump
 
-## WriteStream
+Beside that there are no wrapper functions. Please consult the java manual
+for further information an ReadStream, WriteStream and Pump
 
-`WriteStream` is implemented by `AsyncFile`, `HttpClientRequest`, `HttpServerResponse`, `WebSocket`, `NetSocket` and `SockJSSocket`
-
-Functions:
-
-* `writeBuffer(buffer)`: write a Buffer to the `WriteStream`. This method will never block. Writes are queued internally and asynchronously written to the underlying resource.
-* `setWriteQueueMaxSize(size)`: set the number of bytes at which the write queue is considered *full*, and the function `writeQueueFull()` returns `true`. Note that, even if the write queue is considered full, if `writeBuffer` is called the data will still be accepted and queued.
-* `writeQueueFull()`: returns `true` if the write queue is considered full.
-* `exceptionHandler(handler)`: Will be called if an exception occurs on the `WriteStream`.
-* `drainHandler(handler)`: The handler will be called if the `WriteStream` is considered no longer full.
-
-## Pump
-
-Instances of `Pump` have the following methods:
-
-* `start()`: Start the pump.
-* `stop()`: Stops the pump. When the pump starts it is in stopped mode.
-* `setWriteQueueMaxSize()`: This has the same meaning as `setWriteQueueMaxSize` on the `WriteStream`.
-* `getBytesPumped()`: Returns total number of bytes pumped.
-
-A pump can be started and stopped multiple times.
 
 # Writing HTTP Servers and Clients
 
 ## Writing HTTP servers
 
-Vert.x allows you to easily write full featured, highly performant and scalable HTTP servers.
+Vert.x allows you to easily write full featured, highly performant and 
+scalable HTTP servers.
 
 ### Creating an HTTP Server
 
-To create an HTTP server you invoke the `createHttpServer` function on the `vertx` instance.
+To create an HTTP server you invoke the `createHttpServer` function on the 
+`vertx` instance.
 
     var server = vertx.createHttpServer();
     
