@@ -395,8 +395,8 @@ To unregister a handler it's just as straightforward. You simply call
 
     //or using the callback
     _ = yvertx.registerBusHandler 'test.address' \()
-        do {message, handler}:
-            yvertx.unregisterBusHandler handler \();
+        do {message, handlerId}:
+            yvertx.unregisterBusHandler handlerId \();
         done;
 
 
@@ -418,103 +418,96 @@ any handlers when the verticle is stopped.
 Publishing a message is also trivially easy. Just publish it specifying the 
 address, for example:
 
-    eb.publish('test.address', 'hello world');
+    yvertx.publishToBus 'test.address' {msg='hello world', for_json=E()};
 
-That message will then be delivered to any handlers registered against the address "test.address".
+That message will then be delivered to any handlers registered against the 
+address "test.address".
 
 ### Sending messages
 
-Sending a message will result in at most one handler registered at the address receiving the message. This is the point to point messaging pattern.
+Sending a message will result in at most one handler registered at the address 
+receiving the message. This is the point to point messaging pattern.
 
-    eb.send('test.address", 'hello world');
+    yvertx.sendToBus 'test.address"  {msg='hello world', for_json=E()};
 
 ### Replying to messages
 
-Sometimes after you send a message you want to receive a reply from the recipient. This is known as the *request-response pattern*.
+Sometimes after you send a message you want to receive a reply from the 
+recipient. This is known as the *request-response pattern*.
 
-To do this you send a message, and specify a reply handler as the third argument. When the receiver receives the message they are passed a replier function as the second parameter to the handler. When this function is invoked it causes a reply to be sent back to the sender where the reply handler is invoked. An example will make this clear:
+To do this you send a message, and specify a reply handler as the third 
+argument. When the receiver receives the message they are passed a replier 
+function as the second parameter to the handler. When this function is invoked 
+it causes a reply to be sent back to the sender where the reply handler is 
+invoked. An example will make this clear:
 
 The receiver:
 
-    var myHandler = function(message, replier) {
-      log.info('I received a message ' + message);
-      
-      // Do some stuff
-      
-      // Now reply to it
-      
-      replier('This is a reply');
-    }
+    yvertx.registerBusHandler 'test.address' \() do {message, reply}:
+        //Do some stuff
+
+        //Now reply to it
+        reply {msg="This is a reply", for_json=E()};
+    done;
     
-    eb.registerHandler('test.address', myHandler);
     
 The sender:
 
-    eb.send('test.address', 'This is a message', function(reply) {
-        log.info('I received a reply ' + reply);
-    });
+    yvertx.requestFromBus 'test.address' 
+            {msg='This is a message', for_json=E()}
+            \case of
+                None ex: logger#exception(string ex,ex);
+                Some msg: logger#info("I received a reply \(msg)");
+            esac;
     
-It is legal also to send an empty reply or null reply.
+It is important to note that yvertx only supports JSON request/replies. If
+you want to use other message-types you have use the Java api.
 
-The replies themselves can also be replied to so you can create a dialog between two different verticles consisting of multiple rounds.
+The replies themselves can also be replied to so you can create a dialog 
+between two different verticles consisting of multiple rounds. See the 
+`sendToBusWithHandler` function for that.
 
-### Message types
+### Getting the java EventBus
 
-The message you send can be any of the following types:
+If you need access to the Java EventBus instance, ie to send other 
+message-types than JSON you can use the eventBus property
 
-* number
-* string
-* boolean
-* JSON object
-* Vert.x Buffer
+    eb = yvertx.eventBus;
+    eb#send('test.address', 1234);
 
-Vert.x buffers and JSON objects are copied before delivery if they are delivered in the same JVM, so different verticles can't access the exact same object instance.
-
-Here are some more examples:
-
-Send some numbers:
-
-    eb.send('test.address', 1234);
-    eb.send('test.address', 3.14159);
-
-Send a boolean:
-
-    eb.send('test.address', true);
-
-Send a JSON object:
-
-    var myObj = {
-      name: 'Tim',
-      address: 'The Moon',
-      age: 457
-    }
-    eb.send('test.address', myObj);
-
-Null messages can also be sent:
-
-    eb.send('test.address', null);
-
-It's a good convention to have your verticles communicating using JSON.
 
 ## Distributed event bus
 
-To make each vert.x instance on your network participate on the same event bus, start each vert.x instance with the `-cluster` command line switch.
+To make each vert.x instance on your network participate on the same event bus,
+start each vert.x instance with the `-cluster` command line switch.
 
-See the chapter in the main manual on *running vert.x* for more information on this. 
+See the chapter in the main manual on *running vert.x* for more information on
+this. 
 
-Once you've done that, any vert.x instances started in cluster mode will merge to form a distributed event bus.   
+Once you've done that, any vert.x instances started in cluster mode will merge
+to form a distributed event bus.   
       
 # Shared Data
 
-Sometimes it makes sense to allow different verticles instances to share data in a safe way. Vert.x allows simple *Map* and *Set* data structures to be shared between verticles.
+Sometimes it makes sense to allow different verticles instances to share data
+in a safe way. Vert.x allows simple *Map* and *Set* data structures to be 
+shared between verticles.
 
-There is a caveat: To prevent issues due to mutable data, vert.x only allows simple immutable types such as number, boolean and string or Buffer to be used in shared data. With a Buffer, it is automatically copied when retrieved from the shared data, so different verticle instances never see the same object instance.
+There is a caveat: To prevent issues due to mutable data, vert.x only allows 
+simple immutable types such as number, boolean and string or Buffer to be used
+in shared data. With a Buffer, it is automatically copied when retrieved from
+the shared data, so different verticle instances never see the same
+object instance.
 
-Currently data can only be shared between verticles in the *same vert.x instance*. In later versions of vert.x we aim to extend this to allow data to be shared by all vert.x instances in the cluster.
+Currently data can only be shared between verticles in the
+*same vert.x instance*. In later versions of vert.x we aim to extend this to
+allow data to be shared by all vert.x instances in the cluster.
 
 ## Shared Maps
 
-To use a shared map to share data between verticles first we get a reference to the map, and then we just use standard `put` and `get` to put and get data from the map:
+To use a shared map to share data between verticles first we get a reference
+to the map, and then we just use standard `put` and `get` to put and get data
+from the map:
 
     var map = vertx.getMap('demo.mymap');
     
@@ -530,7 +523,8 @@ And then, in a different verticle:
     
 ## Shared Sets
 
-To use a shared set to share data between verticles first we get a reference to the set.
+To use a shared set to share data between verticles first we get a reference 
+to the set.
 
     var set = vertx.getSet('demo.myset');
     
@@ -550,19 +544,27 @@ API - atomic updates etc
 
 Most data in vert.x is shuffled around using buffers.
 
-A Buffer represents a sequence of zero or more bytes that can be written to or read from, and which expands automatically as necessary to accomodate any bytes written to it. You can perhaps think of a buffer as smart byte array.
+A Buffer represents a sequence of zero or more bytes that can be written to or
+read from, and which expands automatically as necessary to accomodate any
+bytes written to it. You can perhaps think of a buffer as smart byte array.
 
 ## Creating Buffers
 
-Create a buffer from a String. The String will be encoded in the buffer using UTF-8.
+Create a buffer from a String. The String will be encoded in the buffer 
+using UTF-8.
 
     var buff = new vertx.Buffer('some-string');
     
-Create a buffer from a String: The String will be encoded using the specified encoding, e.g:
+Create a buffer from a String: The String will be encoded using the specified
+encoding, e.g:
 
     var buff = new vertx.Buffer('some-string', 'UTF-16');
     
-Create a buffer with an initial size hint. If you know your buffer will have a certain amount of data written to it you can create the buffer and specify this size. This makes the buffer initially allocate that much memory and is more efficient than the buffer automatically resizing multiple times as data is written to it.
+Create a buffer with an initial size hint. If you know your buffer will have a
+certain amount of data written to it you can create the buffer and specify 
+this size. This makes the buffer initially allocate that much memory and is 
+more efficient than the buffer automatically resizing multiple times as data 
+is written to it.
 
 Note that buffers created this way *are empty*. It does not create a buffer filled with zeros up to the specified size.
         
