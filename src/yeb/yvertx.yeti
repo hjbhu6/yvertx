@@ -557,49 +557,15 @@ wsExceptionHandler ws handler =
 
 /**
  * Group: vertx
- * Thread local to store a Vertx instance if no default is set. See getVertx 
- * for a description
+ * Gets the vertx instance stored in the vertxholder module.
  */
-vertxThreadLocal = threadLocal \yvf.vertx;
-
-/** 
- * Group: container
- * ThreadLocal to store a container instance if no default is set.
- * See getContainer for a description
- */
-containerThreadLocal = threadLocal \yvf.container;
-
-/**
- * Group: vertx
- * Some functions (ie createHttpServer etc) need a vertx instance. Because in
- * a vert.x deployment the right Vertx instance is store in the 
- * YetiVerticleFactory class the instance does not alwys have to be given as an 
- * argument. Instead this function first looks it up in vertxThreadLocal and
- * if this is not set (default it is not set) it takes it from the 
- * YetiVerticleFactory
- * class. So if you want to set your own Vertx instance or do not use Vertx from
- * a deployment set you vertx instance on the verxtThreadLocal.
- */
-getVertx () = 
-    (loc = vertxThreadLocal.value;
-    if not defined? loc then
-        yvf.vertx;
-    else
-        loc
-    fi);
+getVertx () = yvf.vertx;
 
 /**
  * Group: container
- * Same as getVertx but for Container. The corresponding ThreadLocal is
- * containerThreadLocal
+ * Gets the Container instance stored in the vertxholder module
  */
-getContainer () =
-    (loc = containerThreadLocal.value;
-    if not defined? loc then
-        yvf.container;
-    else
-        loc;
-    fi);
+getContainer () = yvf.container;
 
 /**
  * Group: vertx (VERTX)
@@ -2413,25 +2379,6 @@ fileSystem = ({
      */
     get vertx () = getVertx(),
     
-    
-    /**
-     * Group: vertx
-     * sets the current Vertx on the vertxThreadLocal
-     * noramlly not used because in a container the vertx is given
-     * only used when vertx is used as an api
-     */
-    withVertx vertx fn =
-        (ov = vertxThreadLocal.value;
-        vertxThreadLocal.value := (vertx is ~Vertx);
-        try
-            fn ();
-        finally
-            vertxThreadLocal.value := ov;
-        yrt),
-    vertxThreadLocal,
-    containerThreadLocal,
-
-
     //recordparser
 
     /**
