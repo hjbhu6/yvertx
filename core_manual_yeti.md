@@ -2033,8 +2033,17 @@ amount of time (five minutes by default)
 
 # File System
 
-Vert.x lets you manipulate files on the file system. File system operations are asynchronous and take a handler function as the last argument. This function will be called when the operation is complete, or an error has occurred.
-The first argument passed into the callback is an exception, if an error occurred. This will be `null` if the operation completed successfully. If the operation returns a result that will be passed in the second argument to the handler.
+Vert.x lets you manipulate files on the file system. File system operations are 
+asynchronous and take a handler function as the last argument. 
+
+The vert.x java-api also supports synchronous forms of that functions, however
+the yeit api does not, because a yeti wrapper is there only of little benefit.
+
+This function will be called when the operation is complete, or an error 
+has occurred. The first argument passed into the callback is an exception, 
+if an error occurred. This will be `null` if the operation completed 
+successfully. If the operation returns a result that will be passed in 
+the second argument to the handler.
 
 ## Synchronous forms
 
