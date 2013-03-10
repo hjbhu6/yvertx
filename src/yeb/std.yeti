@@ -303,19 +303,90 @@ messageDigest algorithm message =
      * Group: json (Helpers for json)
      * makes sure that the value is a string (and checks that at runtime)
      */
-    isString x = x ^ "",
+    isString x = 
+        if defined? x and (x as ~Object) instanceof String then
+            x ^ "";
+        else 
+            failWith "Expected string, but was [\(x)]"
+        fi,
     
     /**
      * Group: json
      * makes sure hat the value is a number (and checks taht at runtime)
      */
-    isNumber x = x + 0,
+    isNumber x =
+        (import yeti.lang.Num;
+        if defined? x and (x as ~Object) instanceof Num 
+            and not nan? x then
+            0 + x
+        else
+            failWith "Expected number, but was [\(x)]"
+        fi),
     
     /** 
      * Group: json
      * makes sure that the value is a boolean (and checks that at runtime)
      */
-    isBoolean x = if x then x else x fi,
+    isBoolean x = 
+        if defined? x and (x as ~Object) instanceof Boolean then
+            if x then x else x fi
+        else
+            failWith "Expected boolean, but was [\(x)]"
+        fi,
+    
+    /**
+     * Group: json 
+     * if the value is a string than the rightFunction is called other
+     * wise the wrongFunction is called with the value (which is no string)
+     *
+     * arguments:
+     * - wrongFunction: called when the value is no string
+     * - rightFunction: called when the value is a string
+     * - value: value to test
+     */
+    maybeString ffn rfn x = 
+        if defined? x and (x as ~Object) instanceof String then
+            rfn (string x);
+        else
+            ffn x
+        fi,
+    
+    /**
+     * Group: json 
+     * if the value is a number than the rightFunction is called other
+     * wise the wrongFunction is called with the value (which is no number)
+     *
+     * arguments:
+     * - wrongFunction: called when the value is no number
+     * - rightFunction: called when the value is a number
+     * - value: value to test
+     */
+    maybeNumber ffn rfn x = 
+        (import java.lang.Number;
+        if defined? x and (x as ~Object) instanceof Number then
+            rfn (number' (x as ~Object));
+        else
+            ffn x
+        fi),
+
+    /**
+     * Group: json 
+     * if the value is a boolean than the rightFunction is called other
+     * wise the wrongFunction is called with the value (which is no boolean)
+     *
+     * arguments:
+     * - wrongFunction: called when the value is no boolean
+     * - rightFunction: called when the value is a boolean
+     * - value: value to test
+     */
+    maybeBoolean ffn rfn x = 
+        if defined? x and (x as ~Object) instanceof Boolean then
+            rfn ((x as ~Object) unsafely_as  boolean);
+        else
+            ffn x
+        fi,
+
+
     
     withThreadLocal,
 
