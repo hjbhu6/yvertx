@@ -193,7 +193,7 @@ structRoute opts nextHandler is 'o -> 'h -> route =
 
 
         result = {functionName,
-                values = yvertx.fromJS jo};
+                values = yvertx.fromJson jo};
         nextHandler req result res;
         
    done); 

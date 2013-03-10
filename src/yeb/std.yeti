@@ -162,11 +162,11 @@ simpleTest testHash ()=
     fi);
 
 //json things
-writeJson stru = string (json.toJS stru);
+writeJson stru = string (json.toJson stru);
 parseJson str = 
     (import org.vertx.java.core.json:JsonObject;
     ob = new JsonObject(str is string);
-    json.fromJS ob);
+    json.fromJson ob);
 
 
 /**

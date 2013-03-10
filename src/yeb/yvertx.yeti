@@ -108,7 +108,7 @@ await timeoutMs asyncFn is number -> asyncFunction<'a> -> 'a =
 emptyJS is json<E()>= {for_json = E()};
 
 
-_toJS object = 
+_toJson object = 
    (import yeti.lang:Num, FloatNum, RatNum,AList, ByKey, Struct, Tag;
     import java.util:ArrayList,Map, HashMap;
   
@@ -138,7 +138,7 @@ _toJS object =
         jl = new JsonArray();
         for (o unsafely_as list<'a>) do v:
             if not nullTag v then
-                _ = jl#add(_toJS v);
+                _ = jl#add(_toJson v);
             fi;
         done;
         jl as ~Object;
@@ -150,7 +150,7 @@ _toJS object =
              key = string (e#getKey());
              v = e#getValue();
              if not nullTag v then
-                 _ = dbo#put(key, _toJS (v unsafely_as 'a));
+                 _ = dbo#put(key, _toJson (v unsafely_as 'a));
              fi);
         new JsonObject(dbo);
     elif o instanceof Struct then
@@ -160,20 +160,20 @@ _toJS object =
             name = st#name(i);
             v = st#get(i);
             if not nullTag v then
-                _ = dbo#put(name, _toJS (v unsafely_as 'a));
+                _ = dbo#put(name, _toJson (v unsafely_as 'a));
             fi;
         done;
         new JsonObject(dbo);
     elif o instanceof Tag then
         t = o unsafely_as ~Tag;
         if t#name == "Some" then
-            _toJS (t#value unsafely_as 'a);
+            _toJson (t#value unsafely_as 'a);
         elif t#name == "None" then
             () as ~Object;
         else
             dbo = new HashMap();;
             _ = dbo#put("_vtype",t#name);
-            _ = dbo#put(t#name, _toJS (t#value unsafely_as 'a));
+            _ = dbo#put(t#name, _toJson (t#value unsafely_as 'a));
             new JsonObject(dbo);
         fi
     else
@@ -213,8 +213,8 @@ _toJS object =
  * Exceptions:
  * java.lang.RuntimeException - if the given argument is no struct
  */
-toJS stru is json<'a> -> ~JsonObject =
-    _toJS stru unsafely_as ~JsonObject;
+toJson stru is json<'a> -> ~JsonObject =
+    _toJson stru unsafely_as ~JsonObject;
 
 /**
  * Group: json
@@ -224,14 +224,14 @@ toJS stru is json<'a> -> ~JsonObject =
  * Arguments:
  * ls - the list to transform
  */
-toJSArray ls is list?<'a> -> ~JsonArray =
+toJsonArray ls is list?<'a> -> ~JsonArray =
    (ar = new JsonArray();
     for ls do e:
-        _ = ar#add(_toJS e)
+        _ = ar#add(_toJson e)
     done;
     ar);
     
-_fromJS object = 
+_fromJson object = 
    (import java.util:List,HashMap,Map;
     import java.lang:Number;
     import yeb:HashStruct;
@@ -263,21 +263,21 @@ _fromJS object =
     elif o instanceof JsonArray then
         it = (o unsafely_as ~JsonArray)#iterator();
         ar = array [];
-        (it#hasNext()) loop push ar (_fromJS it#next());
+        (it#hasNext()) loop push ar (_fromJson it#next());
         (list ar) as ~Object;
     elif o instanceof JsonObject then
         jo = o unsafely_as ~JsonObject;
         //check for variant
         if defined? jo#getString("_vtype",undef_str) 
             and defined? jo#getField("value") then
-            new Tag(_fromJS jo#getField("value"), 
+            new Tag(_fromJson jo#getField("value"), 
                     jo#getString("_vtype"))
         else
             ma = new HashMap();
             i = jo#toMap()#entrySet()#iterator();
             i#hasNext() loop
                (e = i#next() unsafely_as ~java.util.Map$Entry;
-                value = _fromJS (e#getValue() unsafely_as 'a);
+                value = _fromJson (e#getValue() unsafely_as 'a);
                 if not nullptr? value then
                     ma#put(string e#getKey(), value);
                 fi);
@@ -296,8 +296,8 @@ _fromJS object =
  * Arguments:
  * jsonObject - the object to transfer 
  */
-fromJS object is ~JsonObject -> 'a =
-    (_fromJS object) unsafely_as 'a;
+fromJson object is ~JsonObject -> 'a =
+    {struct = (_fromJson object) unsafely_as 'a};
 
 /**
  * Group: json
@@ -308,8 +308,8 @@ fromJS object is ~JsonObject -> 'a =
  * Arguments:
  * jsonArray - the JsonArray object to transfer
  */
-fromJSArray ar is ~JsonArray -> list<'a> =
-    (_fromJS ar) unsafely_as list<'a>;    
+fromJsonArray ar is ~JsonArray -> list<'a> =
+    (_fromJson ar) unsafely_as list<'a>;    
 
 _blend vin1 vin2 is 'a -> 'b -> 'c=
     (import yeti.lang:Struct,
@@ -352,7 +352,7 @@ _blend vin1 vin2 is 'a -> 'b -> 'c=
  * Works only on struct arguments if either argument is not a struct then
  * the first argument is returen.
  *
- * This is useful when transforming getting a Json struct fom "fromJS" and
+ * This is useful when transforming getting a Json struct fom "fromJson" and
  * prefilling it with default values
  *
  * Arguments:
@@ -875,7 +875,7 @@ lateVerticle runFn
  */
 deployModule name config instances handler = 
     (getContainer ())#deployModule(name is string, 
-                                            toJS config, 
+                                            toJson config, 
                                             instances is number, 
                                             toStringHandler handler);
 
@@ -893,7 +893,7 @@ deployModule name config instances handler =
  */
 deployVerticle name config instances handler= 
     (getContainer ())#deployVerticle(name is string, 
-                                                toJS config, 
+                                                toJson config, 
                                                 instances is number, 
                                                 toStringHandler handler);
 
@@ -912,7 +912,7 @@ deployVerticle name config instances handler=
  */
 deployWorkerVerticle name config instances multiThreaded handler= 
     (getContainer ())#deployWorkerVerticle(name is string, 
-                                                toJS config, 
+                                                toJson config, 
                                                 instances is number, 
                                                 multiThreaded is boolean,
                                                 toStringHandler handler);
@@ -923,7 +923,7 @@ deployWorkerVerticle name config instances multiThreaded handler=
  *
  * Calls ~Container#getConfig()
  */
-config () = fromJS ((getContainer ())#getConfig());
+config () = fromJson ((getContainer ())#getConfig());
 
 
 _enviroment () = 
@@ -1620,7 +1620,7 @@ createSockJSServer server =
  * created;
  */
 installSockJSApp server config handler =
-    (server is ~SockJSServer)#installApp(toJS config, 
+    (server is ~SockJSServer)#installApp(toJson config, 
                  toHandler (handler . (unsafely_as ~SockJSSocket)));  
 
 /**
@@ -1649,9 +1649,9 @@ bridgeSockJS server opts sjsConfig inboundPermitted outboundPermitted =
         AuthAddress a : authAddress := a;
         esac
     done;
-    (server is ~SockJSServer)#bridge(toJS sjsConfig, 
-             toJSArray (inboundPermitted is list<json<'e>>), 
-             toJSArray (outboundPermitted is list<json<'f>>),
+    (server is ~SockJSServer)#bridge(toJson sjsConfig, 
+             toJsonArray (inboundPermitted is list<json<'e>>), 
+             toJsonArray (outboundPermitted is list<json<'f>>),
              authTimeout,
              authAddress));
 
@@ -1782,11 +1782,11 @@ closeNetClient client =
 _toMessageJS v =
     case v of
     None ex: 
-        toJS {status = "error", 
+        toJson {status = "error", 
               message = string (ex is ~Exception)#getMessage(),
               exception = string ex,
               for_json = E()};
-    Some va: toJS va;
+    Some va: toJson va;
     esac;
 
 
@@ -1794,7 +1794,7 @@ toRequestMessageHandler fn =
     (class YvertxRequestMessageHandler extends Handler
         void handle(Object ob)
             msg = ob unsafely_as ~Message;
-            body = fromJS (msg#body unsafely_as ~JsonObject);
+            {struct = body} = fromJson (msg#body unsafely_as ~JsonObject);
             if defined? body.status and body.status == "error" then
                 emg = if defined? body.message then
                           string body.message
@@ -1813,7 +1813,7 @@ toEitherJsonMessageHandler address fn =
     (class YvertxEitherMessageHandler extends Handler
         void handle(Object ob)
             msg = ob unsafely_as ~Message;
-            body = fromJS (msg#body unsafely_as ~JsonObject);
+            {struct = body} = fromJson (msg#body unsafely_as ~JsonObject);
             try
             if defined? body.status and body.status == "error" then
                 emg = if defined? body.message then
@@ -1859,7 +1859,7 @@ toJsonMessageHandler address fn =
                     {object = this as ~Handler,
                     address is string},
                 get body () = 
-                    fromJS (msg#body unsafely_as ~JsonObject),
+                    fromJson (msg#body unsafely_as ~JsonObject),
                 get replyAddress () = string msg#replyAddress,
                 reply v = 
                     msg#reply(_toMessageJS (Some v)),
@@ -1891,7 +1891,7 @@ toJsonMessageHandler address fn =
  * structMessage - the struct which will be posted as Json
  */
 publishToBus address msg = 
-    (getVertx ())#eventBus()#publish(address is string, toJS msg);
+    (getVertx ())#eventBus()#publish(address is string, toJson msg);
 
 /**
  * Group: eventbus
@@ -1906,7 +1906,7 @@ publishToBus address msg =
  * structMessage - the struct which will be send as JSON
  */
 sendToBus address msg =
-    (getVertx ())#eventBus()#send(address is string, toJS msg);
+    (getVertx ())#eventBus()#send(address is string, toJson msg);
 
 /**
  * Group: eventbus
@@ -1922,7 +1922,7 @@ sendToBus address msg =
  * handler - the callback function receiving the response
  */
 sendToBusWithHandler address msg handler =
-    (getVertx ())#eventBus()#send(address is string, toJS msg, 
+    (getVertx ())#eventBus()#send(address is string, toJson msg, 
             toJsonMessageHandler address handler);
 
 
@@ -1951,7 +1951,7 @@ sendToBusWithHandler address msg handler =
  *
  */
 requestFromBus address msg handler =
-    (getVertx ())#eventBus()#send(address is string, toJS msg, 
+    (getVertx ())#eventBus()#send(address is string, toJson msg, 
             toRequestMessageHandler handler);
 
 /**
@@ -2424,10 +2424,10 @@ fileSystem = ({
         do buffer: parser#handle(buffer is ~Buffer) done),    
     
     emptyJS,
-    toJS,
-    toJSArray,
-    fromJS,
-    fromJSArray,
+    toJson,
+    toJsonArray,
+    fromJson,
+    fromJsonArray,
     blend,
     newFibre,
     newWorker,
