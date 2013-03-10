@@ -297,7 +297,7 @@ _fromJson object =
  * jsonObject - the object to transfer 
  */
 fromJson object is ~JsonObject -> 'a =
-    {struct = (_fromJson object) unsafely_as 'a};
+    {jsonStruct = (_fromJson object) unsafely_as 'a};
 
 /**
  * Group: json
@@ -1794,7 +1794,7 @@ toRequestMessageHandler fn =
     (class YvertxRequestMessageHandler extends Handler
         void handle(Object ob)
             msg = ob unsafely_as ~Message;
-            {struct = body} = fromJson (msg#body unsafely_as ~JsonObject);
+            {jsonStruct = body} = fromJson (msg#body unsafely_as ~JsonObject);
             if defined? body.status and body.status == "error" then
                 emg = if defined? body.message then
                           string body.message
@@ -1813,7 +1813,7 @@ toEitherJsonMessageHandler address fn =
     (class YvertxEitherMessageHandler extends Handler
         void handle(Object ob)
             msg = ob unsafely_as ~Message;
-            {struct = body} = fromJson (msg#body unsafely_as ~JsonObject);
+            {jsonStruct = body} = fromJson (msg#body unsafely_as ~JsonObject);
             try
             if defined? body.status and body.status == "error" then
                 emg = if defined? body.message then

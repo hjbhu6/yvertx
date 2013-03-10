@@ -69,7 +69,7 @@ class YetiVerticleFactory extends VerticleFactory
             (std = load yeb.std;
             ins = loader#getResourceAsStream("mod.json");
             if defined? ins then
-                {struct = js} = inputHandle ins "UTF-8"
+                {jsonStruct = js} = inputHandle ins "UTF-8"
                     |> getContents
                     |> std.parseJson;
                 std.maybeDefined \false std.isBoolean js.``auto-redeploy``
