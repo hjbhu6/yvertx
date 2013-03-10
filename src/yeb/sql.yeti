@@ -68,7 +68,9 @@ warningExceptionString warning is ~SQLWarning -> string = (
         stb#append("\n----SQLWarning----\n");
         var war = warning;
         (defined? war) loop (
-            _ = stb#append("Message: [\(war#getMessage())] | SQLState: [\(war#getSQLState())] | ErrorCode: [\(war#getErrorCode())]");
+            _ = stb#append("Message: [\(war#getMessage())] | SQLState: "
+                            ^ "[\(war#getSQLState())] | ErrorCode:" 
+                            ^ "[\(war#getErrorCode())]");
             war := war#getNextWarning();
         );
         string (stb#toString());
@@ -81,8 +83,9 @@ warningExceptionString warning is ~SQLWarning -> string = (
  * Stets yeti values on java PreparedStatements and takes care of right 
  * translation of yeti to java values inclduing none to null etc
  */
-_setStatementValue ps pos value is ~PreparedStatement -> number -> ~Object -> number = (
-    import yeti.lang: Num,BigNum,RatNum,IntNum,FloatNum,AList, Tag;
+_setStatementValue ps pos value 
+    is ~PreparedStatement -> number -> ~Object -> number = 
+    (import yeti.lang: Num,BigNum,RatNum,IntNum,FloatNum,AList, Tag;
     import java.lang: Number, String, CharSequence;
     import java.sql:Time, Timestamp;
     import java.util: Date,Calendar;
@@ -90,18 +93,22 @@ _setStatementValue ps pos value is ~PreparedStatement -> number -> ~Object -> nu
     var index = pos;
     if nullptr? value then
         //this is the empty list we set nothing
-    elif (value instanceof Tag) and ((value unsafely_as ~Tag)#name == "Some") then
+    elif (value instanceof Tag) 
+        and ((value unsafely_as ~Tag)#name == "Some") then
         t = (value unsafely_as ~Tag);
         index := _setStatementValue ps pos t#value;
-        index := index -1; //decrease because below we increas and index is already at next position
-    elif (value instanceof Tag) and ((value unsafely_as ~Tag)#name == "None") then
+        index := index -1; //decrease because below we increas and 
+                           //index is already at next position
+    elif (value instanceof Tag) 
+        and ((value unsafely_as ~Tag)#name == "None") then
         //set to null
         //taken from springs StatementCreatorUtils (apache license)
         try
             dbmd = ps#getConnection()#getMetaData();
             databaseProductName = string dbmd#getDatabaseProductName();
             jdbcDriverName = string dbmd#getDriverName();
-            if (strStarts? databaseProductName "Informix") or (strStarts? jdbcDriverName "Microsoft SQL Server") then
+            if (strStarts? databaseProductName "Informix") 
+                    or (strStarts? jdbcDriverName "Microsoft SQL Server") then
                 //use setObject
                 ps#setObject(index,() as ~Object);
             elif (strStarts? databaseProductName "DB2") or
@@ -121,7 +128,9 @@ _setStatementValue ps pos value is ~PreparedStatement -> number -> ~Object -> nu
 
     elif value instanceof CharSequence then
         ps#setString(index, string value);
-    elif (value instanceof Time) or (value instanceof Timestamp) or (value instanceof java.sql.Date) then
+    elif (value instanceof Time) 
+        or (value instanceof Timestamp) 
+        or (value instanceof java.sql.Date) then
         ps#setObject(index,value);
     elif value instanceof Date then
         d = value unsafely_as ~Date;
@@ -140,7 +149,8 @@ _setStatementValue ps pos value is ~PreparedStatement -> number -> ~Object -> nu
     elif value instanceof AList then
         l = value unsafely_as list<~Object>;
         for l do v: index := _setStatementValue ps index v done;
-        index := index -1; //decrease index because below we increas and it is already at next position
+        index := index -1; //decrease index because below we increas and 
+                           //it is already at next position
     elif value instanceof DBValue then
         dv = value unsafely_as ~DBValue;
         if dv#isNull() then
@@ -169,7 +179,8 @@ _expandSql sql params is string -> list<~Object> -> string = (
         var rest = params;
         (m#find()) loop (
             if empty? rest then
-                failWith "There are more questionmarks than params [\(length params)] in the sql: \(sql)"
+                failWith ("There are more questionmarks than params " 
+                            ^ "[\(length params)] in the sql: \(sql)")
             fi;
             param = head rest;
             rest := tail rest;
@@ -239,8 +250,8 @@ _resultSetWrapper rs =
  * Note from within a yeb applicaion most often the task method is used,
  * because this spans an async task and does not block the thread.
  *
- * The argument to the provided function is a structure conataing the connection
- * a rollbackOnly function and an operateStatement function which is 
+ * The argument to the provided function is a structure conataing the 
+ * connection a rollbackOnly function and an operateStatement function which is 
  * used by the various sql functions in this module and can be replace ie for
  * logging retrying etc.
  * 
@@ -279,7 +290,8 @@ withConnection dataSource fn =
                             r is ~Object = statementHandler ps;
 
                             if defined? ps#getWarnings() then
-                                logger#info(warningExceptionString(ps#getWarnings()))
+                                logger#info(warningExceptionString(
+                                    ps#getWarnings()))
                             fi;
                             r
                         finally
@@ -391,8 +403,8 @@ insertStruct  tableName stru cP =
 /**
  * updates the table witht the struct at the given whereClause
  *
- * The fieldnames of the struct must correspond to the columnnames of the table.
- * Camelcase fieldnames are trasnlated to underscore field names.
+ * The fieldnames of the struct must correspond to the columnnames 
+ * of the table. Camelcase fieldnames are trasnlated to underscore field names.
  *
  * to update the name of user with id = 2 use ie:
  * :updateStruct "users" {name = "Johne"} "id = ?" [2:!] con;
@@ -511,7 +523,10 @@ _structHandler rs =
                 ()
             fi;
         done;
-        (new yeti.lang.GenericStruct(ma) unsafely_as ~Object) unsafely_as 'a;
+        {sqlStruct =
+            (new yeti.lang.GenericStruct(ma) unsafely_as ~Object) 
+                unsafely_as 'a
+        }
     done);        
         
     
@@ -583,7 +598,8 @@ maybeStruct sql setters noneHandler dataHandler ds =
 //Helpers for handling datasource exception etc
 exceptionString seq is ~SQLException -> string = (
     ib ex sb is ~SQLException -> ~StringBuilder -> () = (
-        _ = sb#append("SQLState: [\(ex#getSQLState())] | Error Code: [\(ex#getErrorCode())] | Message: [\(ex#getMessage())]\n");
+        _ = sb#append("SQLState: [\(ex#getSQLState())] | Error Code: "
+            ^ "[\(ex#getErrorCode())] | Message: [\(ex#getMessage())]\n");
         var t = ex#getCause();
         defined? t loop (
             _ = sb#append(string t)#append("\n");
