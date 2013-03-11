@@ -1355,23 +1355,21 @@ but if you want to close it explicitly you can:
 ### Making Requests
 
 To make a request using the client you use the `httpRequest` function, giving
-it the HttpClient, the method and uri, the headers and an response handler as
+it the HttpClient, the method and uri, some options and an response handler as
 arguments:
 
 For example, to make a `POST` request:
 
     client = yvertx.createHttpClient "localhost:8080";
     
-    request = yvertx.httpRequest 
-                client 
-                (Post '/some-path/') 
-                ["Some-Header":"foo", "Another-Header":"foo2"]
-                do resp:
-                    logger#info(
-                        "Got a response, status code: \(resp#statusCode)");
-                done;
-    
-    request.end();
+    yvertx.httpRequest client (Post '/some-path/') []
+        \case of
+        None ex: 
+            logger#error("exception happened during request");
+        Some resp:
+            logger#info(
+                "Got a response, status code: \(resp#statusCode)");
+        esac; 
     
 To make a PUT request use the `Put` tag with the path, to make a GET request 
 use the `Get` tag with the path etc
@@ -1379,8 +1377,12 @@ use the `Get` tag with the path etc
 Legal request methods are: `Get`, `Put`, `Post`, `Delete`, `Head`, `Options`, 
 `Connect`, `Trace` and `Patch`.
 
-The response handler will get called when the corresponding response arrives. 
-The response handler is passed the client response object as an argument.
+The response handler will get called when the corresponding response arrives or
+when an excpetion was raised on the HttpClientRequest#exceptionHandler.
+
+If the request was succesful Some HttpClientResponse will be given to the 
+handler. If an excpetion was raised with HttpClientRequest#exceptionHandler 
+from the java-api than a None Exception will be given.
 
 The value specified in the request URI corresponds to the Request-URI as 
 specified in [Section 5.1.2 of the HTTP specification](http://www.w3.org/Protocols/rfc2616/rfc2616-sec5.html). 
@@ -1389,79 +1391,65 @@ In most cases it will be a relative URI.
 *Please note that the domain/port that the client connects to is determined 
 by `setPort` and `setHost`, and is not parsed from the uri.*
 
-The return value from the appropriate request method is an `HTTPClientRequest` 
-object. You can use this to write to the request body. 
-The request object implements `WriteStream`.
+Different to the vert.x java-api the request is immidiately executed if not 
+otherwise specified.
 
-Once you have finished with the request you must call the `end` function.
+If the request should not be executed immidiatley, but instead you want to 
+get hold of the HttpClientRequest and execute it later manualg 
+(with HttpClientRequest#end()) give a httpRequestHolder with the Holder 
+option.
 
-If you don't know the name of the request method in advance you can also
-pass the `Request` tag which contains a struct in which the method and uri
-is given as string.
-
-    client = yvertx.createHttpClient "localhost:8080";
+    requestHolder = yvertx.httpRequestHolder();
     
-    request = yvertx.httpRequest client
-                (Request {method="POST", uri="/some-path/")
-                [:] //no headers
-                do resp:
-                    logger#info(
-                        "Got a response, status code: \(resp#statusCode)");
-                done;
+    yvertx.httpRequest client (Put '/some-paht')
+        [Holder request]
+        \case of
+        None ex: ...
+        Some res: ..
+        esac;
+
+    req = requestHolder.value;
+    req#write("Somehting");
+    req#end();
+
+The requestHolder will be filled with the HttpClientRequest object and 
+contains it in the value fieled (before that the field value is null).
+
+The httpRequest method will in this case also not end the request.
+
+If you just want to manipulate the HttpClientRequest during the httpRequest 
+function use the WithRequest option. In this case the httpRequest function 
+will exeucte the given funciton but will right after that call 
+HttpClientRequest#end()
+
+    yvertx.httpRequest client (Post '/some-path/') 
+        [WithRequest do req:
+            _ = req#setChunked(true);
+        done]
+        \case of
+        None ex: 
+            logger#error("exception happened during request");
+        Some resp:
+            logger#info(
+                "Got a response, status code: \(resp#statusCode)");
+        esac; 
     
-    request.end();
-    
-There is also a method called `getHttpNow` which does the same as `get`, 
-but automatically ends the request. This is useful for simple GETs which don't have a request body:
+To set headers on the request use the Headers options
 
-    client = yvertx.createHttpClient "localhost:8080";
-    
-    yvertx.getHttpNow client "/some-path" ["Header":"foo"] do resp:
-        logger#info("Got a response");
-    done;
+    yvertx.httpRequest client (Get '/some-path/') 
+        [Headers ["foo-header":"some value", 
+                 "foo-header2":"othervalue"]
+        \case of
+        None ex: 
+            logger#error("exception happened during request");
+        Some resp:
+            logger#info(
+                "Got a response, status code: \(resp#statusCode)");
+        esac; 
 
-With `getNow` there is no return value.
+To write content on the request use one of the JsonContent, FormEncoded,
+TextContent options. They will set the Conent-Type and Content-Length header.
 
-Finally there is also a function called `getHttpBodyNow` which does the same
-as `getHttpNow` but provides direclt the body and an excpetion if one happend:
-
-    client = yvertx.createHttpClient "localhost:8080";
-    
-    yvertx.getHttpBodyNow client "/some-path" ["Header":"foo"] \case of
-        None ex: logger#error("Ohh an exception has append");
-        Some {buffer, resp}: 
-            logger#info("Got a response with content: \(buffer#length())");
-    esac;
-    
-#### Writing to the request body
-
-Writing to the client request body has a very similar API to writing to the 
-server response body.
-
-To write data to an `HttpClientRequest` object, you invoke the `write` method. 
-This function can be called multiple times before the request has ended.
-
-This is just the normal java api please consult the java manual and 
-documentation.
-
-The first call to `write` results in the request header being being written 
-to the request.
-
-Consequently, if you are not using HTTP chunking then you must set the 
-`Content-Length` header before writing to the request, since it will be too 
-late otherwise. If you are using HTTP chunking you do not have to worry. 
-
-
-#### Ending HTTP requests
-
-Once you have finished with the HTTP request you must call the `end` method 
-on it.
-
-This function can be invoked in several ways:
-
-With no arguments, the request is simply ended. 
-
-    request#end();
     
 #### HTTP chunked requests
 

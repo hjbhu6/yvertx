@@ -1548,6 +1548,15 @@ responseTrailers resp =
 
 /**
  * Group: httpClient
+ * holder for an httpRequest can be given as Holder .. to
+ * httpRequest function and will be filled with the request
+ */
+httpRequestHolder () = {
+    var value = () as ~HttpClientRequest
+};
+
+/**
+ * Group: httpClient
  * create and execute an http request for the given client
  *
  * Calls - depending on the muri - one of the HttpClient request mehtod (get, put,
@@ -1598,6 +1607,8 @@ httpRequest client muri opts handler =
         fi
     done;
 
+    var end = true;
+
     for opts \case of
     Headers ha : _ = putRequestHeaders req ha;
     WithRequest fn : fn req;
@@ -1644,10 +1655,18 @@ httpRequest client muri opts handler =
         fi;
         _ = putRequestHeaders req headers; 
         _ = req#write(buffer);
-        
+    Holder ho : 
+        ho.value := req;
+        end := false;
+    End bo: 
+        end := bo;
+    Timeout ms:
+        _ = req#setTimeout(ms is number);
     esac;
 
-    req#end());
+    if end then
+        req#end()
+    fi);
 
 //websocket functions
 
@@ -2427,7 +2446,7 @@ fileSystem = ({
     responseHeaders,
     responseTrailers,
     httpRequest,
-
+    httpRequestHolder,
     //websocket
     connectWebSocketServer,
     connectWebSocketClient,
