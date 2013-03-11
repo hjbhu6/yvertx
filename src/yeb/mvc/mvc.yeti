@@ -711,7 +711,7 @@ routes handlers req responder is list<route> -> route =
         try res (Some (h req)) catch Exception ex: res (None ex) yrt
     done,
 
-    (<==) fn res is callback<response> -> response -> ()= 
+    (<==) fn res is (either<response> -> ()) -> response -> ()= 
         fn (Some res),
 
     HEADER_PRAGMA = "Pragma",

@@ -388,7 +388,7 @@ _fromJsonValue o is ~Object -> yvertxJsonValue<'a>=
             someNum = Some numi,
             type = 5
         }
-    elif o instanceof ~byte[] then
+    elif o instanceof Buffer then
         b = (o unsafely_as ~Buffer)#getBytes();
         _jsonPrototype with {
             bytes = b,
@@ -557,7 +557,7 @@ toLongHandler fn =
  * handler - funciton taking either Exception ex or Value v
  */
 toAsyncResultHandler fn 
-    is callback<~Object> -> ~AsyncResultHandler =
+    is (either<~Object> -> ()) -> ~AsyncResultHandler =
        (class IYetiAsyncResultHandler extends AsyncResultHandler
             void handle(Object o)
                 r = o unsafely_as ~AsyncResult;
@@ -579,7 +579,7 @@ toAsyncResultHandler fn
  * Exception ex
  */
 toTypedAsyncResultHandler tfn fn 
-    is (~Object -> 'a) -> callback<'a> -> ~AsyncResultHandler =
+    is (~Object -> 'a) -> (either<'a> -> ()) -> ~AsyncResultHandler =
        (class IYetiAsyncResultHandler extends AsyncResultHandler
             void handle(Object o)
                 r = o unsafely_as ~AsyncResult;
@@ -778,7 +778,7 @@ newWorker startfn cb=
         catch Exception ex:
             None ex;
         yrt;
-        ctxt#execute(runnable \((cb is callback<string>) r));
+        ctxt#execute(runnable \((cb is (either<string> -> ())) r));
         done,false);
     ctxt#putCloseHook(idw, runnable \newCtxt#runCloseHooks()));
 

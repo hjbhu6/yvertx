@@ -21,8 +21,7 @@ import java.lang:Exception,
 
 //callback functions
 typedef either<a> = None ~Exception | Some a; 
-typedef callback<a> = either<a> -> ();
-typedef asyncFunction<a> = callback<a> -> ();
+typedef asyncFunction<a> = (either<a> -> ()) -> ();
 
 /**
  * Group: async (ASYNC)
@@ -145,7 +144,7 @@ bindNone fn cbfn
  * callback - the callbac function which gets called with the result
  */
 parallel cbfns cb 
-    is list?<asyncFunction<'a>> -> callback<list<'a>> -> () =
+    is list?<asyncFunction<'a>> -> asyncFunction<list<'a>> =
     (res = array [];
     var handled = false;
     for cbfns do c:
