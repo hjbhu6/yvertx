@@ -1548,33 +1548,26 @@ responseTrailers resp =
 
 /**
  * Group: httpClient
- * create an http reqeust for the given client and headers
+ * create and execute an http request for the given client
  *
  * Calls - depending on the muri - one of the HttpClient request mehtod (get, put,
  * post, delete etc)
  *
- * than sets the given headers and retruns the request.
- *
- * The request is not yet executed (same as teh HttpClient request methods)
- *
  * Arguments:
  * client - the httpclient
  * muri - the uri with the method as a Tag (Post, Get, Delete etc)
- * the Request Tag takes a {method, uri} struct to 
- * headers - a hash of headers to send with the request
+ * options - options to set headers, send content and work on the request 
  * handler - the reqeusthandler
  *
- * Examples:
- * : req = httpRequest (createHttpClient "foo.org:8080") 
- * :                   (Get "some/url")
- * :                   ["header":"value"]
- * :                   do res:
- * :   ...
- * : done;
- * : req#end();
  */
-httpRequest client muri headers handler =
-    (h = toHandler (handler . (unsafely_as ~HttpClientResponse));
+httpRequest client muri opts handler =
+    (var invoked = false;
+    h = toHandler do obj:
+        if not invoked then
+            invoked := true;
+            handler (Some ( obj unsafely_as ~HttpClientResponse));
+        fi
+    done;
     req = case muri of
     Connect uri: 
         (client is ~HttpClient)#connect(uri is string, h);
@@ -1597,68 +1590,65 @@ httpRequest client muri headers handler =
     Request {method, uri}:
         client#request(method is string, uri is string, h); 
     esac;
-    putRequestHeaders req headers);
 
-/**
- * Group: httpClient
- * quick version for http get
- *
- * same as HttpClient#getNow()
- *
- * Arguments:
- * httpClient - the client
- * uri - the uri string
- * headers - headers hash
- * handler - the response handler
- */
-getHttpNow client uri headers handler =
-   (client is ~HttpClient)#getNow(uri is string, 
-                                  headers is hash<string,string>,
-                    toHandler (handler . (unsafely_as ~HttpClientResponse)));
+    wsExceptionHandler req do ex:
+        if not invoked then
+            invoked := true;
+            handler (None (ex is ~Exception))
+        fi
+    done;
 
-/**
- * Group: httpClient
- * quick version for http get, where the handler is directly a bodyHandler and
- * exception handler.
- *
- * If either the request or the response emit an exceptino (exceptionHandler)
- * than the handler gets an Exception ex. Otherwise it gets  Some body
- *
- * like getHttpNow but the handler is drectly registered as bodyHandler
- * 
- * Arguments:
- * httpClient - the client
- * uri - uri as string
- * headers - headers hash
- * handler - the response handler
- */
-getHttpBodyNow client uri headers handler =
-    (var handled = false;
-    exh ex =
-        if not handled then
-            handled := true;
-            handler (None (ex is ~Exception));
+    for opts \case of
+    Headers ha : _ = putRequestHeaders req ha;
+    WithRequest fn : fn req;
+    JsonContent str : 
+        bu = new Buffer(str is string);
+        _ = putRequestHeaders req 
+            ["Content-Type":"application/json; charset=utf-8",
+            "Content-Length": string bu#length()];
+        _ = req#write(bu);
+    FormEncoded ha :
+        import java.net.URLEncoder;
+        bu = new Buffer();
+        var first = true;
+        forHash ha do pname values:
+            name = URLEncoder#encode(pname, "UTF-8"); 
+            for values do pvalue:
+                value = URLEncoder#encode(pvalue, "UTF-8");
+                if first then
+                    first := false;
+                else
+                    _ = bu#appendString("&");
+                fi;
+                _ = bu#appendString(name)
+                    #appendString("=")
+                    #appendString(value);
+            done;
+        done;
+        _ = putRequestHeaders req
+            ["Content-Type":"application/x-www-form-url; charset=utf-8",
+            "Content-Length": string bu#length()];
+        _ = req#write(bu);
+    
+    TextContent str:
+        bu = new Buffer(str is string);
+        _ = putRequestHeaders req 
+            ["Content-Type":"text/plain; charset=utf-8",
+            "Content-Length": string bu#length()];
+        _ = req#write(bu);
+
+    BufferContent {type, buffer}:
+        headers = ["content-Length": string (buffer is ~Buffer)#length()];
+        if defined? (type is string) then
+            headers["Content-Type"] := type;
         fi;
-    req = httpRequest client (Get uri) headers do resp:
-        exceptionHandler resp exh;
-        bodyHandler resp do buffer:
-            if not handled then
-                handled := true;
-                handler (Some {buffer, resp});
-            fi;
-        done
-    done;
-    wsExceptionHandler req exh;
+        _ = putRequestHeaders req headers; 
+        _ = req#write(buffer);
+        
+    esac;
+
     req#end());
-/*
-    done;
-    getHttpNow client uri headers 
-                do resp:
-                    bodyHandler resp do buffer:
-                        handler {buffer, resp}
-                    done
-                done;
-*/
+
 //websocket functions
 
 /**
@@ -2437,8 +2427,6 @@ fileSystem = ({
     responseHeaders,
     responseTrailers,
     httpRequest,
-    getHttpNow,
-    getHttpBodyNow,
 
     //websocket
     connectWebSocketServer,
