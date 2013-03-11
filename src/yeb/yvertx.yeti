@@ -61,7 +61,7 @@ load yeb.async;
 
 yvf = load yeb.yvertx.vertxholder;
 
-typedef json<a> = {.for_json is a};
+typedef jsonStruct<a> = {.for_json is a};
 
 /**
  * Group: async (ASYNC)
@@ -105,7 +105,7 @@ await timeoutMs asyncFn is number -> asyncFunction<'a> -> 'a =
  * Empty json element (should repsenet an empty struct as this is not
  * possible in yeti
  */
-emptyJS is json<E()>= {for_json = E()};
+emptyJS is jsonStruct<E()>= {for_json = E()};
 
 
 _toJson object = 
@@ -213,7 +213,7 @@ _toJson object =
  * Exceptions:
  * java.lang.RuntimeException - if the given argument is no struct
  */
-toJson stru is json<'a> -> ~JsonObject =
+toJson stru is jsonStruct<'a> -> ~JsonObject =
     _toJson stru unsafely_as ~JsonObject;
 
 /**
@@ -231,7 +231,7 @@ toJsonArray ls is list?<'a> -> ~JsonArray =
     done;
     ar);
     
-_fromJson object = 
+_fromJsonToStruct object = 
    (import java.util:List,HashMap,Map;
     import java.lang:Number;
     import yeb:HashStruct;
@@ -263,28 +263,141 @@ _fromJson object =
     elif o instanceof JsonArray then
         it = (o unsafely_as ~JsonArray)#iterator();
         ar = array [];
-        (it#hasNext()) loop push ar (_fromJson it#next());
+        (it#hasNext()) loop push ar (_fromJsonToStruct it#next());
         (list ar) as ~Object;
     elif o instanceof JsonObject then
         jo = o unsafely_as ~JsonObject;
         //check for variant
         if defined? jo#getString("_vtype",undef_str) 
             and defined? jo#getField("value") then
-            new Tag(_fromJson jo#getField("value"), 
+            new Tag(_fromJsonToStruct jo#getField("value"), 
                     jo#getString("_vtype"))
         else
             ma = new HashMap();
             i = jo#toMap()#entrySet()#iterator();
             i#hasNext() loop
                (e = i#next() unsafely_as ~java.util.Map$Entry;
-                value = _fromJson (e#getValue() unsafely_as 'a);
+                value = _fromJsonToStruct (e#getValue() unsafely_as 'a);
                 if not nullptr? value then
                     ma#put(string e#getKey(), value);
                 fi);
             new HashStruct(ma);
         fi;
+    elif o instanceof Buffer then
+        ((o unsafely_as ~Buffer)#getBytes()) as ~Object;
     else
         o
+    fi);
+
+typedef yvertxJsonValue<a> = {
+    str is string,
+    num is number,
+    bool is boolean,
+    arr is list<yvertxJsonValue>,
+    obj is hash<string,yvertxJsonValue>,
+    bytes is ~byte[],
+    someStr is None () | Some string,
+    someBool is None () | Some boolean,
+    someNum is None () | Some number,
+    someBytes is None () | Some ~byte[],
+    type is number,
+    jsonStruct is a
+};
+
+_jsonPrototype = {
+    get str () = failWith "No json string value",
+    get num () = failWith "No json num value",
+    get bool () = failWith "No json boolean",
+    get arr () = failWith "No json list",
+    get obj () = failWith "No json obj",
+    get bytes () = failWith "No bytes",
+    get someStr () = none,
+    get someBool () = none,
+    get someNum () = none,
+    get someBytes () = none,
+    get jsonStruct () = failWith "No json obj",
+    get type () = 0
+};
+
+_fromJsonValue o is ~Object -> yvertxJsonValue<'a>= 
+   (import java.util:List,HashMap,Map;
+    import java.lang:Number;
+    import yeb:HashStruct;
+    import yeti.lang:Tag;
+    
+    
+    if nullptr? o or not defined? o then
+         _jsonPrototype;
+    elif o instanceof JsonObject then
+        jo = o unsafely_as ~JsonObject;
+        ha = [:];
+        setHashDefault ha do k:
+            obj = jo#getField(k is string);
+            _fromJsonValue obj;
+        done;
+        _jsonPrototype with {
+            obj = ha,
+            get jsonStruct () = (_fromJsonToStruct o) unsafely_as 'a, 
+            type = 1,
+        }
+    elif o instanceof JsonArray then
+        it = (o unsafely_as ~JsonArray)#iterator();
+        ar = array [];
+        (it#hasNext()) loop push ar (_fromJsonValue it#next());
+        ls = (list ar);
+        _jsonPrototype with {
+            list = ls,
+            type = 2 
+        }
+    elif o instanceof String then
+        s = string o;
+        _jsonPrototype with {
+            str = s,
+            someStr = Some s,
+            type = 3,
+        }
+    elif o instanceof Boolean then
+        s = (o unsafely_as ~Boolean)#booleanValue();
+        _jsonPrototype with {
+            bool = s,
+            someBool = Some s,
+            type = 4
+        }
+    elif o instanceof Number then
+        import java.lang: Double, Float,Number;
+        import java.math: BigInteger, BigDecimal;
+        import yeti.lang:Num,BigNum,IntNum,FloatNum;
+        nu = if (o instanceof Double) or
+             (o instanceof Float) or
+             (o instanceof BigDecimal)
+             then
+                nu = o unsafely_as ~Number;
+                new FloatNum(nu#doubleValue());
+        elif o instanceof BigInteger then
+            nu = o unsafely_as ~BigInteger;
+            new BigNum(nu);
+        elif o instanceof Num then
+            o unsafely_as ~Num;
+        else
+            nu = o unsafely_as ~Number;
+            new IntNum(nu#longValue());
+        fi;
+        numi = (nu unsafely_as number);
+        _jsonPrototype with {
+            num = numi,
+            someNum = Some numi,
+            type = 5
+        }
+    elif o instanceof ~byte[] then
+        b = (o unsafely_as ~Buffer)#getBytes();
+        _jsonPrototype with {
+            bytes = b,
+            someBytes = Some b,
+            type = 6
+        }
+    else 
+        failWith "value not supported \(o)";
+
     fi);
 
 /**
@@ -297,7 +410,7 @@ _fromJson object =
  * jsonObject - the object to transfer 
  */
 fromJson object is ~JsonObject -> 'a =
-    {jsonStruct = (_fromJson object) unsafely_as 'a};
+    _fromJsonValue object;
 
 /**
  * Group: json
@@ -309,7 +422,7 @@ fromJson object is ~JsonObject -> 'a =
  * jsonArray - the JsonArray object to transfer
  */
 fromJsonArray ar is ~JsonArray -> list<'a> =
-    (_fromJson ar) unsafely_as list<'a>;    
+    (_fromJsonValue ar).arr;    
 
 _blend vin1 vin2 is 'a -> 'b -> 'c=
     (import yeti.lang:Struct,
@@ -1650,8 +1763,8 @@ bridgeSockJS server opts sjsConfig inboundPermitted outboundPermitted =
         esac
     done;
     (server is ~SockJSServer)#bridge(toJson sjsConfig, 
-             toJsonArray (inboundPermitted is list<json<'e>>), 
-             toJsonArray (outboundPermitted is list<json<'f>>),
+             toJsonArray (inboundPermitted is list<jsonStruct<'e>>), 
+             toJsonArray (outboundPermitted is list<jsonStruct<'f>>),
              authTimeout,
              authAddress));
 
