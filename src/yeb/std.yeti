@@ -46,11 +46,23 @@ class ValidationException(String message, Object wrongValue)
     Object getWrongValue() wrongValue,
 end;
 
-
-number' o is ~Object -> number = 
+/**
+ * Group: convert (CONVERTERS)
+ *
+ * converts any ~Object to a number. The function never fails
+ * if the value can not be converted to number NaN is returned. 
+ * java.lang.Number are converted 
+ * to a number, a string is tried to convert to number oterwise to NaN is
+ * returned.
+ *
+ * arguments:
+ * - value: value to convert to a number
+ */
+number' oi is 'a -> number = 
    (import java.lang: Double, Float,Number;
     import java.math: BigInteger, BigDecimal;
     import yeti.lang:Num,BigNum,IntNum,FloatNum;
+    o = oi unsafely_as ~Object;
     o2 = if (o instanceof Double) or
              (o instanceof Float) or
              (o instanceof BigDecimal)
@@ -65,12 +77,31 @@ number' o is ~Object -> number =
         elif o instanceof Number then
             nu = o unsafely_as ~Number;
             new IntNum(nu#longValue());
-        else o
+        elif o instanceof String then
+            try 
+                (number (o unsafely_as ~String)) unsafely_as ~Object
+            catch Exception ex:
+                o
+            yrt
+        else        
+            o
         fi;
     if o2 instanceof Num then o2 unsafely_as number else Double#NaN fi);
 
+
+/**
+ * Group: convert 
+ *
+ * checks wheter a number is Double#NaN
+ */
 nan? x = Double#isNaN(x is number);    
-    
+
+/**
+ * Group: convert
+ * Converst any value to a boolean. If the value is a boolean true
+ * or a not empty string or an positiv number than the value is true
+ * otherwise false
+ */
 boolean x is 'a -> boolean =
     (import java.lang.Number;
     o = x unsafely_as ~Object;
@@ -88,6 +119,18 @@ boolean x is 'a -> boolean =
         true
     fi);
 
+/**
+ * Group: helper (HELPER)
+ *
+ * executes a functions with a threadlocal. Sets the given value
+ * on the threadLocal and sets the orginal value back on the trheadLocal
+ * when the function returns
+ *
+ * argumments:
+ * - threadLocal: the threadLocal
+ * - value: the value to set on the threadLocal during function execution
+ * - fn: function to execute
+ */
 withThreadLocal threadLocal newValue ac = 
    (oldV = threadLocal.value;
     threadLocal.value := newValue;
@@ -99,14 +142,44 @@ withThreadLocal threadLocal newValue ac =
 
 	
 
-
-
+/**
+ * Group: maybe (MAYBE)
+ * execute noFn if the given list is empty oterh fn with the first element 
+ * of the list
+ *
+ * arguments:
+ * - noFn: executed when list is empty
+ * - fn: executed with the first element of the list when the list is not
+ *   empty
+ * - ls: the list
+ */
 maybeHead noHead headF li =
     if empty? li then (noHead ()) else headF (head li) fi;
 
+
+/**
+ * Group: maybe 
+ * execute noFn if the given key is not in the hash other wise fn with the 
+ * value at the key
+ *
+ * arguments:
+ * - noFn: executed when key not in hash
+ * - fn: executed with the value at key when value in hash
+ * - key: key to lookup in hash
+ * - hash: the hash
+ */
 maybeAt noValue valueF k hs =
     if k in hs then valueF (hs[k]) else (noValue k) fi;
 
+/**
+ * Group: test (TEST)
+ *
+ * check wheter the list starts with the list
+ *
+ * arguments:
+ * - prefix: the prefix to check for
+ * - ls: the list to check wheter it starts with the prefix
+ */
 listStarts? start l =
     if empty? start then
         true
@@ -119,13 +192,33 @@ listStarts? start l =
     fi;
 
 
-
+/**
+ * Group: maybe
+ *
+ * Executes noFn if vaue is None or fn if value is Some
+ *
+ * arguments:
+ * - noFn: fn to execute when value is None
+ * - fn: fn to execute when value is Some
+ * - value: None or Some
+ */
 maybe' defaultFn fn opt =
     case opt of
     None x: defaultFn x;
     Some v: fn v;
     esac;
 
+/**
+ * Group: helper (HELPER)
+ *
+ * reads in a code file and extracts the the lines given at the linenumber
+ *
+ * arguments:
+ * - sourceDirs: the srouce-directories to search
+ * - fileName: the fileName of the code file (with suffix)
+ * - lineNumber: the lineNumber to extract
+ * - lineSourround: the number of lines which sourround the lineNumber
+ */
 findCodeAtLine sourceDirs fileName lineNumber linesSourround =
     (srcs = sourceDirs 
         |> concatMap do d: 
@@ -176,7 +269,19 @@ simpleTest testHash ()=
     fi);
 
 //json things
+
+/**
+ * Group: json (JSON)
+ *
+ * Outputs a struct as as jso string
+ */
 writeJson stru = string (json.toJson stru);
+
+/**
+ * Group: json
+ *
+ * Parses a json string
+ */
 parseJson str is string -> jsonValue<'a> = 
     (import org.vertx.java.core.json:JsonObject;
     ob = new JsonObject(str is string);
@@ -184,7 +289,7 @@ parseJson str is string -> jsonValue<'a> =
 
 
 /**
- * Group: digest
+ * Group: digest (DIGEST)
  * calculates the hash for the given algorithm for the given bytes
  * using java.security.MessageDigest
  *
@@ -231,7 +336,7 @@ messageDigest algorithm message =
     hashSHA256 = messageDigest "SHA-256",
 
     /**
-     * Group: enviroment
+     * Group: helper
      *
      * The Development, Production or Test mode of the current runtime.
      *
@@ -268,31 +373,33 @@ messageDigest algorithm message =
             development? = case v of Development _ : true; _ : false esac,
         }),
     
+    /**
+     * Group: helper
+     *
+     * returns a logger for the given name
+     */
     getLogger name is string -> ~Logger = LoggerFactory#getLogger(name),
 
-    (>>) fn1 fn2 = composeToRight fn1 fn2,
-    
-
-    composeToRight fn1 fn2 = do a: fn2 (fn1 a) done,
     maybeHead,
     maybeAt,
     maybe',
 
     /**
-     * Group: string
+     * Group: convert
      * converts the string to a bytearray encoded as UTF-8
      */
     toUTF8 str = 
         ((str is string) unsafely_as ~String)#getBytes("UTF-8"),
 
     /**
-     * Group: string
+     * Group: convert
      * converts the given byte-array as string with Charste UTF-8
      */
     fromUTF8 bytes = 
         (new String(bytes is ~byte[], "UTF-8")) as string,
+    
     /**
-     * Group: helper (Various helpers)
+     * Group: maybe 
      * if the value is defined execute right function esl wrong function
      *
      * Arguments:
@@ -304,7 +411,7 @@ messageDigest algorithm message =
         if defined? value then rightFn value else wrongFn () fi,
 
     /**
-     * Group: helper
+     * Group: maybe
      * if the value is defined return Some (fn value) else none
      *
      * Arguments:
@@ -380,7 +487,7 @@ messageDigest algorithm message =
     simpleTest,
 
     /**
-     * Group: helper
+     * Group: convert
      * casts value to ~Object
      *
      * same as unsafely_as ~Object
@@ -392,13 +499,24 @@ messageDigest algorithm message =
 
     /**
      * Group: helper
+     * 
      * throws an exception. Throw can not be used as function, therefore
      * this function is a replacment. It just throws the given exception.
      */
     throwEx ex = throw (ex is ~Exception),
 
+    /**
+     * Group: helper
+     *
+     * fails. Same as failWith but with "illegal-state" as standrad text
+     */
     fail = \(failWith "illegal-state"),
 
+    /**
+     * Group: test
+     *
+     * Generates an lazy list of random numbers
+     */
     randomList () = (
         import java.util.Random;
         ran = new Random();
@@ -406,13 +524,27 @@ messageDigest algorithm message =
         f();
     ),
     
+    /**
+     * Group: test
+     *
+     * Generates a byte array of the given length with random values
+     */
     randomByteArray len = YebUtils#generateRandomByteArray(len is number),
+    
+    /**
+     * Group: test
+     *
+     * Generates a a random String of givenlength
+     */
     randomString len = YebUtils#randomUnicodeString(len is number),
+    
+    /**
+     * Group: test
+     *
+     * Generates a random Alpha-String of given length
+     */
     randomAlphaString len = YebUtils#randomAlphaString(len is number),
 
-    regexPattern patstr =
-       (import java.util.regex.Pattern;
-        Pattern#compile(patstr)),
 
     findCodeAtLine,
 
