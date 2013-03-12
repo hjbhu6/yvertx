@@ -49,25 +49,38 @@ _runTestsImpl tests resultO allResults vertx container =
             done
             |> catSome;
         println "=========\nResults of runTest\n----------";               
+        println "TAP version 13";
+        println "1..\(length allResults)";
+
+        var count = 0;
         if length ok == 0 then
             println "\nno succesful results\n";
         else
             println "\nSuccesful results: \n";
-            for ok do {name, msg}: println "[\(name)] : \(msg)"done;
+            for ok do {name, msg}:
+                count := count + 1;
+                println "ok \(count) - [\(name)] : \(msg)"
+            done;
         fi;
 
         if length f == 0 then
             println "\n---\nno failures\n";
         else
             println "\n---\nFailed results: \n"; 
-            for f do {name, msg}: println "[\(name)] : \(msg)"done;
+            for f do {name, msg}: 
+                count := count + 1;
+                println "not ok \(count) - [\(name)] : \(msg)"
+            done;
         fi;
 
         if length exs == 0 then
             println "\n---\nno exceptions\n";
         else
             println "\n---\nException results: \n"; 
-            for exs do {name, msg}: println "[\(name)] : \n\(msg)"done;
+            for exs do {name, msg}: 
+                count := count + 1;
+                println "not ok \(count) - [\(name)] : \n\(msg)"
+            done;
         fi;
 
         println "---\ntotal:\n";
