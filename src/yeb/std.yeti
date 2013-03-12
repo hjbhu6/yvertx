@@ -251,21 +251,36 @@ findCodeAtLine sourceDirs fileName lineNumber linesSourround =
         
                         
 
-simpleTest testHash ()=
+simpleTest println testHash =
    (var bad = 0;
+    var exception = 0;
 
+    var count = 0;
+    println "TAP version 13";
+    println "1..\(length testHash)";
+    
     forHash testHash do name f:
-        if not (f ()) then
-            println "\(name) failed.";
-            bad := bad + 1
-        fi
+        count := count + 1;
+        try
+            if f () then
+                println "ok \(count) - \(name)";
+            else 
+                println "not ok \(count) - \(name)";
+                bad := bad + 1
+            fi
+        catch Exception ex:
+            println "not ok \(count) - \(name) \(ex)";
+            exception := exception + 1;
+        yrt
+        
     done;
 
     total = length testHash;
-    if bad == 0 then
-        "Testing done, \(total - bad)/\(total) OK."
+    if bad == 0 and exception == 0 then
+        println "Testing done, \(total) OK."
     else
-        "FAILURE: Testing done, \(total - bad)/\(total) OK."
+        println ("FAILURE: Testing done, \(exception) exceptions, "
+        ^ "\(bad) failed, \(total - bad - exception) ok of total \(total)") 
     fi);
 
 //json things
