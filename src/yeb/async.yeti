@@ -306,7 +306,7 @@ collectAsync inex cb is ('b -> 'a) -> asyncFunction<'a>=
     yrt;
     ());
 
-run stru = (stru.f1 ()) \();
+//run stru = (stru.f1 ()) \();
 
 
 
