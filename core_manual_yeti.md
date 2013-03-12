@@ -1119,7 +1119,7 @@ will be stored in memory.*
 Here's an example using `bodyHandler`:
 
     server = yvertx.createHttpServerWithHandler do request:
-        yvertx.bodyHandler request do body:
+        yvertx.serverBodyHandler request do body:
             logger#info("The total body received was \(body#length())");
         done;
     done;
@@ -1326,7 +1326,8 @@ If you want to connect to different servers, create more instances.
 ### Pooling and Keep Alive
 
 By default the `HTTPClient` pools HTTP connections. As you make requests a 
-connection is borrowed from the pool and returned when the HTTP response has ended.
+connection is borrowed from the pool and returned when the HTTP response 
+has ended.
 
 If you do not want connections to be pooled you can call `setKeepAlive` 
 with `false`:
@@ -1362,14 +1363,13 @@ For example, to make a `POST` request:
 
     client = yvertx.createHttpClient "localhost:8080";
     
-    yvertx.httpRequest client (Post '/some-path/') []
-        \case of
-        None ex: 
-            logger#error("exception happened during request");
-        Some resp:
+    req = yvertx.httpRequest client (Post '/some-path/') [] 
+        do resp:
             logger#info(
                 "Got a response, status code: \(resp#statusCode)");
-        esac; 
+        done;
+
+    req#end();
     
 To make a PUT request use the `Put` tag with the path, to make a GET request 
 use the `Get` tag with the path etc
@@ -1380,9 +1380,10 @@ Legal request methods are: `Get`, `Put`, `Post`, `Delete`, `Head`, `Options`,
 The response handler will get called when the corresponding response arrives or
 when an excpetion was raised on the HttpClientRequest#exceptionHandler.
 
-If the request was succesful Some HttpClientResponse will be given to the 
-handler. If an excpetion was raised with HttpClientRequest#exceptionHandler 
-from the java-api than a None Exception will be given.
+The function returns a HttpClientRequest object.
+
+The request is not executed immidiately but only after the `end` method is
+called on the returned `HttpClientRequest` object.
 
 The value specified in the request URI corresponds to the Request-URI as 
 specified in [Section 5.1.2 of the HTTP specification](http://www.w3.org/Protocols/rfc2616/rfc2616-sec5.html). 
@@ -1391,66 +1392,19 @@ In most cases it will be a relative URI.
 *Please note that the domain/port that the client connects to is determined 
 by `setPort` and `setHost`, and is not parsed from the uri.*
 
-Different to the vert.x java-api the request is immidiately executed if not 
-otherwise specified.
-
-If the request should not be executed immidiatley, but instead you want to 
-get hold of the HttpClientRequest and execute it later manualg 
-(with HttpClientRequest#end()) give a httpRequestHolder with the Holder 
-option.
-
-    requestHolder = yvertx.httpRequestHolder();
-    
-    yvertx.httpRequest client (Put '/some-paht')
-        [Holder request]
-        \case of
-        None ex: ...
-        Some res: ..
-        esac;
-
-    req = requestHolder.value;
-    req#write("Somehting");
-    req#end();
-
-The requestHolder will be filled with the HttpClientRequest object and 
-contains it in the value fieled (before that the field value is null).
-
-The httpRequest method will in this case also not end the request.
-
-If you just want to manipulate the HttpClientRequest during the httpRequest 
-function use the WithRequest option. In this case the httpRequest function 
-will exeucte the given funciton but will right after that call 
-HttpClientRequest#end()
-
-    yvertx.httpRequest client (Post '/some-path/') 
-        [WithRequest do req:
-            _ = req#setChunked(true);
-        done]
-        \case of
-        None ex: 
-            logger#error("exception happened during request");
-        Some resp:
-            logger#info(
-                "Got a response, status code: \(resp#statusCode)");
-        esac; 
-    
 To set headers on the request use the Headers options
 
     yvertx.httpRequest client (Get '/some-path/') 
         [Headers ["foo-header":"some value", 
                  "foo-header2":"othervalue"]
-        \case of
-        None ex: 
-            logger#error("exception happened during request");
-        Some resp:
+        do res:
             logger#info(
                 "Got a response, status code: \(resp#statusCode)");
-        esac; 
+        done; 
 
 To write content on the request use one of the JsonContent, FormEncoded,
 TextContent options. They will set the Conent-Type and Content-Length header.
 
-    
 #### HTTP chunked requests
 
 Vert.x supports [HTTP Chunked Transfer Encoding](http://en.wikipedia.org/wiki/Chunked_transfer_encoding) for requests. 
@@ -1470,10 +1424,12 @@ The `statusMessage` property contains the status message. For example:
 
     client = yvertx.createHttpClient "foo.com:80";
     
-    yvertx.getHttpNow client '/some-path' [:] do resp:
+    req = yvertx.httpRequest client '/some-path' [] do resp:
       log#info('server returned status code: ' ^ resp#statusCode);   
       log#info('server returned status message: ' ^ resp#statusMessage);   
     done;
+    req#end()
+
 
 #### Reading Data from the Response Body
 
@@ -1490,11 +1446,12 @@ which gets called as parts of the HTTP response arrive. Here's an example:
 
     client = yvertx.createHttpClient "foo.com:80";
     
-    yvertx.getHttpNow client '/some-path' [:] do resp:
-        yvertx.dataHandler do buffer:
+    req = yvertx.httpRequest client '/some-path' [] do resp:
+        yvertx.dataHandler resp do buffer:
             log#info("I received \(buffer#length()) bytes");
         done
     done;
+    req#end();
     
 The response object implements the `ReadStream` interface so you can pump 
 the response body to a `WriteStream`. See the chapter on streams and pump 
@@ -1509,30 +1466,65 @@ endHandler to now when the resposne is finished.
 It's a very common use case to want to read the entire body in one go, 
 so vert.x allows a `bodyHandler` to be set on the response object.
 
-The body handler is called only once when the *entire* response body has been read.
+The body handler is called only once when the *entire* response body 
+has been read.
 
-*Beware of doing this with very large responses since the entire response body will be stored in memory.*
+*Beware of doing this with very large responses since the entire 
+response body will be stored in memory.*
 
 Here's an example using `bodyHandler`:
 
     client = yvertx.createHttpClient 'foo.com:80';
     
-    yvertx.getHttpNow client '/some-uri' [:] do resp:
-        yvertx.bodyHandler resp do body:
+    yvertx.httpRequest client '/some-uri' [] do resp:
+        yvertx.cleintBodyHandler resp do body:
             log.info("The total body reveived was \(body#length())");
         done
    done;
 
-And there is even a simpler form 
+And there is even a simpler form: 
+
+
+### Executing the Request immidiately and receiving the body
+
+To get the body and execute the request in one go use the `httpRequestNow` 
+function. It works like the `httpRequest` function but executes the
+the request immidately and gets the body content.
 
     client = yvertx.createHttpClient "localhost:8080";
     
-    yvertx.getHttpBodyNow client "/some-path" ["Header":"foo"] \case of
-        None ex: logger#error("Ohh an exception has append");
-        Some {buffer, resp}: 
-            logger#info("Got a response with content: \(buffer#length())");
-    esac;
+    yvertx.httpRequestNow client (Post '/some-path/') [] 
+        \case of
+        None ex: logger#error("An excpetion happended \(ex)");
+        Some {response, body}:
+            logger#info(
+                "Got a response, status code: \(resp#statusCode)");
+        done;
 
+If the request was succesful Some HttpClientResponse and a Buffer containing
+the body will be given to the handler. If an excpetion was raised with 
+HttpClientRequest#exceptionHandler or HttpClientResponse#excpetionHandler 
+from the java-api than a None Exception will be given.
+
+The httpRequestNow method will in this case also not end the request.
+
+If you want to manipulate the HttpClientRequest before sending it 
+use the WithRequest option. 
+
+    client = yvertx.createHttpClient "localhost:8080";
+    
+    yvertx.httpRequestNow client (Post '/some-path/') 
+        [WithRequest do req: req#setTimeout(2000)] 
+        \case of
+        None ex: logger#error("An excpetion happended \(ex)");
+        Some {response, body}:
+            logger#info(
+                "Got a response, status code: \(resp#statusCode)");
+        done;
+
+
+In this case the httpRequestNow function will exeucte the given 
+function before invoking the end method.
 
 ## Pumping Requests and Responses, 100-Continue Handling, HTTPS
 
