@@ -1383,17 +1383,16 @@ serveStaticFileAtPath opts =
     done);
 
 /**
- * Group: http (HTTP)
- * Add a bodyHandler to HttpServerReqeust or HttpClientResponse
+ * Group: httpServer
+ * Add a bodyHandler to HttpServerRequest
  *
  * Arguments:
  * httpStream - the HttpReadStreamBase
  * handler - the handler getting a buffer
  */
-bodyHandler response handler =
-   (import org.vertx.java.core.http.impl:HttpReadStreamBase; 
-   (response is ~HttpReadStreamBase)#bodyHandler(
-        toBufferHandler handler));
+serverBodyHandler response handler =
+   (response is ~HttpServerRequest)#bodyHandler(
+        toBufferHandler handler);
 
 /**
  * Group: httpServer
@@ -1405,7 +1404,7 @@ routeToHttpHandler opts yebroute =
     //load yeb.mvc.mvc;
     fileHandler = serveStaticFileAtPath opts;
     do reqO:            
-        bodyHandler (reqO is ~HttpServerRequest) do buffer:
+        serverBodyHandler reqO do buffer:
             
             req = {
                 headers = requestHeaders reqO,
@@ -1548,16 +1547,7 @@ responseTrailers resp =
 
 /**
  * Group: httpClient
- * holder for an httpRequest can be given as Holder .. to
- * httpRequest function and will be filled with the request
- */
-httpRequestHolder () = {
-    var value = () as ~HttpClientRequest
-};
-
-/**
- * Group: httpClient
- * create and execute an http request for the given client
+ * create an http request for the given client
  *
  * Calls - depending on the muri - one of the HttpClient request mehtod (get, put,
  * post, delete etc)
@@ -1569,14 +1559,8 @@ httpRequestHolder () = {
  * handler - the reqeusthandler
  *
  */
-httpRequest client muri opts handler =
-    (var invoked = false;
-    h = toHandler do obj:
-        if not invoked then
-            invoked := true;
-            handler (Some ( obj unsafely_as ~HttpClientResponse));
-        fi
-    done;
+httpRequest client muri opts handler =  
+    (h = toHandler  (handler . (unsafely_as ~HttpClientResponse));
     req = case muri of
     Connect uri: 
         (client is ~HttpClient)#connect(uri is string, h);
@@ -1599,15 +1583,6 @@ httpRequest client muri opts handler =
     Request {method, uri}:
         client#request(method is string, uri is string, h); 
     esac;
-
-    wsExceptionHandler req do ex:
-        if not invoked then
-            invoked := true;
-            handler (None (ex is ~Exception))
-        fi
-    done;
-
-    var end = true;
 
     for opts \case of
     Headers ha : _ = putRequestHeaders req ha;
@@ -1655,18 +1630,63 @@ httpRequest client muri opts handler =
         fi;
         _ = putRequestHeaders req headers; 
         _ = req#write(buffer);
-    Holder ho : 
-        ho.value := req;
-        end := false;
-    End bo: 
-        end := bo;
+    
     Timeout ms:
         _ = req#setTimeout(ms is number);
     esac;
+    req);
 
-    if end then
-        req#end()
-    fi);
+/**
+ * Group: httpClient
+ * Add a bodyHandler to HttpClientResponse
+ *
+ * Arguments:
+ * httpStream - the HttpReadStreamBase
+ * handler - the handler getting a buffer
+ */
+clientBodyHandler response handler =
+   (response is ~HttpClientResponse)#bodyHandler(
+        toBufferHandler handler);
+
+/**
+ * Group: httpClient
+ * create and execute an http request for the given client
+ *
+ * Calls - depending on the muri - one of the HttpClient request mehtod (get, 
+ * put, post, delete etc)
+ *
+ * Arguments:
+ * client - the httpclient
+ * muri - the uri with the method as a Tag (Post, Get, Delete etc)
+ * options - options to set headers, send content and work on the request 
+ * handler - the reqeusthandler
+ *
+ */
+httpRequestNow client murl opts handler =  
+    (var handled = false;
+    req = httpRequest client murl opts do response:
+        exceptionHandler response do ex:
+            if not handled then
+                handled := true;
+                handler (None ex)
+            fi
+        done;
+        clientBodyHandler response do body:
+            if not handled then
+                handled := true;
+                handler (Some {body, response});
+            fi;
+        done
+    done;
+
+    wsExceptionHandler req do ex:
+        if not handled then
+            handled := true;
+            handler (None ex);
+        fi
+    done;
+
+    req#end());
 
 //websocket functions
 
@@ -2424,7 +2444,7 @@ fileSystem = ({
     toTypedAsyncResultHandler,
     
     //http server functions
-    bodyHandler,
+    serverBodyHandler,
     httpServerRequestHandler,
     createHttpServer,
     createHttpServerWithHandler,
@@ -2441,12 +2461,13 @@ fileSystem = ({
     createYebHttpServer,
 
     //http client functions
+    clientBodyHandler,
     createHttpClient,
     putRequestHeaders,
     responseHeaders,
     responseTrailers,
     httpRequest,
-    httpRequestHolder,
+    httpRequestNow,
     //websocket
     connectWebSocketServer,
     connectWebSocketClient,

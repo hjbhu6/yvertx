@@ -20,16 +20,21 @@ import org.vertx.java.core.buffer.Buffer;
  
 load yeb.yvertx;
 load yeb.std;
+load yeb.async;
 
 verticle do :
     client = (createHttpClient "localhost:4443")
              #setSSL(true)
              #setTrustAll(true);
-             
-    getHttpBodyNow client "/" [:] (maybe' throwEx do {buffer, resp}:
+    
+    httpRequestNow client (Get "/") []
+        \case of
+        None ex: println "Exception in request \(ex)";
+        Some {body = buffer,response}:
             println "length: \((buffer is ~Buffer)#length())";
             println (string buffer);
-          done);
+        esac;
+        
     \();
 done;
 

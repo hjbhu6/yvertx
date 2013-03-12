@@ -26,14 +26,13 @@ import org.vertx.java.deploy.Verticle;
 
 verticle do :
     client = createHttpClient "localhost:8080";
-    getHttpBodyNow
+    req = httpRequest
         client
-        "/" 
-        [:] 
-        \case of
-            Some {resp, buffer}:
-                _ = println (string buffer);
-            None ex: throw (ex is ~Exception);
-        esac;
+        (Get "/") 
+        []
+        do res: 
+            clientBodyHandler res (println . string);
+        done;
+    req#end();
     \()
 done;

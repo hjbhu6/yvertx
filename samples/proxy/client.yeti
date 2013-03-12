@@ -21,7 +21,7 @@ verticle do :
     req = httpRequest 
             (createHttpClient "localhost:8080")
             (Put "/some-url") 
-            [:]
+            []
             do resp:
                 dataHandler resp do buffer:
                      println "Got response data: \(buffer)"; 

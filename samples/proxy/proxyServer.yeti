@@ -33,7 +33,7 @@ verticle do :
     (createHttpServerWithHandler do req:
         println "Proxying request: \(req#uri)";
         cReq = httpRequest client 
-            (Request {method = req#method, uri = req#uri}) [:] 
+            (Request {method = req#method, uri = req#uri}) [] 
             do cRes:
             println ("Proxying response:"
                     ^ (string cRes#statusCode));

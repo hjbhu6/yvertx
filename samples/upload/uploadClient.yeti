@@ -36,7 +36,7 @@ verticle do :
 
 
     client = createHttpClient "localhost:8080";
-    req =httpRequest client (Put "/some-url") [:] do resp:
+    req =httpRequest client (Put "/some-url") [] do resp:
         println "File uploaded \(resp#statusCode)";
     done;
     
