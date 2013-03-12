@@ -314,40 +314,6 @@ messageDigest algorithm message =
     onDefined fn v = if defined? v then Some (fn v) else none fi,
    
     
-   /**
-    * Group: json (Helpers for json)
-    * makes sure that the value is a string (and checks that at runtime)
-    */
-   isString x = 
-       if defined? x and (x as ~Object) instanceof String then
-           string x;
-       else 
-           failWith "Expected string, but was [\(x)]"
-       fi,
-   
-   /**
-    * Group: json
-    * makes sure hat the value is a number (and checks taht at runtime)
-    */
-   isNumber x =
-       (import yeti.lang.Num;
-       if defined? x and (x as ~Object) instanceof Num then
-           n = (x as ~Object) unsafely_as number;
-           n
-       else
-           failWith "Expected number, but was [\(x)]"
-       fi),
-   
-   /** 
-    * Group: json
-    * makes sure that the value is a boolean (and checks that at runtime)
-    */
-   isBoolean x = 
-       if defined? x and (x as ~Object) instanceof Boolean then
-           ((x as ~Object) unsafely_as ~Boolean)#booleanValue();
-       else
-           failWith "Expected boolean, but was [\(x)]"
-       fi,
    
    /**
     * Group: json 
@@ -405,7 +371,7 @@ messageDigest algorithm message =
     
     withThreadLocal,
 
-
+    
     listStarts?,
 
     number',
@@ -430,6 +396,8 @@ messageDigest algorithm message =
      * this function is a replacment. It just throws the given exception.
      */
     throwEx ex = throw (ex is ~Exception),
+
+    fail = \(failWith "illegal-state"),
 
     randomList () = (
         import java.util.Random;
