@@ -248,7 +248,7 @@ writeRedirect path req =
 
 writeStatusType status contentType content req =
     response  req status ["Content-Type":contentType^"; charset=utf-8"]
-        (toUTF8 content);
+        (toUTF8bytes content);
 
 write contentType content req =
     writeStatusType 200 contentType content req;

@@ -187,7 +187,7 @@ structRoute opts nextHandler is 'o -> 'h -> route =
         if "Content-Type" in req.headers
             and req.headers["Content-Type"] =~ "application/json" then
             //read the body and parse it as jons
-            json = new JsonObject(fromUTF8 req.body);
+            json = new JsonObject(fromUTF8bytes req.body);
             jo#putObject("body",json);
         fi;
 

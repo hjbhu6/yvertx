@@ -388,14 +388,14 @@ messageDigest algorithm message =
      * Group: convert
      * converts the string to a bytearray encoded as UTF-8
      */
-    toUTF8 str = 
+    toUTF8bytes str = 
         ((str is string) unsafely_as ~String)#getBytes("UTF-8"),
 
     /**
      * Group: convert
      * converts the given byte-array as string with Charste UTF-8
      */
-    fromUTF8 bytes = 
+    fromUTF8bytes bytes = 
         (new String(bytes is ~byte[], "UTF-8")) as string,
     
     /**
