@@ -428,7 +428,23 @@ messageDigest algorithm message =
     urlDecode value =
         (import java.net.URLDecoder;
         URLDecoder#decode(value, "UTF-8");
-    
+   
+    /**
+     * Group: convert
+     * converts bytes to a base64 string
+     */
+    toBase64 bytes =
+        (import javax.xml.bind.DatatypeConverter;
+        DatatypeConverter#printBase64Binary(bytes is byte[]) as string);
+
+    /**
+     * Group: convert
+     * converts a base64 string to an byte[]
+     */
+    fromBase64 str =
+        (import javax.xml.bind.DatatypeConverter;
+        DatatypeConverter#parseBase64Binary(str is string));
+
     /**
      * Group: maybe 
      * if the value is defined execute right function esl wrong function
