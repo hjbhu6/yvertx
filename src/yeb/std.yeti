@@ -419,7 +419,7 @@ messageDigest algorithm message =
      */
     urlEncode value =
         (import java.net.URLEncoder;
-        URLEncoder#encode(value is string, "UTF-8");
+        URLEncoder#encode(value is string, "UTF-8")),
 
     /**
      * Group: convert
@@ -427,7 +427,7 @@ messageDigest algorithm message =
      */
     urlDecode value =
         (import java.net.URLDecoder;
-        URLDecoder#decode(value, "UTF-8");
+        URLDecoder#decode(value, "UTF-8")),
    
     /**
      * Group: convert
@@ -435,7 +435,7 @@ messageDigest algorithm message =
      */
     toBase64 bytes =
         (import javax.xml.bind.DatatypeConverter;
-        DatatypeConverter#printBase64Binary(bytes is byte[]) as string);
+        DatatypeConverter#printBase64Binary(bytes is ~byte[]) as string),
 
     /**
      * Group: convert
@@ -443,7 +443,7 @@ messageDigest algorithm message =
      */
     fromBase64 str =
         (import javax.xml.bind.DatatypeConverter;
-        DatatypeConverter#parseBase64Binary(str is string));
+        DatatypeConverter#parseBase64Binary(str is string)),
 
     /**
      * Group: maybe 
