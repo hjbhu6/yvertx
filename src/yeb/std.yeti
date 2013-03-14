@@ -24,7 +24,7 @@ import yeti.lang.Struct;
 import java.io: File;
 import org.slf4j: Logger, LoggerFactory;
 
-json = load yeb.yvertx;
+json = load yeb.yvertx.json;
 
 
 typedef jsonValue<a> = {
