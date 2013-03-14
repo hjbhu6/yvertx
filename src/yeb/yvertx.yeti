@@ -1124,12 +1124,12 @@ createYebHttpServer timeOutMs httpOpts numberOfWorkers yebHandlerFactoryFn =
 createHttpClient opts hostPort = 
    ({port,host} = hostAndPort hostPort; 
     client = (getVertx())#createHttpClient()#setPort(port)#setHost(host);
-    var _authenticator = \();
+    var _authenticator = id;
     for opts \case of
         Auth fn : _authenticator := fn;
     esac;
     {
-        client,
+        vertxClient = client,
         hostPort = "\(host):\(port)",
         authenticator = _authenticator,
     });
@@ -1233,7 +1233,7 @@ oauth consumerAuth userAuth  =
     
     //the actual function
     do arg : 
-        {method, hostPort, path, formParams, request, client} = arg;
+        {method, hostPort, path, formParams, vertxRequest, vertxClient} = arg;
         import java.lang.StringBuilder;
 
         //split path form query params
@@ -1249,7 +1249,7 @@ oauth consumerAuth userAuth  =
 
         //construct base url (http(s)+hostPort+path)
         import org.vertx.java.core.http.HttpClient;
-        baseURL = if not (client is ~HttpClient)#isSSL() then
+        baseURL = if not (vertxClient is ~HttpClient)#isSSL() then
                 "http://" ^ if strEnds? hostPort ":80" then
                         strLeft hostPort (strLength hostPort - 3);
                     else
@@ -1336,7 +1336,7 @@ oauth consumerAuth userAuth  =
             ^"\(oauth_version)=\"\(oauth_version_1_0)\"";
         
         import org.vertx.java.core.http:HttpClientRequest;
-        _ = (request is ~HttpClientRequest)
+        _ = (vertxRequest is ~HttpClientRequest)
                 #putHeader(authorization, headerValue);
         arg
     done);
@@ -1357,7 +1357,7 @@ oauth consumerAuth userAuth  =
  *
  */
 httpRequest clientStru muri opts handler =  
-    ({client} = clientStru;
+    (client = clientStru.vertxClient;
     h = toHandler  (handler . (unsafely_as ~HttpClientResponse));
     var _method = undef_str;
     var _path = undef_str;
@@ -1459,11 +1459,13 @@ httpRequest clientStru muri opts handler =
         _ = req#setTimeout(ms is number);
     esac;
 
-    _ = authenticator (clientStru with {
+    _ = authenticator {
+            vertxClient = client,
+            hostPort = clientStru.hostPort,
             method = _method,
             path = _path,
             formParams = _formParams,
-            request = req});
+            vertxRequest = req};
     req);
 
 /**
