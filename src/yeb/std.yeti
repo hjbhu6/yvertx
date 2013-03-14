@@ -412,6 +412,22 @@ messageDigest algorithm message =
      */
     fromUTF8bytes bytes = 
         (new String(bytes is ~byte[], "UTF-8")) as string,
+
+    /**
+     * Group: convert
+     * url encodes the given string UTF-8
+     */
+    urlEncode value =
+        (import java.net.URLEncoder;
+        URLEncoder#encode(value is string, "UTF-8");
+
+    /**
+     * Group: convert
+     * url decodes the given string UTF-8
+     */
+    urlDecode value =
+        (import java.net.URLDecoder;
+        URLDecoder#decode(value, "UTF-8");
     
     /**
      * Group: maybe 

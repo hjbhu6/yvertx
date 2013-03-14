@@ -17,4 +17,64 @@
 
 module yeb.yvertx.oauth;
 
+load yeb.std;
 
+threadSaveHMAC consumerAuth userAuth = 
+    (import javax.crypto: Mac, 
+                          SecretKeySpec;
+    keyBytes = toUTF8bytes (consumerAuth.secret ^"&"^userAuth.secret);
+    signingKey = new SecretKeySpec(keyBytes, "HmacSHA1");
+    mac = Mac#getInstance("HmacSHA1");
+    mac.init(signingKey);
+    mutex = new Object();
+    do message:
+        synchronized \(
+            mac#reset();
+            mac#doFinal(message is ~byte[]);
+        );
+    done);
+
+authorization = "Authorization";
+
+oauth_consumer_key = "oauth_consumer_key";
+oauth_nonce = "oauth_nonce";
+oauth_signature = "oauth_signature";
+oauth_signature_method = "oauth_signature_method";
+oauth_timestamp = "oauth_timestamp";
+oauth_token = "oauth_token";
+oauth_version = "oauth_version";
+
+oauth_version_1_0 = "1.0";
+signature_method = "HMAC-SHA1";
+
+signatureCalculator consumerAuth userAuth =
+    (macDigester = threadSaveMac consumerAuth userAuth;
+    random = new java.util.Random(
+        System#identityHashCode(obj macDigester)
+        + System#currentTimeMillis());
+    
+    calculateSignature method baseURL oauthTimestamp nonce
+        formParams queryParams =
+        (import java.lang.StringBuilder;
+        
+        signedText = new StringBuilder(100);
+        _ = signedText#append(strUpper method)#append("&");
+        
+        baseURL = if strStarts? baseURL "http:" then
+            cut = strIndexOf baseURL ":80/" 4;
+            if cut > 1 then
+                (strSlice baseURL 0 cut)^(strRight baseURL (cut +3))
+            else
+                baseURL
+            fi
+        elif strStarts? baseURL "https:" then
+            cut = strIndexOf baseURL ":443/" 5;
+            if cut > 1 then
+                (strSlice baseURL () cut)^(strRight baseURL (cut+4));
+            else
+                baseURL
+            fi
+        fi;
+
+        signedTest#append(
+            

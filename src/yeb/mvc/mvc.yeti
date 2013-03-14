@@ -341,9 +341,6 @@ formatHttpDate date =
     (_date_formatsTH.value).rfc1123#format(date);
 
 
-urlEncode str = URLEncoder#encode(str,"UTF-8");
-urlDecode str = URLDecoder#decode(str,"UTF-8");
-
 readBody req =
     if req.body == noneBody then
         ""
@@ -757,8 +754,6 @@ routes handlers req responder is list<route> -> route =
     
     parseHttpDate,
     formatHttpDate,
-    urlEncode,
-    urlDecode,
     readBody,
     parseQuery,
     readFormData,
