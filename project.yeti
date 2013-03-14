@@ -73,7 +73,7 @@ config = config with registerVertxTargets config;
 //---custom targets --
 
 
-_ = target config "samples" "compile" 
+_ = target config "project" "compile" 
     [Before config.livecycleTargets.testCompile] 
     do project:
         dirs = listDirs "samples" []
