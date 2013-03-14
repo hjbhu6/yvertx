@@ -28,12 +28,12 @@ import org.vertx.java.deploy.Verticle;
 
 
 verticle do :
-    client = createHttpClient "localhost:8282";
+    client = createHttpClient [] "localhost:8282";
     
     (createHttpServerWithHandler do req:
         println "Proxying request: \(req#uri)";
         cReq = httpRequest client 
-            (Request {method = req#method, uri = req#uri}) [] 
+            (Request {method = req#method, path = req#uri}) [] 
             do cRes:
             println ("Proxying response:"
                     ^ (string cRes#statusCode));

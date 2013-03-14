@@ -25,7 +25,8 @@ import org.vertx.java.core.http.HttpClientResponse;
 import org.vertx.java.deploy.Verticle;
 
 verticle do :
-    client = createHttpClient "localhost:8080";
+    auth = oauth {key = "", secret=""} {key="", secret=""};
+    client = createHttpClient [Auth auth] "localhost:8080";
     req = httpRequest
         client
         (Get "/") 

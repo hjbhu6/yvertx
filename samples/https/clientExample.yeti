@@ -23,8 +23,8 @@ load yeb.std;
 load yeb.async;
 
 verticle do :
-    client = (createHttpClient "localhost:4443")
-             #setSSL(true)
+    client = createHttpClient [] "localhost:4443";
+    _ = client.vertxClient#setSSL(true)
              #setTrustAll(true);
     
     httpRequestNow client (Get "/") []

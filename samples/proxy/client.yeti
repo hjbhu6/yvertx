@@ -19,7 +19,7 @@ load yeb.yvertx;
 
 verticle do :
     req = httpRequest 
-            (createHttpClient "localhost:8080")
+            (createHttpClient [] "localhost:8080")
             (Put "/some-url") 
             []
             do resp:
