@@ -1500,9 +1500,18 @@ createYebHttpServer timeOutMs httpOpts numberOfWorkers yebHandlerFactoryFn =
  * Arguments:
  * hostPort - a string giving host:port (see hostAndPort function)
  */
-createHttpClient hostPort = 
+createHttpClient opts hostPort = 
    ({port,host} = hostAndPort hostPort; 
-    (getVertx())#createHttpClient()#setPort(port)#setHost(host));
+    client = (getVertx())#createHttpClient()#setPort(port)#setHost(host);
+    var _authenticator = \();
+    for opts \case of
+        Authentication fn : _authenticator := fn;
+    esac;
+    {
+        client,
+        hostPort = "\(host):\(port)",
+        authenticator = _authenticator,
+    });
 
 /**
  * Group: httpClient
@@ -1559,32 +1568,58 @@ responseTrailers resp =
  * handler - the reqeusthandler
  *
  */
-httpRequest client muri opts handler =  
-    (h = toHandler  (handler . (unsafely_as ~HttpClientResponse));
+httpRequest clientStru muri opts handler =  
+    ({client} = clientStru;
+    h = toHandler  (handler . (unsafely_as ~HttpClientResponse));
+    var _method = undef_str;
+    var _path = undef_str;
     req = case muri of
-    Connect uri: 
-        (client is ~HttpClient)#connect(uri is string, h);
-    Delete uri:    
-        client#delete(uri is string, h);
-    Get uri: 
-        client#get(uri is string, h);
-    Head uri:
-        client#head(uri is string, h);
-    Options uri:
-        client#options(uri is string, h);
-    Patch uri:
-        client#patch(uri is string, h);
-    Put uri:
-        client#put(uri is string, h);
-    Post uri:
-        client#post(uri is string, h);
-    Trace uri:
-        client#trace(uri is string, h);
-    Request {method, uri}:
-        client#request(method is string, uri is string, h); 
+    Connect path: 
+        _method := "CONNECT";
+        _path := path;
+        (client is ~HttpClient)#connect(path is string, h);
+    Delete path:    
+        _method := "DELETE";
+        _path := path;
+        client#delete(path is string, h);
+    Get path: 
+        _method := "GET";
+        _path := path;
+        client#get(path is string, h);
+    Head path:
+        _method := "HEAD";
+        _path := path;
+        client#head(path is string, h);
+    Options path:
+        _method := "OPTIONS";
+        _path := path;
+        client#options(path is string, h);
+    Patch path:
+        _method := "PATCH";
+        _path := path;
+        client#patch(path is string, h);
+    Put path:
+        _method := "PUT";
+        _path := path;
+        client#put(path is string, h);
+    Post path:
+        _method := "POST";
+        _path := path;
+        client#post(path is string, h);
+    Trace path:
+        _method := "TRACE";
+        _path := path;
+        client#trace(path is string, h);
+    Request {method, path}:
+        _method := strUpper method;
+        _path := path;
+        client#request(method is string, path is string, h); 
     esac;
 
+    var authenticator = clientStru.authenticator;
+    var _formParams = [:];
     for opts \case of
+    Authentication fn : authenticator := fn;
     Headers ha : _ = putRequestHeaders req ha;
     WithRequest fn : fn req;
     JsonContent str : 
@@ -1594,6 +1629,7 @@ httpRequest client muri opts handler =
             "Content-Length": string bu#length()];
         _ = req#write(bu);
     FormEncoded ha :
+        _formParams := ha;
         import java.net.URLEncoder;
         bu = new Buffer();
         var first = true;
@@ -1634,6 +1670,12 @@ httpRequest client muri opts handler =
     Timeout ms:
         _ = req#setTimeout(ms is number);
     esac;
+
+    authenticator (clientStru with {
+            method = _method,
+            path = _path,
+            formParams = _formParams,
+            request = req});
     req);
 
 /**
