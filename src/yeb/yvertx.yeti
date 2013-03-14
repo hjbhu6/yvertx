@@ -1126,7 +1126,7 @@ createHttpClient opts hostPort =
     client = (getVertx())#createHttpClient()#setPort(port)#setHost(host);
     var _authenticator = \();
     for opts \case of
-        Authentication fn : _authenticator := fn;
+        Auth fn : _authenticator := fn;
     esac;
     {
         client,
@@ -1177,10 +1177,177 @@ responseTrailers resp =
 
 /**
  * Group: httpClient
+ * creates an authenticatator for oauth to use with an httpClient
+ * or httpRequest. The autenticator will be used to sign the request
+ *
+ * arguments:
+ * - consumer: credntials of consumer (client)
+ * - user: (temporary) credentials of user (owner)
+ *
+ * example:
+ *
+ * : auth = oauth {secret = "consumer_secret",
+ * :              key = "consumer_key"}
+ * :             {secret = "user_secret",
+ * :             key = "user_token"}
+ * : client = createHttpClient [Auth auth] "test.com:80";
+ * : httpRequestNow client (Get "/path") [] \case of .... esac;
+ *
+ */
+oauth consumerAuth userAuth  =
+    (load yeb.std;
+    mvc = load yeb.mvc.mvc;
+    //constantcs
+    authorization = "Authorization";
+    oauth_consumer_key = "oauth_consumer_key";
+    oauth_nonce = "oauth_nonce";
+    oauth_signature = "oauth_signature";
+    oauth_signature_method = "oauth_signature_method";
+    oauth_timestamp = "oauth_timestamp";
+    oauth_token = "oauth_token";
+    oauth_version = "oauth_version";
+
+    oauth_version_1_0 = "1.0";
+    signature_method = "HMAC-SHA1";
+    
+    //threadsave digesting function
+    macDigester = 
+        (import javax.crypto: Mac;
+        import javax.crypto.spec: SecretKeySpec;
+
+        keyBytes = toUTF8bytes (consumerAuth.secret ^"&"^userAuth.secret);
+        signingKey = new SecretKeySpec(keyBytes, "HmacSHA1");
+        mac = Mac#getInstance("HmacSHA1");
+        mac#init(signingKey);
+        mutex = new Object();
+        do message:
+            synchronized mutex 
+                \(mac#reset();
+                mac#doFinal(message is ~byte[]));
+        done);
+    
+    //random generator
+    random = new java.util.Random(
+        System#identityHashCode(obj macDigester)
+        + System#currentTimeMillis());
+    
+    //the actual function
+    do arg : 
+        {method, hostPort, path, formParams, request, client} = arg;
+        import java.lang.StringBuilder;
+
+        //split path form query params
+        {path, queryParams} = 
+            (cut = strIndexOf path "?" 0;
+            if cut < 1 then
+                {path = path, queryParams = [:]}
+            else
+                path = strLeft path cut;
+                query = strRight path cut;
+                {path, queryParams = mvc.parseQuery query}
+            fi);
+
+        //construct base url (http(s)+hostPort+path)
+        import org.vertx.java.core.http.HttpClient;
+        baseURL = if not (client is ~HttpClient)#isSSL() then
+                "http://" ^ if strEnds? hostPort ":80" then
+                        strLeft hostPort (strLength hostPort - 3);
+                    else
+                        hostPort
+                    fi
+                else 
+                    "https://" ^ if strEnds? hostPort ":443" then
+                        strLeft hostPort (strLength hostPort - 4);
+                    else
+                        hostPort
+                    fi
+                fi;
+        baseURL = baseURL ^ if strStarts? path "/" then 
+                        path
+                    else
+                        "/"^path
+                    fi;
+
+        //timestamp an nonce
+        oauthTimestamp = System#currentTimeMillis() / 1000;
+        nonce = 
+            (nonceBuffer = new byte[16];
+            random#nextBytes(nonceBuffer);
+            toBase64 nonceBuffer);
+        
+        //the signuature
+        signature = 
+            (signedText = new StringBuilder(100);
+            _ = signedText#append(strUpper method)#append("&");
+            
+
+            signedText#append(urlEncode baseURL);
+
+            allParameters = [:];
+            
+            allParameters[oauth_consumer_key] := consumerAuth.key is string;
+            allParameters[oauth_nonce] := nonce is string;
+            allParameters[oauth_signature_method] := signature_method;
+            allParameters[oauth_timestamp] 
+                := string (oauthTimestamp is number);
+            allParameters[oauth_token] := userAuth.key;
+            allParameters[oauth_version] := oauth_version_1_0;
+
+            forHash formParams do key values:
+                for values do value:
+                    allParameters[key] := value;
+                done;
+            done;
+
+            forHash queryParams do key values:
+                for values do value:
+                    allParameters[key] := value;
+                done;
+            done;
+            
+            //sort all parameters, encode and join them
+            encodedParams = allParameters 
+                |> mapHash do k v:
+                    pair (urlEncode k) (urlEncode v)
+                done
+                |> sortBy do {fst, snd} {fst = f2, snd = s2}:
+                    if fst == f2 then
+                        snd < s2
+                    else
+                        fst < f2
+                    fi;
+                done
+                |> map do {fst,snd} : fst^"="^snd done
+                |> strJoin "&";
+
+            _ = signedText#append("&")
+                #append(urlEncode encodedParams);
+        
+            signatureBytes = 
+                macDigester (toUTF8bytes (signedText#toString()));
+            toBase64 signatureBytes);
+
+        headerValue = "OAuth \(oauth_consumer_key)=\"\(consumerAuth.key)\", "
+            ^"\(oauth_token)=\"\(userAuth.key)\", "
+            ^"\(oauth_signature_method)=\"\(signature_method)\", "
+            ^"\(oauth_signature)=\"\(urlEncode signature)\", "
+            ^"\(oauth_timestamp)=\"\(string oauthTimestamp)\", "
+            ^"\(oauth_nonce)=\"\(urlEncode nonce)\", "
+            ^"\(oauth_version)=\"\(oauth_version_1_0)\"";
+        
+        import org.vertx.java.core.http:HttpClientRequest;
+        _ = (request is ~HttpClientRequest)
+                #putHeader(authorization, headerValue);
+        arg
+    done);
+
+
+/**
+ * Group: httpClient
  * create an http request for the given client
  *
- * Calls - depending on the muri - one of the HttpClient request mehtod (get, put,
- * post, delete etc)
+ * Calls - depending on the muri - one of the HttpClient request mehtod 
+ * (get, put, post, delete etc)
  *
  * Arguments:
  * client - the httpclient
@@ -1240,7 +1407,7 @@ httpRequest clientStru muri opts handler =
     var authenticator = clientStru.authenticator;
     var _formParams = [:];
     for opts \case of
-    Authentication fn : authenticator := fn;
+    Auth fn : authenticator := fn;
     Headers ha : _ = putRequestHeaders req ha;
     WithRequest fn : fn req;
     JsonContent str : 
@@ -1292,7 +1459,7 @@ httpRequest clientStru muri opts handler =
         _ = req#setTimeout(ms is number);
     esac;
 
-    authenticator (clientStru with {
+    _ = authenticator (clientStru with {
             method = _method,
             path = _path,
             formParams = _formParams,
@@ -2130,7 +2297,9 @@ fileSystem = ({
     responseHeaders,
     responseTrailers,
     httpRequest,
-    httpRequestNow,
+    httpRequestNow, 
+    oauth, 
+
     //websocket
     connectWebSocketServer,
     connectWebSocketClient,
