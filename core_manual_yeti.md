@@ -1318,7 +1318,7 @@ HTTP request body is much larger than can fit in memory at any one time:
 To create an HTTP client you invoke the `createHttpClient` function giving it
 the host:port as a string-argument.
 
-    client = yvertx.createHttpClient "host.org:8181";
+    client = yvertx.createHttpClient [] "host.org:8181";
     
 A single `HTTPClient` always connects to the same host and port. 
 If you want to connect to different servers, create more instances.
@@ -1332,7 +1332,7 @@ has ended.
 If you do not want connections to be pooled you can call `setKeepAlive` 
 with `false`:
 
-    client = (yvertx.createHttpClient "foo.com:8181")
+    client = (yvertx.createHttpClient [] "foo.com:8181")
                    #setKeepAlive(false);
 
 In this case a new connection will be created for each HTTP request and 
@@ -1341,7 +1341,7 @@ closed once the response has ended.
 You can set the maximum number of connections that the client will pool 
 as follows:
 
-    client = (yvertx.createHttpClient "foo.com:8181")
+    client = (yvertx.createHttpClient [] "foo.com:8181")
                    #setMaxPoolSize(10);
                    
 The default value is `1`.         
@@ -1361,7 +1361,7 @@ arguments:
 
 For example, to make a `POST` request:
 
-    client = yvertx.createHttpClient "localhost:8080";
+    client = yvertx.createHttpClient [] "localhost:8080";
     
     req = yvertx.httpRequest client (Post '/some-path/') [] 
         do resp:
@@ -1422,7 +1422,7 @@ The response object implements `ReadStream`, so it can be pumped to a
 To query the status code of the response use the `statusCode` property. 
 The `statusMessage` property contains the status message. For example:
 
-    client = yvertx.createHttpClient "foo.com:80";
+    client = yvertx.createHttpClient [] "foo.com:80";
     
     req = yvertx.httpRequest client '/some-path' [] do resp:
       log#info('server returned status code: ' ^ resp#statusCode);   
@@ -1444,7 +1444,7 @@ To receive the response body, you set a `dataHandler` on the response object
 which gets called as parts of the HTTP response arrive. Here's an example:
 
 
-    client = yvertx.createHttpClient "foo.com:80";
+    client = yvertx.createHttpClient [] "foo.com:80";
     
     req = yvertx.httpRequest client '/some-path' [] do resp:
         yvertx.dataHandler resp do buffer:
@@ -1474,7 +1474,7 @@ response body will be stored in memory.*
 
 Here's an example using `bodyHandler`:
 
-    client = yvertx.createHttpClient 'foo.com:80';
+    client = yvertx.createHttpClient [] 'foo.com:80';
     
     yvertx.httpRequest client '/some-uri' [] do resp:
         yvertx.cleintBodyHandler resp do body:
@@ -1491,7 +1491,7 @@ To get the body and execute the request in one go use the `httpRequestNow`
 function. It works like the `httpRequest` function but executes the
 the request immidately and gets the body content.
 
-    client = yvertx.createHttpClient "localhost:8080";
+    client = yvertx.createHttpClient [] "localhost:8080";
     
     yvertx.httpRequestNow client (Post '/some-path/') [] 
         \case of
