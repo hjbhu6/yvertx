@@ -43,6 +43,123 @@ class MockVerticle extends Verticle
         println "waiting for redeploy ....",
 end;
 
+createStandardVerticle verticleName = 
+    (import yeti.lang.compiler:CompileException;
+    import java.lang: InvocationTargetException, RuntimeException;
+    import yeti.lang:Fun,
+                     Struct;
+   
+    loader = Thread#currentThread()#getContextClassLoader();
+    
+    //load the mod.json to see wheter autoredeploy
+    autoRedeploy = 
+        (std = load yeb.std;
+        ins = loader#getResourceAsStream("mod.json");
+        if defined? ins then
+            js = inputHandle ins "UTF-8"
+                |> getContents
+                |> std.parseJson;
+            maybe false id js.obj["auto-redeploy"].someBool
+        else
+            false
+        fi);
+    //the file name
+    fileName = 
+        (strReplace "." "/" 
+            (strLeft verticleName ((strLength verticleName) - 5)))
+        ^ strRight verticleName ((strLength verticleName) - 5);
+    
+    resourceURL = loader#getResource(fileName);
+    if not defined? resourceURL then
+        failWith "no verticle found for \(fileName) given \(verticleName)";
+    fi;
+    sourceFile = 
+        new File(URLDecoder#decode(resourceURL#getFile(), "UTF-8"));
+   
+    srcDir =
+        (fn = sourceFile#getPath() as string;
+        dir = strLeft fn (strLength fn - strLength fileName);
+        if dir == "" then "."
+        else dir fi);
+
+    if not sourceFile#canRead() then
+        failWith ("can not read file \(sourceFile#getAbsolutePath())"
+                ^"current dir is: \((new File("."))#getAbsolutePath())");
+    fi;
+    
+    //the targetdir
+    targetDir = 
+        (load yeb.std;
+        name = "vertx_yeti_classes_"
+            ^ hashSHA1 sourceFile#getAbsolutePath();
+        tmpDir = new File(System#getProperty("java.io.tmpdir"));
+        newFile = new File(tmpDir, name);
+        if not newFile#exists() then
+            _ = newFile#mkdirs();
+        fi;
+        newFile#deleteOnExit();
+        newFile);
+    
+    //compile with current loader
+    try
+        eval = load yeti.lang.compiler.eval;
+        println "[yetic] Compiling to: \(targetDir#getAbsolutePath())";
+        eval.compileYetiFiles [To targetDir#getAbsolutePath(),
+                               SourceReader teti.tetiSourceReader,
+                               Warn println] 
+                              [SourceDir srcDir] 
+                              [sourceFile#getAbsolutePath()];
+
+        cl = new URLClassLoader(array [targetDir#toURI()#toURL()],
+                                   loader);
+        Thread#currentThread()#setContextClassLoader(cl);
+
+        //create the url classLoader
+        {className,functionName}  = 
+            (pa = if strEnds? verticleName ".yeti" 
+                or strEnds? verticleName ".teti" then
+                strLeft verticleName (strLength verticleName - 5)
+             else
+                verticleName
+             fi;
+             cut = strIndexOf pa ":" 0;
+             if cut < 0 then
+                {className = pa, functionName = none}
+             else 
+                className = strLeft pa cut;
+                fn = strRight pa (cut + 1);
+                if strLength fn > 0 then
+                    {className, functionName = Some fn}
+                else
+                    {className, functionName = none}
+                fi
+             fi);
+        moduleCl = cl#loadClass(className);
+        rs = moduleCl#getMethod("eval",() as ~Class[])
+                 #invoke(() as ~Object,() as ~Object[]);
+        
+        //get the function for creating the verticle
+        fn = case functionName of
+            None _ : rs unsafely_as ~Fun;
+            Some funName :
+                ((rs unsafely_as ~Struct)#get(funName is string))
+                    unsafely_as ~Fun;
+            esac;
+
+        //invoke the function
+        fn#apply(() as ~Object) unsafely_as ~Verticle;
+    catch CompileException ex:
+        println "Yeti Compilation Error: \(ex#getMessage())";
+        if autoRedeploy then
+            (new MockVerticle()) as ~Verticle;
+        else
+            System#exit(-1);
+        fi
+    catch InvocationTargetException ex:
+        throw ex#getCause();
+    finally
+        Thread#currentThread()#setContextClassLoader(loader);
+    yrt);
 
 
 class YetiVerticleFactory extends VerticleFactory
@@ -57,120 +174,11 @@ class YetiVerticleFactory extends VerticleFactory
         (),
 
     Verticle createVerticle(String verticleName)
-        import yeti.lang.compiler:CompileException;
-        import java.lang.RuntimeException;
-        import yeti.lang:Fun,
-                         Struct;
-       
-        loader = Thread#currentThread()#getContextClassLoader();
-        
-        //load the mod.json to see wheter autoredeploy
-        autoRedeploy = 
-            (std = load yeb.std;
-            ins = loader#getResourceAsStream("mod.json");
-            if defined? ins then
-                js = inputHandle ins "UTF-8"
-                    |> getContents
-                    |> std.parseJson;
-                maybe false id js.obj["auto-redeploy"].someBool
-            else
-                false
-            fi);
-        //the file name
-        fileName = 
-            (strReplace "." "/" 
-                (strLeft verticleName ((strLength verticleName) - 5)))
-            ^ strRight verticleName ((strLength verticleName) - 5);
-        
-        resourceURL = loader#getResource(fileName);
-        if not defined? resourceURL then
-            failWith "no verticle found for \(fileName) given \(verticleName)";
-        fi;
-        sourceFile = 
-            new File(URLDecoder#decode(resourceURL#getFile(), "UTF-8"));
-       
-        srcDir =
-            (fn = sourceFile#getPath() as string;
-            dir = strLeft fn (strLength fn - strLength fileName);
-            if dir == "" then "."
-            else dir fi);
-
-        if not sourceFile#canRead() then
-            failWith ("can not read file \(sourceFile#getAbsolutePath())"
-                    ^"current dir is: \((new File("."))#getAbsolutePath())");
-        fi;
-        
-        //the targetdir
-        targetDir = 
-            (load yeb.std;
-            name = "vertx_yeti_classes_"
-                ^ hashSHA1 sourceFile#getAbsolutePath();
-            tmpDir = new File(System#getProperty("java.io.tmpdir"));
-            newFile = new File(tmpDir, name);
-            if not newFile#exists() then
-                _ = newFile#mkdirs();
-            fi;
-            newFile#deleteOnExit();
-            newFile);
-        
-        //compile with current loader
-        try
-            eval = load yeti.lang.compiler.eval;
-            println "[yetic] Compiling to: \(targetDir#getAbsolutePath())";
-            eval.compileYetiFiles [To targetDir#getAbsolutePath(),
-                                   SourceReader teti.tetiSourceReader,
-                                   Warn println] 
-                                  [SourceDir srcDir] 
-                                  [sourceFile#getAbsolutePath()];
-
-            cl = new URLClassLoader(array [targetDir#toURI()#toURL()],
-                                       loader);
-            Thread#currentThread()#setContextClassLoader(cl);
-
-            //create the url classLoader
-            {className,functionName}  = 
-                (pa = if strEnds? verticleName ".yeti" 
-                    or strEnds? verticleName ".teti" then
-                    strLeft verticleName (strLength verticleName - 5)
-                 else
-                    verticleName
-                 fi;
-                 cut = strIndexOf pa ":" 0;
-                 if cut < 0 then
-                    {className = pa, functionName = none}
-                 else 
-                    className = strLeft pa cut;
-                    fn = strRight pa (cut + 1);
-                    if strLength fn > 0 then
-                        {className, functionName = Some fn}
-                    else
-                        {className, functionName = none}
-                    fi
-                 fi);
-            moduleCl = cl#loadClass(className);
-            rs = moduleCl#getMethod("eval",() as ~Class[])
-                     #invoke(() as ~Object,() as ~Object[]);
-            
-            //get the function for creating the verticle
-            fn = case functionName of
-                None _ : rs unsafely_as ~Fun;
-                Some funName :
-                    ((rs unsafely_as ~Struct)#get(funName is string))
-                        unsafely_as ~Fun;
-                esac;
-
-            //invoke the function
-            fn#apply(() as ~Object) unsafely_as ~Verticle;
-        catch CompileException ex:
-            println "Yeti Compilation Error: \(ex#getMessage())";
-            if autoRedeploy then
-                (new MockVerticle()) as ~Verticle;
-            else
-                System#exit(-1);
-            fi
-        finally
-            Thread#currentThread()#setContextClassLoader(loader);
-        yrt,
+        if System#getProperty("yvertx.repl","false") == "true" then
+            new ReplVerticle();
+        else
+            createStandardVerticle verticleName
+        fi,
 
     void reportException(Logger logger, Throwable t)
         logger#error("Exception in Yeti verticle script", t),
@@ -202,6 +210,10 @@ class MainVerticle extends Verticle
         verticle#stop(),
 end;
 
-
+class ReplVerticle extends Verticle
+    void start()
+        import yeti.lang.compiler.yeti;
+        yeti#main(array []),
+end;
 
 ()
