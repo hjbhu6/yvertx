@@ -126,10 +126,9 @@ cookie opts name value =
 
 
 setCookies headers cookies =
-    (import org.jboss.netty.handler.codec.http:CookieEncoder,
+    (import io.netty.handler.codec.http:ServerCookieEncoder,
                                                DefaultCookie;
-    enc = new CookieEncoder(true);
-    for cookies do co:
+    cls = cookies |> map do co:
         dc = new DefaultCookie((co is cookie).name, co.value);
         if defined? co.comment then
             dc#setComment(co.comment);
@@ -147,16 +146,18 @@ setCookies headers cookies =
             dc#setPath(co.path)
         fi;
         dc#setSecure(co.secure);
-        enc#addCookie(dc);
+        dc;
     done;
-    str = enc#encode();
-    headers["Cookie"] := str);
+    str = ServerCookieEncoder#encode(array cls);
+    //TODO: make headers use list string 
+    //TODO: cookies native support
+    headers["Set-Cookie"] := strJoin "; " (mapJavaList string str));
 
 getCookies headers = 
-    (import org.jboss.netty.handler.codec.http:CookieDecoder,
+    (import io.netty.handler.codec.http:CookieDecoder,
                                             Cookie;
     str = headers["Cookie"];                                        
-    (new CookieDecoder())#decode(str is string) 
+    CookieDecoder#decode(str is string) 
     |> (unsafely_as ~java.util.Collection)
     |> mapJavaList do ob:
         co = (ob unsafely_as ~Cookie);

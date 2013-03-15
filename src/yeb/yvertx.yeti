@@ -1810,10 +1810,12 @@ toEitherJsonMessageHandler address fn =
                         msg#reply(_toMessageJS v),
                     request v handler = 
                         msg#reply(_toMessageJS (Some v), 
-                            toEitherJsonMessageHandler address handler),
+                            (toEitherJsonMessageHandler address handler)
+                            as ~Handler),
                     requestEither v handler = 
                         msg#reply(_toMessageJS v, 
-                            toEitherJsonMessageHandler address handler)
+                            (toEitherJsonMessageHandler address handler)
+                                as ~Handler)
                    });
             fi
             catch Exception ex:
