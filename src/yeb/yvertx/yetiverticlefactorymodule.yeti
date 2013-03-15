@@ -43,9 +43,16 @@ class MockVerticle extends Verticle
         println "waiting for redeploy ....",
 end;
 
+class ReplVerticle extends Verticle
+    void start()
+        import yeti.lang.compiler.yeti;
+        yeti#main(array []),
+end;
+
 createStandardVerticle verticleName = 
     (import yeti.lang.compiler:CompileException;
-    import java.lang: InvocationTargetException, RuntimeException;
+    import java.lang: RuntimeException;
+    import java.lang.reflect: InvocationTargetException;
     import yeti.lang:Fun,
                      Struct;
    
@@ -210,10 +217,5 @@ class MainVerticle extends Verticle
         verticle#stop(),
 end;
 
-class ReplVerticle extends Verticle
-    void start()
-        import yeti.lang.compiler.yeti;
-        yeti#main(array []),
-end;
 
 ()
