@@ -379,9 +379,9 @@ _currentContext () =
  * save without synhroinzation to use objects from the enclosing socpe.
  *
  * Arguments:
+ * startfn - function run first on the worker thread. 
  * cb - callback called when succesful created on. Called on the calling 
  * context
- * startfn - function run first on the worker thread. 
  */ 
 newWorker startfn cb=     
     (vertx = (getVertx()) unsafely_as ~VertxInternal;
@@ -421,14 +421,14 @@ newFibre () =
     {
         /**
          * register a function which gets called when a value is 
-         * send/published. Returns a function which is used in unregister
+         * send/published. Returns an object which is used in unregister
          */
         register fn = 
             ctxt = _currentContext();
             if not defined? ctxt then
                 failWith "There is not vertx context"
             fi;
-            runfn v = ctxt#execute(runnable \(fn v));
+            runfn v cb = ctxt#execute(runnable \(fn v cb));
             runob = runfn as ~Object;
 
             ctxt#putCloseHook(runob, runnable \(unregister runob));  
@@ -448,12 +448,13 @@ newFibre () =
             done,
         
         /**
-         * send a value to one of the lisenenrs
+         * send a value to one of the lisenenrs and register a callback
          */
-        send v = 
-            (fn = synchronized mutex \(
+        send v cb = 
+            (//get one of the listernes
+            fn = synchronized mutex \(
                 if empty? listeners then
-                    \();
+                    do _ _ : () done;
                 else
                     if empty? curListeners then
                         curListeners := tail listeners;
@@ -464,14 +465,22 @@ newFibre () =
                         r
                     fi
                 fi);
-            fn v),
+            //create the callbackfunction
+            ctxt = _currentContext();
+            if not defined? ctxt then 
+                failWith "Must only be called from a context"
+            fi;
+            cbw rv = ctxt#execute(runnable \(cb rv));
+
+            //execute the fn
+            fn v cbw),
             
         /**
-         * send a value to all the listeners
+         * send a value to all the listeners (no callback)
          */
         publish v =
             fns = synchronized mutex \(listeners);
-            for fns do fn: fn v done,
+            for fns do fn: fn v \() done,
     });
 
 
@@ -1091,12 +1100,10 @@ createRequestWorkers numberOfWorkers yebHandlerFactoryFn =
     [1 .. numberOfWorkers]
     |>map' \(newWorker 
         \(route = yebHandlerFactoryFn ();
-        _ = fibre.register do {req,res}: route req res done;
+        _ = fibre.register do req res: route req res done;
         ))
     |>parallel 
-    |>bind \(return do req res:
-        fibre.send {req, res};
-    done));
+    |>bind \(return fibre.send));
 
 /**
  * Group: httpServer
