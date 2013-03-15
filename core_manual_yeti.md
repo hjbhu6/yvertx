@@ -8,8 +8,11 @@ a letter to Creative Commons, 444 Castro Street, Suite 900, Mountain View, Calif
 
 # Yvertx: Yeti on Vertx
 
-Yvertx is a yeti api for vertx. Yeti is a statically typed functional 
-language for the JVM.
+Yvertx is a yeti-lang api for vertx. 
+[Yeti](http://mth.github.com/yeti/) is a statically typed functional 
+language for the JVM. To get an intro to yeti read the following 
+[blog-post](http://thebreakfastpost.com/2013/01/08/functional-programming-and-the-joy-of-learning-something-again/) 
+or better the [yeti tutorial](http://linux.ee/~mzz/yeti/intro.html)
 
 Yvertx is just a wrapper around the vertx Java api. It is itself written in 
 Yeti only. So everything Yvertx provides can be acomplished by using the vertx
@@ -18,12 +21,6 @@ Java api direclty - although less convinient.
 Often it is even necessary to use the Java Api directly because Yvertx
 only wraps the parts of the Java api, where it pays of in terms of convinience.
 
-To make working from yeti with the java api easier Yvertx provides two 
-fundamental utilities which are used through all the vertx api: Converting 
-JSONObjects to/from yeti structs and creating Vertx Handlers from yeti 
-functions.
-
-## Working with JSONObject
 
 # Writing Verticles
 
@@ -58,6 +55,47 @@ And notice how data you send (and hit enter) is echoed back to you.
 
 Congratulations! You've written your first verticle.
         
+## Working with JSONObject
+
+JSON is used all over the vertx api - from configuration to sending messages 
+on the bus. Of course yvertx has therefore special JSON support.
+
+In statically typed languages working with Json if often not that convinient 
+as in dynamic languages. Furtunately not so in yeti.
+
+Vert.x offers the `toJson` and `fromJson` functions to transform structs 
+automatically from and to vert.x `JsonObject`.
+
+    yvertx = load yeb.yvertx;
+
+    testStruct = {
+        for_json = E(),
+        name = "foo",
+        nested = {id = "nested obj"},
+        hash = ["Julian":1, "Susan":2],
+        namesList = ["Julian", "Susan"],
+        trueOrFalse = true,
+        nullabelSome = Some "foo",
+        nullableNone = none
+    };
+
+    obj is ~JsonObject = yvertx.toJson testStruct;
+    println obj;
+
+This will print out:
+
+
+
+Not so in yeti.
+
+
+It is used every-where To make working from yeti with the java api easier Yvertx provides two 
+fundamental utilities which are used through all the vertx api: Converting 
+JSONObjects to/from yeti structs and creating Vertx Handlers from yeti 
+functions.
+
+
+
 ## Loading other the yvertx module.
 
 If you want to access the vert.x core API from within your verticle 
