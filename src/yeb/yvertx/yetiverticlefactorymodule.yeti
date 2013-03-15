@@ -20,6 +20,8 @@ import java.lang:ClassLoader,
                  Throwable,
                  Thread;
 
+import java.lang.reflect: InvocationTargetException;
+
 import java.io.File;
 import java.net:URLDecoder,
                 URLClassLoader;
@@ -45,14 +47,51 @@ end;
 
 class ReplVerticle extends Verticle
     void start()
-        import yeti.lang.compiler.yeti;
-        yeti#main(array []),
+        eval = load yeti.lang.compiler.eval;
+        yvertx = load yeb.yvertx;
+        
+        //sends messages between worker and vertickel
+        fibre = yvertx.newFibre ();
+        //evaluates yeti code
+        var evalFn = eval.evaluateYetiCode 
+            []
+            [Bind()];
+        
+        //read from stdin on a worker
+        yvertx.newWorker do:
+            _ = fibre.register do out cb:
+                case out of
+                    None _: ();
+                    Some s: println (s is string);
+                    Ex ex: (ex is ~Exception)#printStackTrace();
+                esac;
+                print "> ";
+                line = readln ();
+                cb line
+            done
+        done
+        do:
+            //when worker is created
+            cfn out =
+                (fibre.send out do code:
+                    outn = if code != "" then 
+                            try 
+                                Some (evalFn code).str;
+                            catch Exception ex:
+                                Ex ex;
+                            yrt
+                        else
+                            none
+                        fi;
+                    cfn outn
+                done);
+            cfn (Some "\nYvertx [\(yetiRuntimeVersion)] REPL\n");
+        done,
 end;
 
 createStandardVerticle verticleName = 
     (import yeti.lang.compiler:CompileException;
     import java.lang: RuntimeException;
-    import java.lang.reflect: InvocationTargetException;
     import yeti.lang:Fun,
                      Struct;
    
@@ -182,7 +221,15 @@ class YetiVerticleFactory extends VerticleFactory
 
     Verticle createVerticle(String verticleName)
         if System#getProperty("yvertx.repl","false") == "true" then
-            new ReplVerticle();
+            try 
+                moduleCl = Thread#currentThread()#getContextClassLoader()
+                            #loadClass("yeb.yvertx.ReplVerticle");
+                rs = (moduleCl#newInstance()) unsafely_as ~Verticle;
+            
+                rs;
+            catch InvocationTargetException ex:
+                throw ex#getCause();
+            yrt;
         else
             createStandardVerticle verticleName
         fi,
