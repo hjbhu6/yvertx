@@ -71,7 +71,11 @@ class ReplVerticle extends Verticle
             done
         done
         do:
-            //when worker is created
+            //after worker is created this function is called
+            //send over the fibre to the worker the inital message
+            //and als repsonse handler the handler of the code
+
+            //the handler for the code read from the worker
             codeHandler code = 
                 (outn = if code != "" then 
                         try 
@@ -84,6 +88,7 @@ class ReplVerticle extends Verticle
                     fi;
                 fibre.send outn codeHandler); 
 
+            //send intial message with the handler
             fibre.send 
                 (Some "\nYvertx [\(yetiRuntimeVersion)] REPL\n")
                 codeHandler;
