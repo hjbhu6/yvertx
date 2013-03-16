@@ -577,7 +577,7 @@ messageDigest algorithm message =
             fi;
 
         if ob instanceof Throwable then
-            (ob unsafely_as ~Throwable)#throw();
+            throw (ob unsafely_as ~Throwable);
         else 
             failWith "Failure Value: [\(ob)]";
         fi);
