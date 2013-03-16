@@ -72,20 +72,21 @@ class ReplVerticle extends Verticle
         done
         do:
             //when worker is created
-            cfn out =
-                (fibre.send out do code:
-                    outn = if code != "" then 
-                            try 
-                                Some (evalFn code).str;
-                            catch Exception ex:
-                                Ex ex;
-                            yrt
-                        else
-                            none
-                        fi;
-                    cfn outn
-                done);
-            cfn (Some "\nYvertx [\(yetiRuntimeVersion)] REPL\n");
+            codeHandler code = 
+                (outn = if code != "" then 
+                        try 
+                            Some (evalFn code).str;
+                        catch Exception ex:
+                            Ex ex;
+                        yrt
+                    else
+                        none
+                    fi;
+                fibre.send outn codeHandler); 
+
+            fibre.send 
+                (Some "\nYvertx [\(yetiRuntimeVersion)] REPL\n")
+                codeHandler;
         done,
 end;
 
