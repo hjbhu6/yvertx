@@ -105,7 +105,8 @@ createStandardVerticle verticleName =
             js = inputHandle ins "UTF-8"
                 |> getContents
                 |> std.parseJson;
-            maybe false id js.obj["auto-redeploy"].someBool
+            //std.maybeBoolean \false id js.``auto-redeploy``; 
+            maybe false id js.obj["auto-redeploy"].bool
         else
             false
         fi);

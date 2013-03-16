@@ -213,34 +213,30 @@ _fromJsonToStruct object =
     fi);
 
 typedef yvertxJsonValue<a> = {
-    str is string,
-    num is number,
-    bool is boolean,
+    str is Some string | None (),
+    num is Some number | None (),
+    bool is Some boolean | None (),
     arr is list<yvertxJsonValue>,
     obj is hash<string,yvertxJsonValue>,
-    bytes is ~byte[],
-    someStr is None () | Some string,
-    someBool is None () | Some boolean,
-    someNum is None () | Some number,
-    someBytes is None () | Some ~byte[],
+    bytes is Some ~byte[] | None (),
     type is number,
     jsonStruct is a
 };
 
 _jsonPrototype = {
-    get str () = failWith "No json string value",
-    get num () = failWith "No json num value",
-    get bool () = failWith "No json boolean",
-    get arr () = failWith "No json list",
-    get obj () = failWith "No json obj",
-    get bytes () = failWith "No bytes",
-    get someStr () = none,
-    get someBool () = none,
-    get someNum () = none,
-    get someBytes () = none,
-    get jsonStruct () = failWith "No json obj",
-    get type () = 0
+    str = none,
+    num = none,
+    bool = none,
+    bytes = none,
+    arr = [],
+    obj = [:],
+    type = 0,
+    jsonStruct = (() unsafely_as ~Object) unsafely_as 'a
 };
+
+//the empty json object should just return itself so
+//any value will get none (it is just empty)
+setHashDefault _jsonPrototype.obj \(_jsonPrototype);
 
 _fromJsonValue o is ~Object -> yvertxJsonValue<'a>= 
    (import java.util:List,HashMap,Map;
@@ -248,7 +244,7 @@ _fromJsonValue o is ~Object -> yvertxJsonValue<'a>=
     import yeb:HashStruct;
     import yeti.lang:Tag;
     
-    
+
     if nullptr? o or not defined? o then
          _jsonPrototype;
     elif o instanceof JsonObject then
@@ -275,15 +271,14 @@ _fromJsonValue o is ~Object -> yvertxJsonValue<'a>=
     elif o instanceof String then
         s = string o;
         _jsonPrototype with {
-            str = s,
+            str = Some s,
             someStr = Some s,
             type = 3,
         }
     elif o instanceof Boolean then
         s = (o unsafely_as ~Boolean)#booleanValue();
         _jsonPrototype with {
-            bool = s,
-            someBool = Some s,
+            bool = Some s,
             type = 4
         }
     elif o instanceof Number then
@@ -307,15 +302,13 @@ _fromJsonValue o is ~Object -> yvertxJsonValue<'a>=
         fi;
         numi = (nu unsafely_as number);
         _jsonPrototype with {
-            num = numi,
-            someNum = Some numi,
+            num = Some numi,
             type = 5
         }
     elif o instanceof Buffer then
         b = (o unsafely_as ~Buffer)#getBytes();
         _jsonPrototype with {
-            bytes = b,
-            someBytes = Some b,
+            bytes = Some b,
             type = 6
         }
     else 
@@ -334,6 +327,7 @@ _fromJsonValue o is ~Object -> yvertxJsonValue<'a>=
  */
 fromJson object is ~JsonObject -> 'a =
     _fromJsonValue object;
+    //{jsonStruct = (_fromJsonToStruct object) unsafely_as 'a};
 
 /**
  * Group: json
@@ -346,6 +340,7 @@ fromJson object is ~JsonObject -> 'a =
  */
 fromJsonArray ar is ~JsonArray -> list<'a> =
     (_fromJsonValue ar).arr;    
+    //(_fromJsonToStruct ar) unsafely_as list<'a>;
 
 
 
