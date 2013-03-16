@@ -28,14 +28,12 @@ json = load yeb.yvertx.json;
 
 
 typedef jsonValue<a> = {
-    str is string,
-    num is number,
-    bool is boolean,
+    str is Some string | None (),
+    num is Some number | None (),
+    bool is Some boolean | None (),
     arr is list<jsonValue>,
     obj is hash<string,jsonValue>,
-    someStr is None () | Some string,
-    someBool is None () | Some boolean,
-    someNum is None () | Some number,
+    bytes is Some ~byte[] | None (),
     type is number,
     jsonStruct is a
 };
@@ -555,9 +553,34 @@ messageDigest algorithm message =
     /**
      * Group: helper
      *
-     * fails. Same as failWith but with "illegal-state" as standrad text
+     * calls failWith with the given value. 
+     * If the value is a None Variant extracts the value from None. If the
+     * value (either the original one or the one extracted from None) is 
+     * an Throwable throws it. Otherwise calls failtWith with the value 
+     * toString
      */
-    fail = \(failWith "illegal-state"),
+    fail x = 
+        (import java.lang.Throwable;
+        import yeti.lang.Tag;
+        ob = x unsafely_as ~Object;
+        ob =if not defined? x then
+                ("" unsafely_as ~Object)
+            elif ob instanceof Tag then
+                t = (ob unsafely_as ~Tag);
+                if t#name == "None" or t#name == "none" then
+                    t#value
+                else
+                    ob
+                fi
+            else
+                ob
+            fi;
+
+        if ob instanceof Throwable then
+            (ob unsafely_as ~Throwable)#throw();
+        else 
+            failWith "Failure Value: [\(ob)]";
+        fi);
 
     /**
      * Group: test
