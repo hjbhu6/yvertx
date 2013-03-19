@@ -91,11 +91,17 @@ _runTestsImpl tests resultO allResults vertx container =
         fi;
         println "total runs: \(length allResults); ok: \(length ok); failures: \(length f); exceptions: \(length exs)";
         import java.lang.System;
-        if length allResults != length ok then
-            System#exit(1);
+        import java.lang.Runtime;
+        statusCode = if length allResults != length ok then
+            1;
         else
-            System#exit(-1);
-        fi
+            -1;
+        fi;
+        System#exit(statusCode);
+        (getContainer())#exit();
+        //if this does not help
+        //hold the System.
+        Runtime#getRuntime()#halt(statusCode);
     else
         case resultO of
         None _ : 
