@@ -76,30 +76,21 @@ config = config with registerVertxTargets config;
 _ = target config "project" "compile-samples" 
     [Before config.livecycleTargets.testCompile] 
     do project:
-        dirs = listDirs "samples" []
-            |> filter (!= "");
-        
-        
-        println "Sample dirs \(dirs)";
         
         outDir = "target/sampleclasses/";
         
         antTask "delete" ["dir":outDir] [] project;
 
-        for dirs do sDir:
-                srcDir = "samples/\(sDir)";
-                cOutDir =  outDir^sDir;
-                println "compiling dir \(srcDir)";
-                antTask "mkdir" ["dir":cOutDir] [] project;
-                helpers.yeticTask
-                    cOutDir
-                    srcDir
-                    config.yeticIncludes
-                    config.yeticSourceReaderCode
-                    (pathes.compile config)
-                    project;
+        antTask "mkdir" ["dir":outDir] [] project;
+        
+        helpers.yeticTask
+            outDir
+            "samples"
+            config.yeticIncludes
+            config.yeticSourceReaderCode
+            (pathes.compile config)
+            project;
                 
-        done;
     done;
 
         
