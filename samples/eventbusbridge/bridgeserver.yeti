@@ -2,17 +2,17 @@
  * @author <a href="http://tfox.org">Tim Fox</a>
  * @authoer Christian Essl
  */
-module bridgeServer;
+module eventbusbridge.bridgeserver;
 
 load yeb.yvertx;
 
 verticle do :
     server = createHttpServerWithHandler do req:
         if "/" == req#path then 
-            req#response#sendFile("index.html") //serve the index.html
+            req#response#sendFile("eventbusbridge/index.html") //serve the index.html
         fi;
         if strEnds? req#path "vertxbus.js" then
-            req#response#sendFile("vertxbus.js") //serve the js
+            req#response#sendFile("eventbusbridge/vertxbus.js") //serve the js
         fi;
         ()
     done;

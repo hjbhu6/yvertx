@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-module sendFileExample;
+module sendfile.sendfileexample;
 
 import org.vertx.java.core.http.HttpServerRequest;
 

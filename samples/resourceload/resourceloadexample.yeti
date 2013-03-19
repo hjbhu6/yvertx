@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-module resourceLoadExample;
+module resourceload.resourceLoadExample;
 
 load yeb.yvertx;
 
@@ -22,9 +22,9 @@ import org.vertx.java.deploy.Verticle;
 import java.net.URL;
 
 verticle do :
-    urlBar = (classOf yeb.yvertx)#getClassLoader()#getResource("bar.txt");
+    urlBar = (classOf yeb.yvertx)#getClassLoader()#getResource("resourceload/bar.txt");
     println "bar url is \(urlBar)";
-    urlFoo = (classOf yeb.yvertx)#getClassLoader()#getResource("foo.xml");
+    urlFoo = (classOf yeb.yvertx)#getClassLoader()#getResource("resourceload/foo.xml");
     println "foo url is \(urlFoo)";
     
     /*
