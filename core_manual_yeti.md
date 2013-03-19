@@ -4,11 +4,12 @@ To view a copy of this license, visit http://creativecommons.org/licenses/by-sa/
 a letter to Creative Commons, 444 Castro Street, Suite 900, Mountain View, California, 94041, USA.
 -->
 
-[TOC]
 
 # Yvertx: Yeti on Vertx
 
-Yvertx is a yeti-lang api for vertx. 
+Yvertx is a yeti-lang api for vertx 2.0 (it does not work with prior versions
+of vertx). 
+
 [Yeti](http://mth.github.com/yeti/) is a statically typed functional 
 language for the JVM. To get an intro to yeti read the following 
 [blog-post](http://thebreakfastpost.com/2013/01/08/functional-programming-and-the-joy-of-learning-something-again/) 
@@ -21,16 +22,42 @@ Java api direclty - although less convinient.
 Often it is even necessary to use the Java Api directly because Yvertx
 only wraps the parts of the Java api, where it pays of in terms of convinience.
 
+## Getting started
 
-# Writing Verticles
+The easiest way to get started is to clone the 
+[yvertx-project-template](https://github.com/chrisichris/yvertx-project-template).
 
-We previously discussed how a verticle is the unit of deployment in vert.x. 
-Let's look in more detail about how to write a verticle.
+Alternatively you can use yvertx like any language-module for the vert.x 
+platform.
+
+### Using the yvertx-project-template
+
+The `project-template` uses [ybuilder](https://github.com/chrisichris/ybuilder)
+which is a build-tool for yeti.
+
+To use the 
+[yvertx-project-template](https://github.com/chrisichris/yvertx-project-template)
+just clone it from github and update the ´project.yeti´ file with
+your groupId artifactId adn version.
+
+There is nothing more needed (also no running installation of vert.x or yeti)
+because ybuilder will download and use it's own copies for the current project.
+
+
+#### Writing Verticles
+
+To write your first vericle edit the ´mods/main~main~1/main.yeti´ file.  
+
+Your module code goes to `mods/main~main~1`. Please leave the name of the
+module directories unchanged. Don't worry because of the strange
+module name. When deploying (zipping) up you module ybuilder will give it the
+right name based on your artifactId groupId and version you have set in
+project.yeti
 
 As an example we'll write a simple TCP echo server. The server just accepts 
 connections and any data received by it is echoed back on the connection.
 
-Copy the following into a text editor and save it as `server.yeti`
+Copy the following into a text editor and save it as `main.yeti`
 
     load yeb.yvertx;
 
@@ -43,9 +70,9 @@ Copy the following into a text editor and save it as `server.yeti`
         \(server#close();)
     done;
     
-Now, go to the directory where you saved the file and type
+Now, go to the projects root directory and run
 
-    vertx run server.yeti
+    java -jar ybuilder.jar vertx:main
     
 The server will now be running. Connect to it using telnet:
 
@@ -54,7 +81,45 @@ The server will now be running. Connect to it using telnet:
 And notice how data you send (and hit enter) is echoed back to you.           
 
 Congratulations! You've written your first verticle.
-        
+
+#### Experimenting using the repl
+
+The project-template also comes with a utilitiy repl. That is you can
+interactively test your yeti code within a verticle. That's very handy for 
+learing the api and trying things out.
+
+To start the repl use:
+    
+    >java -jar ybuilder.jar vertx:repl
+
+You can now enter your test code ie:
+
+    >yv = load yeb.yvertx;
+    .... loads of output just ignore
+    >server = yv.createHttpServerWithHandler do req: println "req received" done;
+    ...
+    >server#listen(8080,"localhost");
+    ...
+
+Point your browser to localhost:8080 and you server will run
+
+### Using the language-module
+
+You can of course use yvertx without the project-template. Just as a normal
+language-module for vert.x.
+
+Note: Yvertx needs vert.x 2.0 and the following steps are only necessery if 
+you do not use the yvertx-project-template
+
+Yvertx is installed in vert.x like any other lang-module: add the following 
+lines to your vert.x conf/langs.properties file:
+
+    yeti=com.github.chrisichris~yvertx-module~0.9.8-SNAPSHOT:yeb.yvertx.YetiVerticleFactory
+    .yeti=yeti
+
+Now you can use all .yeti files as any other supported language on the vert.x
+platform.
+
 ## Working with JSONObject
 
 JSON is used all over the vertx api - from configuration to sending messages 
@@ -75,26 +140,58 @@ automatically from and to vert.x `JsonObject`.
         hash = ["Julian":1, "Susan":2],
         namesList = ["Julian", "Susan"],
         trueOrFalse = true,
-        nullabelSome = Some "foo",
-        nullableNone = none
+        brother = Some "John",
+        sister = none
     };
 
     obj is ~JsonObject = yvertx.toJson testStruct;
     println obj;
 
-This will print out:
+This will transform the testStruct to a vert.x Java JsonObject. 
 
+Struct to encode must have a for_json field to mark it to be ready to be
+encoded as json. It may contain all the JsonObject values: 
+number, string, boolean, byte[] and nested lists hashes and structs of this 
+values them. Hashes may only have strings as keys.  
+None() is encoded as json-null.  Some is encoded as the plain value ie Some 1
+becomes in JsonObject 1. The E() tag as value means that the struct field 
+should not be encoded.
 
+### Convinient not typesafe converstion from JSONObject
+To transfer a JsonObject back to a struct just use:
 
-Not so in yeti.
+    {jsonStruct} = yvertx.fromJson obj;
 
+Now you can use the jsonStruct as any other yeti struct.
 
-It is used every-where To make working from yeti with the java api easier Yvertx provides two 
-fundamental utilities which are used through all the vertx api: Converting 
-JSONObjects to/from yeti structs and creating Vertx Handlers from yeti 
-functions.
+    println jsonStruct.name;
 
+Note that this struct is (contrary to everything else in yeti) not typesafe.
+So you should use it very contained or check it with the functions of 
+yeb.std.
 
+    load yeb.std;
+
+    {jsonStruct = js} = yvertx.fromJson obj;
+    name = maybeString fail id js.name;
+    sister = maybeString None Some js.sister;
+
+### Typesafe conversiont from JSONObject
+
+The direct conversion to a struct is often all you need, but it is not 
+typesafe and therefor potentially dangerous. Therfore ther is also a second
+form to transfer JSONObject to yeti values:
+
+    js = yvertx.fromJson obj;
+    name = maybe' fail js.obj["name"].str;
+    sister = js.obj["sister"].str;
+
+That is a Json object is repesented as an hash which can be gotten by using
+the .obj function and every value can be gotten by using .str, .num. bool and
+.bytes function on the json object all these return None () or Some v 
+depending whether tey are set and ctain that value.
+
+Again with maybe from std you can set and read these values.
 
 ## Loading other the yvertx module.
 
