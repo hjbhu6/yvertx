@@ -15,7 +15,7 @@ language for the JVM. To get an intro to yeti read the following
 [blog-post](http://thebreakfastpost.com/2013/01/08/functional-programming-and-the-joy-of-learning-something-again/) 
 or better the [yeti tutorial](http://linux.ee/~mzz/yeti/intro.html)
 
-Yvertx is just a wrapper around the vertx Java api. It is itself written in 
+Yvertx is just a yeti wrapper around the vertx Java api. It is itself written in 
 Yeti only. So everything Yvertx provides can be acomplished by using the vertx
 Java api direclty - although less convinient. 
 
