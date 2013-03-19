@@ -1,0 +1,21 @@
+module vertxServer;
+
+import org.vertx.java.core.buffer.Buffer;
+
+load yeb.yvertx;
+
+verticle do :
+    (createHttpServerWithHandler do req:
+        fileSystem.readFile "foo.html" \case of
+            Some buffer:
+               putResponseHeaders req 
+                    ["Content-Length": string (buffer is ~Buffer)#length(),
+                     "Content-Type": "text/html"];
+                _ = req#response#end(buffer);
+            None ex :
+                println "Error reading file: \(ex)";
+        esac;
+    done) #listen(8080, 'localhost');
+
+    \();
+done;

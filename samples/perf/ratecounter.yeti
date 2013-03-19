@@ -1,0 +1,53 @@
+/*
+ * Copyright 2011 the original author or authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+module rateCounter;
+
+import java.lang.System;
+import org.vertx.java.core.Vertx;
+import org.vertx.java.core.eventbus:Message;
+
+load yeb.yvertx;
+
+verticle do :
+
+    var count = 0;
+    var last = 0;
+    var start = 0;
+    var totCount = 0;
+    
+    handler = toHandler (do msg:
+        if last == 0 then
+            start := System#currentTimeMillis();
+            last := start;
+        fi;
+        mn = ((msg is ~Message)#body) unsafely_as number;
+        count := count + mn;
+        totCount := totCount +mn;
+    done . (unsafely_as ~Message));
+
+    _ = vertx#eventBus()#registerHandler("rate-counter",handler);
+    _ = setPeriodic 3000 do :
+        if last != 0 then
+            now = System#currentTimeMillis();
+            rate = 1000 * count / (now - last);
+            avRate = 1000 * totCount / (now -start);
+            count = 0;
+            println "\(now - start) Rate: count/sec: \(rate) Average rate: \(avRate)";
+            last := now;
+        fi
+    done;
+    \();
+done;
