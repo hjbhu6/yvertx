@@ -18,7 +18,7 @@ verticle do :
     done;
     
     //Let everything trough
-    permitted = [emptyJS];
+    permitted = [];//[emptyJS];
     bridgeSockJS 
          (createSockJSServer server)
          [] 
