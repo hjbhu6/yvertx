@@ -5,7 +5,7 @@ lib/ybuilder/extlib_managed
 lib/ybuilder/project
 target
 temp/
-
+samples/mods
 mods/**/lib/*
 mods/*
 !mods/main~main~1/
