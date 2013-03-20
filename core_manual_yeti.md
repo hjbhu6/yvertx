@@ -60,6 +60,8 @@ Point your browser to localhost:8080 and you server will print in the console
 
     req received
 
+To enter multi-line input in the repl end the lines with \.
+
 From the repl
 you can try all the code snippets from this manual. You have to stop
 the repl from time to time, so that resources are freed (ie servers listening
@@ -137,23 +139,25 @@ as in dynamic languages. Furtunately not so in yeti.
 Vert.x offers the `toJson` and `fromJson` functions to transform structs 
 automatically from and to vert.x `JsonObject`.
 
-    yvertx = load yeb.yvertx;
+Type on the repl (java -jar yubilder.jar vertx:repl)
 
-    testStruct = {
-        for_json = E(),
-        name = "foo",
-        nested = {id = "nested obj"},
-        hash = ["Julian":1, "Susan":2],
-        namesList = ["Julian", "Susan"],
-        trueOrFalse = true,
-        brother = Some "John",
-        sister = none
+    >yvertx = load yeb.yvertx;
+    ....
+    >testStruct = { \
+        for_json = E(),\
+        name = "foo",\
+        nested = {id = "nested obj"},\
+        hash = ["Julian":1, "Susan":2],\
+        namesList = ["Julian", "Susan"],\
+        trueOrFalse = true,\
+        brother = Some "John",\
+        sister = none\
     };
+    ....
+    >obj = yvertx.toJson testStruct;
+    obj is ~org.vertx.java.core.json.JsonObject = {"sister":null,"nested":{"fieldNames":["id"],"array":false,"object":true},"hash":{"fieldNames":["Julian","Susan"],"array":false,"object":true},"name":"foo","trueOrFalse":true,"brother":"John","namesList":{"array":true,"object":false}}
 
-    obj is ~JsonObject = yvertx.toJson testStruct;
-    println obj;
-
-This will transform the testStruct to a vert.x Java JsonObject. 
+As you see the struct is mapped to a vert.x JsonObject
 
 Struct to encode must have a for_json field to mark it to be ready to be
 encoded as json. It may contain all the JsonObject values: 
@@ -176,11 +180,11 @@ Note that this struct is (contrary to everything else in yeti) not typesafe.
 So you should use it very contained or check it with the functions of 
 yeb.std.
 
-    load yeb.std;
+    std = load yeb.std;
 
     {jsonStruct = js} = yvertx.fromJson obj;
-    name = maybeString fail id js.name;
-    sister = maybeString None Some js.sister;
+    name = std.maybeString fail id js.name;
+    sister = std.maybeString None Some js.sister;
 
 ### Typesafe conversiont from JSONObject
 
@@ -189,7 +193,7 @@ typesafe and therefor potentially dangerous. Therfore ther is also a second
 form to transfer JSONObject to yeti values:
 
     js = yvertx.fromJson obj;
-    name = maybe' fail js.obj["name"].str;
+    name = std.maybe' fail js.obj["name"].str;
     sister = js.obj["sister"].str;
 
 That is a Json object is repesented as an hash which can be gotten by using
@@ -199,7 +203,7 @@ depending whether tey are set and ctain that value.
 
 Again with maybe from std you can set and read these values.
 
-## Loading other the yvertx module.
+## Loading the yvertx module.
 
 If you want to access the vert.x core API from within your verticle 
 (which you almost certainly want to do), you need to call `load yeb.yvertx` at 
