@@ -81,12 +81,12 @@ _ = target config "project" "propare-zip-module"
             [el "fileset" ["dir":"mods/main~main~1"] []] project;
         antTask "delete" ["includeemptydirs":"true"]
             [el "fileset" ["dir":"mods/main~main~1/", 
-                           "excludes":"lib/**/*"]] project;
+                           "excludes":"lib/**/*"] [] ] project;
     done;
 
 doAfterTarget config.vertxTargets.vertxZipModule do project:
     antTask "delete" ["dir":"mods/main~main~1"] [] project;
-    antTask "copy" ["todir":"mods"]
+    antTask "copy" ["todir":"mods/main~main~1"]
                     [el "fileset" ["dir":"target/tempmain"] []] project;
 done;
 
