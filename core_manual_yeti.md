@@ -7,6 +7,8 @@ a letter to Creative Commons, 444 Castro Street, Suite 900, Mountain View, Calif
 
 # Yvertx: Yeti on Vertx
 
+*Please help: the manual is work in progress if you encounter any errors or questions please let me know on the vertx mailinglist https://groups.google.com/forum/#!forum/vertx*
+
 Yvertx is a yeti-lang api for vertx 2.0 (it does not work with prior versions
 of vertx). 
 
@@ -24,27 +26,48 @@ only wraps the parts of the Java api, where it pays of in terms of convinience.
 
 ## Getting started
 
-The easiest way to get started is to clone the 
-[yvertx-project-template](https://github.com/chrisichris/yvertx-project-template).
+The easiest way to get started is to use the yvertx-project-template 
 
 Alternatively you can use yvertx like any language-module for the vert.x 
 platform.
 
 ### Using the yvertx-project-template
 
-The `project-template` uses [ybuilder](https://github.com/chrisichris/ybuilder)
-which is a build-tool for yeti.
+#### Quicksart with the REPL
 
-To use the 
-[yvertx-project-template](https://github.com/chrisichris/yvertx-project-template)
-just clone it from github and update the ´project.yeti´ file with
-your groupId artifactId adn version.
+Git clone the project-template from [yvertx-project-template](https://github.com/chrisichris/yvertx-project-template)
 
-There is nothing more needed (also no running installation of vert.x or yeti)
-because ybuilder will download and use it's own copies for the current project.
+Update the ´/project.yeti´ file with your project's groupId artifactId and 
+version
 
+run from the root directory of your new project:
+
+    >java -jar ybuilder.jar vertx:repl
+
+This will start a yeti-repl which runs inside a verticle. 
+
+You can now enter your test code ie:
+
+    >yv = load yeb.yvertx;
+    .... loads of output just ignore
+    >server = yv.createHttpServerWithHandler do req: println "req received" done;
+    ...
+    >server#listen(8080,"localhost");
+    ...
+
+Point your browser to localhost:8080 and you server will run
+
+From the repl
+you can try all the code snippets from this manual. You have to stop
+the repl from time to time, so that resources are freed (ie servers listening
+on a port are stopped)
 
 #### Writing Verticles
+
+Of course you can also start writing vertiles using the project-tempalte
+
+The `project-template` uses [ybuilder](https://github.com/chrisichris/ybuilder)
+which is a build-tool for yeti.
 
 To write your first vericle edit the ´mods/main~main~1/main.yeti´ file.  
 
@@ -82,26 +105,6 @@ And notice how data you send (and hit enter) is echoed back to you.
 
 Congratulations! You've written your first verticle.
 
-#### Experimenting using the repl
-
-The project-template also comes with a utilitiy repl. That is you can
-interactively test your yeti code within a verticle. That's very handy for 
-learing the api and trying things out.
-
-To start the repl use:
-    
-    >java -jar ybuilder.jar vertx:repl
-
-You can now enter your test code ie:
-
-    >yv = load yeb.yvertx;
-    .... loads of output just ignore
-    >server = yv.createHttpServerWithHandler do req: println "req received" done;
-    ...
-    >server#listen(8080,"localhost");
-    ...
-
-Point your browser to localhost:8080 and you server will run
 
 ### Using the language-module
 
