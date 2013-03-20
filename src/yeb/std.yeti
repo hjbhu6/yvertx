@@ -580,7 +580,7 @@ messageDigest algorithm message =
             throw (ob unsafely_as ~Throwable);
         else 
             failWith "Failure Value: [\(ob)]";
-        fi);
+        fi),
 
     /**
      * Group: test
