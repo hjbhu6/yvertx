@@ -72,6 +72,23 @@ config = config with registerVertxTargets config;
 ////////////////////////////////////////////////////////////////////////////////
 //---custom targets --
 
+_ = target config "project" "propare-zip-module" 
+    [Before config.vertxTargets.vertxZipModule]
+    do project:
+        antTask "delete" ["dir":"target/tempmain"] [] project;
+        antTask "mkdir" ["dir":"target/tempmain"] [] project;
+        antTask "copy" ["todir":"target/tempmain"]
+            [el "fileset" ["dir":"mods/main~main~1"] []] project;
+        antTask "delete" ["includeemptydirs":"true"]
+            [el "fileset" ["dir":"mods/main~main~1/", 
+                           "excludes":"lib/**/*"]] project;
+    done;
+
+doAfterTarget config.vertxTargets.vertxZipModule do project:
+    antTask "delete" ["dir":"mods/main~main~1"] [] project;
+    antTask "copy" ["todir":"mods"]
+                    [el "fileset" ["dir":"target/tempmain"] []] project;
+done;
 
 _ = target config "project" "compile-samples" 
     [Before config.livecycleTargets.testCompile] 
