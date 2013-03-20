@@ -295,7 +295,7 @@ Ie to deploy one instance of the verticle `server.yeti`
 
     _ = yvertx.deployVerticle 
         "server.yeti" 
-        emptyJS
+        {for_json=E()}
         1
         do: println "finished deploy" done;
     
