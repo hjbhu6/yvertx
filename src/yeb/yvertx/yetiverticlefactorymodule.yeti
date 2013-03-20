@@ -66,8 +66,19 @@ class ReplVerticle extends Verticle
                     Ex ex: (ex is ~Exception)#printStackTrace();
                 esac;
                 print "> ";
-                line = readln ();
-                cb line
+
+                readcode code = 
+                    (line = readln();
+                    if strEnds? line '\' then
+                        line = strLeft line (strLength line - 1);
+                        readcode (code ^"\n"^line);
+                    elif line == "" then
+                        readcode code;
+                    else
+                        code^"\n"^line;
+                    fi);
+                code = readcode "";
+                cb code
             done
         done
         do:
