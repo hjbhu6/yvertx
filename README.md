@@ -51,6 +51,9 @@ To run the samples invoke ybuilder from the root of the project.
 
 This will run the echo/echoserver.yeti verticle.
 
+For a description of the samples see the vert.x distribution: 
+https://github.com/vert-x/vert.x/blob/master/vertx-examples/src/main/java/README.md
+
 API documentation
 =================
 
