@@ -1,46 +1,71 @@
 yvertx
 ======
 
-[yeti](http://mth.github.com/yeti/) language support for vert.x
+[yeti](http://mth.github.com/yeti/) language support for vert.x 2.0
 
-Note this are still first steps and the module is in development.
+As vert.x 2.0 is still in devolopment and there are sometimes api-changes, it
+can happen that this project does temperorily not compile until the 
+api-changes are followed.
 
-The module is for vertx 1.3.1 
+*Your help is needed*. Please report any bugs/suggestions to the vert.x
+mailing-list: https://groups.google.com/forum/#!forum/yeti-lang
 
-building
-======
+Documentation
+=============
 
-You need JDK7 installed and the VERTX_HOME enviroment variable set to your vertx dir.
+For an introduction and documentation read the 
+[manual](https://github.com/chrisichris/yvertx/blob/master/core_manual_yeti.md)
 
-in the root of the project dir call:
+Quickstart
+==========
 
-    java -jar ybuilder.jar retrieveLibs
+For a quickstart git-clone the [yvertx-project-template](https://github.com/chrisichris/yvertx-project-template)
 
-    java -jar ybuilder.jar clean, vertx:compile
+Language-Module
+===============
 
+Yvertx is a language module for vert.x. The module name is:
 
-experimenting
-======
+    com.github.chrisichris~yvertx-module~0.9.8-SNAPSHOT
 
-After you have build yvertx run vertx with from the project root. 
+It is hosted at [sonatype-snapshots-maven-repo](https://oss.sonatype.org/content/repositories/snapshots/com/github/chrisichris/yvertx-module/) 
 
-    vertx runmod main
+To add it to you vertx/conf/langs.properties:
 
-This will start the main module found in the mods directory.
+    yeti=com.github.chrisichris~yvertx-module~0.9.8-SNAPSHOT:yeb.yvertx.YetiVerticleFactory
+    .yeti=yeti
+    
 
-Now you can change the code in the mods/main/server.yeti file and 
-the module will autoreload
-
+Quickstart
+==========
 
 Examples
 ========
 
-To see how to code verticles in yeti take a look at the 'samples' directory.
+A reimplementation of the samples found in the standard vert.x distribution
+can be found in the ´samples´ folder.
 
-testing
+To run the samples invoke ybuilder from the root of the project.
+
+    >java -jar ybuilder.jar vertx:cmd run echo/echoserver.yeti -dir samples
+
+This will run the echo/echoserver.yeti verticle.
+
+API documentation
+=================
+
+To build the api documentation run
+
+    >java -jar ybuilder.jar doc
+
+The documentation can be found in target/doc/yetidoc and target/doc/javadoc
+
+Building
 ========
 
-The test-module is in mods/test to run it use
+To build the project run
 
-    vertx runmod test
+    >java -jar ybuilder.jar integration-test
+    
 
+    
