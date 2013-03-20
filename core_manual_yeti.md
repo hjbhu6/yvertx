@@ -51,11 +51,14 @@ You can now enter your test code ie:
     >yv = load yeb.yvertx;
     .... loads of output just ignore
     >server = yv.createHttpServerWithHandler do req: println "req received" done;
-    ...
+    server is ~org.vertx.java.core.http.HttpServer = org.vertx.java.core.http.impl.DefaultHttpServer@5c7db89a
+    
     >server#listen(8080,"localhost");
-    ...
+    server is ~org.vertx.java.core.http.HttpServer = org.vertx.java.core.http.impl.DefaultHttpServer@5c7db89a
 
-Point your browser to localhost:8080 and you server will run
+Point your browser to localhost:8080 and you server will print in the console
+
+    req received
 
 From the repl
 you can try all the code snippets from this manual. You have to stop
