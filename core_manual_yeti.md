@@ -2106,11 +2106,28 @@ JSON object which will match all messages.
     ...
 
     yvertx.bridgeSockJS sockJSServer [] 
-                {prefix : '/eventbus', for_json=E()}, [], [];
+                {prefix = '/eventbus', for_json=E()} [] [];
     
     ...    
      
 **Be very careful!**
+
+## Adding an EventBusBridgeHook
+
+You can add an EventBusBridgeHook, which gets informed of various 
+events on the EventBusBridge.
+
+    hook = createBridgeHook \case of
+        Closed sock: println "socked was closed";
+        Send {sock,msg,address} : println "msg was send";
+        Pub {sock,msg,address}: pritnln "msg was pub";
+        PreRegister {sock,address}: println "sock will register at";
+        PostRegister {sock,address}: println "address was registered";
+        Unregister {soc,address}: println "address is unregistered";
+    esac;
+    yvertx.brigdeSockJS sockJSServer 
+        [Hook hook]
+        {prefix = "/eventbus", for_json=E()} [] [];
 
 ## Messages that require authorisation
 

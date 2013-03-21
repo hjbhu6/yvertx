@@ -48,7 +48,8 @@ import org.vertx.java.core.net:NetClient,
                                NetSocket;
 import org.vertx.java.core.parsetools:RecordParser;
 import org.vertx.java.core.sockjs:SockJSSocket,
-                                  SockJSServer;
+                                  SockJSServer,
+                                  EventBusBridgeHook;
 import org.vertx.java.core.streams:Pump,
                                    ReadStream,
                                    WriteStream;
@@ -1606,6 +1607,39 @@ installSockJSApp server config handler =
 
 /**
  * Group: sockjs
+ * Creates an EventBusBridgeHook. Gives the methods of
+ * EventBusBridgeHook further as Tags to the given function
+ *
+ * Arguments:
+ * fn - function which gets called when one of the hook-methods is called
+ */
+createBridgeHook fn = 
+    (class YvertxEventBusBridgeHook extends EventBusBridgeHook
+        void handleSocketClosed(SockJSSocket sock)
+            fn (Closed sock),
+        
+        boolean handleSendOrPub(SockJSSocket sock, boolean send, 
+                            JsonObject msg, String address)
+            if send then
+                fn (Send {sock, msg, address = string address})
+            else
+                fn (Pub {sock, msg, address = string address})
+            fi,
+
+        
+        boolean handlePreRegister(SockJSSocket sock, String address)
+            fn (PreRegister {sock,address = string address}),
+        
+        void handlePostRegister(SockJSSocket sock, String address)
+            fn (PostRegister {sock,address = string address}),
+
+        boolean handleUnregister(SockJSSocket sock, String address)
+            fn (Unregister {sock, address = string address})
+    end;
+    new YvertxEventBusBridgeHook());
+
+/**
+ * Group: sockjs
  * Intall an app wich bridges the SockJS server to the event bus
  *
  * calls SockJSServer#bridge
@@ -1616,6 +1650,7 @@ installSockJSApp server config handler =
  *        AuthTimeout authentication time ms default is 5 minutes
  *        AuthAddress authentication addres default is 
  *        vertx.basicauthmanager.athorise
+ *        Hook - set an EventBusBridgehook
  * sjsConfig - the config for the app
  * inboundPermitted - list of structs which is transformed to json and
  *                    have to mathc the inbound permitted message
@@ -1628,9 +1663,12 @@ bridgeSockJS server opts sjsConfig inboundPermitted outboundPermitted =
         case opt of
         AuthTimeout n : authTimeout := n;
         AuthAddress a : authAddress := a;
+        Hook hook: 
+            (server is ~SockJSServer)#setHook(hook is ~EventBusBridgeHook)
         esac
     done;
-    (server is ~SockJSServer)#bridge(toJson sjsConfig, 
+    
+    server#bridge(toJson sjsConfig, 
              toJsonArray (inboundPermitted is list<jsonStruct<'e>>), 
              toJsonArray (outboundPermitted is list<jsonStruct<'f>>),
              authTimeout,
@@ -2319,6 +2357,7 @@ fileSystem = ({
     //sockjs
     installSockJSApp,
     bridgeSockJS,
+    createBridgeHook,
     createSockJSServer,
 
     //net functions
