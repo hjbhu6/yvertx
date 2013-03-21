@@ -241,8 +241,8 @@ is available to the verticle in the `vertx.config` variable. For example:
     
     println "Config is \(config)";
     
-The config returned is a struct which is generated from an underlying JSON 
-object. You can use this struct to configure the verticle. Allowing verticles 
+The config returned is a struct as explained in the chapter about json. 
+You can use this struct to configure the verticle. Allowing verticles 
 to be configured in a consistent way like this allows configuration to be 
 easily passed to them irrespective of the language.
 
@@ -274,6 +274,9 @@ For more information on configuring logging, please see the main manual.
 
 You can access enviroment veriables using `yvertx.enviroment` which
 returns a hash<string,string> of all the environment variables.
+
+    >yvertx.enviroment
+    ["USERPROFILE":.....
 
 # Deploying and Undeploying Verticles Programmatically
 
@@ -508,8 +511,8 @@ from `eventBus` property of yvertx.
 
 To set a message handler on the address `test.address`, you do the following:
 
-    _ = yvertx.registerBusHandler "test.address" \() do {message, reply}:
-        logger#info("I received a message \(message)");
+    _ = yvertx.registerBusHandler "test.address" \() do {body, reply}:
+        logger#info("I received a message \(body)");
     done;
     
 It's as simple as that. The handler will then receive any messages sent to 
@@ -524,7 +527,7 @@ E.g. :
 
     _ = yvertx.registerBusHandler 'test.address' 
         \(logger#info 'Yippee! The handler info has been propagated across the cluster')
-        do {message, reply}:
+        do {body, reply}:
             //message handling
         done;
 
@@ -533,14 +536,14 @@ To unregister a handler it's just as straightforward. You simply call
 `registerBusHandler`, respectively given as `handler` to the callbacks of 
 
     handlerId = yvertx.registerBusHandler 'test.address' \()
-        do {message}:
+        do {body}:
             //handler message;
         done;
     yvertx.unregisterBusHandler handlerId \();
 
     //or using the callback
     _ = yvertx.registerBusHandler 'test.address' \()
-        do {message, handlerId}:
+        do {body, handlerId}:
             yvertx.unregisterBusHandler handlerId \();
         done;
 
@@ -588,7 +591,7 @@ invoked. An example will make this clear:
 
 The receiver:
 
-    yvertx.registerBusHandler 'test.address' \() do {message, reply}:
+    yvertx.registerBusHandler 'test.address' \() do {body, reply}:
         //Do some stuff
 
         //Now reply to it
