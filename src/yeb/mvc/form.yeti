@@ -21,7 +21,7 @@ module yeb.mvc.form;
 
 load yeb.std;
 load yeb.mvc.mvc;
-load yeb.validation;
+vali = load yeb.validation;
 
 
 
@@ -113,7 +113,7 @@ createField minValues maxValues form unprefixedName converter toString
                 displayStrings := ps;
 
                 //convert the string values
-                for ps (maybeValid
+                for ps (vali.maybe
                         do ex: 
                             errors := (string ex#getMessage()) :: errors 
                         done

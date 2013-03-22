@@ -177,7 +177,7 @@ valiNum min max num =
 /**
  * Group: vali
  *
- * Validates each element in a list with the given validator
+ * Filter the list to contain only values which are valid. 
  *
  * Arguments:
  * - validatorFn : the validatorFn which is applied to each element
@@ -268,13 +268,13 @@ numberFormat formatOpt =
  *
  * Parses a string to a number using the given NumberFormat or function
  */
-toNum formatOpt str is 'a -> string -> number=
+parseNum formatOpt str is 'a -> string -> number=
     try
         case formatOpt of
         Format f: (numberFormat (Format f))#parse(str)#doubleValue();
-        Pattern f: (numberFormat (Patter f))#parse(str)#doubleValue();
+        Pattern f: (numberFormat (Pattern f))#parse(str)#doubleValue();
         PatternLoc f: (numberFormat (PatternLoc f))#parse(str)#doubleValue();
-        Default f: (numberFormat (Default f))#parse(str)#doubleValue();
+        Default (): (numberFormat (Default ()))#parse(str)#doubleValue();
         None () : number str;
         Some fn : fn str;
         esac
@@ -287,7 +287,7 @@ toNum formatOpt str is 'a -> string -> number=
  *
  * Formats a number to a string given the provided NumberFormat
  */
-stringNum formatOpt num =
+formatNum formatOpt num =
     case formatOpt of
     Format f: (numberFormat (Format f))#format(num);
     Pattern f: (numberFormat (Pattern f))#format(num);
@@ -312,34 +312,34 @@ dateFormat formatOpt =
  *
  * Parses a string to a date using the format
  */
-toDate formatOpt str =
+parseDate formatOpt str =
     try
         case formatOpt of
         Format f: (dateFormat (Format f))#parse(str);
         Pattern f: (dateFormat (Pattern f))#parse(str);
         PatternLoc f: (dateFormat (PatternLoc f))#parse(str);
-        Default () f: (dateFormat (Default ()))#parse(str);
+        Default () : (dateFormat (Default ()))#parse(str);
         None (): new Date(number str);
         Some fn: fn str;
         esac
     catch Exception ex:
         failWithValidation "\(str) id no date" str;
-    yrt
+    yrt;
 
 /**
  * Group: format
  *
  * Formats a date to a string
  */
-stringDate formatOpt date =
+formatDate formatOpt date =
     case formatOpt of
     Format f: (dateFormat (Format f))#format(date);
     Pattern f: (dateFormat (Pattern f))#format(date);
     PatternLoc f: (dateFormat (PatternLoc f))#format(date);
-    Default () f: (dateFormat (Default ()))#format(date);
+    Default () : (dateFormat (Default ()))#format(date);
     None (): string date;
     Some fn: fn date;
-    esac
+    esac;
 
 /**
  * Group: parse
@@ -357,15 +357,15 @@ toBool str is string -> boolean=
     maybe = maybeValid,
     check = valiCheck,
     length = valiListLength, 
-    num = valiList,
+    list = valiList,
     string = valiString,
     regex = valiRegex, 
     num = valiNum,
     number = _number,
-    toNum,
-    stringNum,
-    toDate,
-    stringDate,
+    parseNum,
+    formatNum,
+    parseDate,
+    formatDate,
     toBool,
 
 }

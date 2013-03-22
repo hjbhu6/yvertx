@@ -29,7 +29,6 @@ import yeb.ValidationException;
 
 load yeb.std;
 load yeb.async;
-load yeb.validation;
 util = load yeb.mvc.impl.util;
 
 typedef cookie = {

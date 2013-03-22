@@ -26,7 +26,7 @@ import org.yeb:ValidationException, YebUtils;
 load yeb.std;
 load yeb.async;
 load yeb.mvc.mvc;
-load yeb.validation;
+vali = load yeb.validation;
 yvertx = load yeb.yvertx;
 resm = load yeb.mvc.response;
 
@@ -54,9 +54,7 @@ resm = load yeb.mvc.response;
  * route - route to call with the result
  */
 structRoute opts nextHandler is 'o -> 'h -> route =
-    (load yeb.validation;
-
-    values = [:];
+    (values = [:];
     var functionName = "";
     for opts \case of
         Defaults ha: insertHash values (ha is hash<string,list<string>>);
@@ -76,7 +74,7 @@ structRoute opts nextHandler is 'o -> 'h -> route =
         forHash values do k v:
             _ = if strStarts? k "num_" then
                 name = strRight k 4;
-                value = valiList strToNum (req.params[k]);
+                value = vali.list vali.number (req.params[k]);
                 if length value == 1 then
                     jo#putNumber(name, (head value) is number);
                 else
@@ -88,7 +86,7 @@ structRoute opts nextHandler is 'o -> 'h -> route =
                 fi;
             elif strStarts? k "bool_" then
                 name = strRight k 5;
-                value = valiList strToBoolean (req.params[k]);
+                value = vali.list vali.toBool (req.params[k]);
                 if length value == 1 then
                     jo#putBoolean(name, head value);
                 else
