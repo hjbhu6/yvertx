@@ -1,0 +1,235 @@
+/*
+ * Copyright 2011 Christian Essl
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions
+ * and limitations under the License.
+ */
+
+module yeb.mvc.impl.middleware;
+
+
+
+import java.util: Locale, Date, Collection;
+
+import yeti.lang: Fun, Struct;
+import org.yeb:ValidationException, YebUtils;
+
+load yeb.std;
+load yeb.async;
+load yeb.mvc.mvc;
+load yeb.validation;
+yvertx = load yeb.yvertx;
+resm = load yeb.mvc.response;
+
+            
+            
+
+/**
+ * Converts the request parameters to a struct. 
+ * The parameters of the request are converted to a struct. Parametes starting
+ * with 'num_' are converted to number values, witho "bool_" to boolean-values.
+ * The 'num_' and 'bool_' values are stripped of the name.
+ *
+ * If the request has content-type "form-url-encoded" than the body is also
+ * added to the parameters. If the content-type is "application/json/ then
+ * the body is converted to a JsonObject and added as "body" to the struct.
+ *
+ * The resulting struct is set as values field on the request struct and
+ * than the given route is called.
+ *
+ * The optional special parameter '_function' is set as functionName on to
+ * the request-struct. It is not part of values struct.
+ *
+ * Arguments:
+ * options - defaultValues and/or default funcitonName
+ * route - route to call with the result
+ */
+structRoute opts nextHandler is 'o -> 'h -> route =
+    (load yeb.validation;
+
+    values = [:];
+    var functionName = "";
+    for opts \case of
+        Defaults ha: insertHash values (ha is hash<string,list<string>>);
+        DefaultFunction n: functionName := n;
+    esac;
+
+    do req res:
+        import org.vertx.java.core.json:JsonObject,
+                                        JsonArray;
+        import org.vertx.java.core.eventbus:Message;
+        
+
+        insertHash values req.params;
+
+
+        jo = new JsonObject();
+        forHash values do k v:
+            _ = if strStarts? k "num_" then
+                name = strRight k 4;
+                value = valiList strToNum (req.params[k]);
+                if length value == 1 then
+                    jo#putNumber(name, (head value) is number);
+                else
+                    ja = new JsonArray();
+                    for value do v:
+                        _ = ja#add(v);
+                    done;
+                    jo#putArray(name, ja);
+                fi;
+            elif strStarts? k "bool_" then
+                name = strRight k 5;
+                value = valiList strToBoolean (req.params[k]);
+                if length value == 1 then
+                    jo#putBoolean(name, head value);
+                else
+                    ja = new JsonArray();
+                    for value do v:
+                        _ = ja#add(v);
+                    done;
+                    jo#putArray(name, ja);
+                fi;
+            elif k == "_function" and
+                length (req.params[k]) > 0 then
+                functionName := head req.params[k];
+            else
+                name = k;
+                value = req.params[k];
+                if length value == 1 then
+                    jo#putString(name, head value);
+                else
+                    ja = new JsonArray();
+                    for value do v:
+                        _ = ja#add(v);
+                    done;
+                    jo#putArray(name, ja);
+                fi;
+            fi;
+        done;
+
+        if "Content-Type" in req.headers
+            and req.headers["Content-Type"] =~ "application/json" then
+            //read the body and parse it as jons
+            json = new JsonObject(fromUTF8bytes req.body);
+            jo#putObject("body",json);
+        fi;
+
+
+        result = {functionName,
+                values = yvertx.fromJson jo};
+        nextHandler req result res;
+        
+   done); 
+
+/**
+ * creates a route which converts the request to struct using
+ * the 'requestToStruc' function and than invoces a function on the given
+ * structure according to the name with the value.
+ */
+restRoute opts stru is 'a -> {jsonStru is boolean} -> route =
+    (import yeti.lang:Fun;
+    fnHash = (
+        ret = [:];
+        {fields, value} = case peekObject stru of
+            Struct r: r;
+            _ : failWith "this is not realy possible"
+        esac;
+        
+        fields 
+            |> filter do fin:
+                fold do b n: b or (strStarts? fin n) done 
+                    false 
+                    ["get_", "put_", "post_", "delete_", "all_"]
+            done
+            |> (flip for) do n:
+                case value n of
+                Object ob: 
+                    if (ob is ~Object) instanceof Fun then
+                        ret[n] := (ob unsafely_as ~Fun)
+                    fi;
+                _ : ()
+                esac;
+            done;
+        ret);
+    
+    structRoute opts do req {functionName, values} res:
+        {method} = req;
+        sname = (strLower method)^"_"^functionName;
+        
+        call fno = 
+            (fn = (fno is ~Object) unsafely_as ('a -> 'b);
+            js = fn values;
+            js = js with {for_json = E()};
+            res <== (resm.json js));
+             
+
+        if sname in fnHash then
+            call fnHash[sname];
+        else
+            sname = "all_"^functionName;
+            if sname in fnHash then
+                call fnHash[sname]
+            else
+               res (Some continue); 
+            fi
+        fi;
+        
+    done);
+
+
+
+/*
+requestToJson req = 
+    {headers = (req is request).headers,
+    uri = req.uri,
+    path = req.path,
+    method = req.method,
+    params = req.params,
+    resHeaders = req.resHeaders,
+    body = req.body,
+    for_json = E()};
+    
+requestToBusHandler bustarget req =
+    (yvertx = load yvertx;
+    jr = requestToJson req;
+    yvertx.requestFromBus bustarget jr do r:
+        res = case r of
+        None ex:
+            response req 404 [:] noneBody;
+        Some m:
+            response req
+                (maybeDefined \200 isNumber m.statusCode)
+                (maybeDefined \[:] id m.headers)
+                (maybeDefined \noneBody id m.body);
+        esac is response;
+        (req is request).respond res;
+    done);
+
+requestFromBusHandler route msg =
+    (b = msg.body;
+    (route is route) {
+        headers = maybeDefined \[:] id b.headers,
+        uri = isString b.uri,
+        path = isString b.path,
+        method = isString b.method,
+        params = maybeDefined \[:] id b.params,
+        body = maybeDefined \noneBody id b.body,
+        resHeaders = maybeDefined \[:] id b.resHeaders,
+        respond res = msg.reply (Some  res)
+        });
+*/
+{
+    restRoute,
+    structRoute,
+        
+}
+

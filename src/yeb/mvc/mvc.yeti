@@ -30,6 +30,7 @@ import yeb.ValidationException;
 load yeb.std;
 load yeb.async;
 load yeb.validation;
+util = load yeb.mvc.impl.util;
 
 typedef cookie = {
     name is string,
@@ -50,279 +51,112 @@ typedef response = {
 
 
 typedef request = {
+    method is string,
+    url is string,
     headers is hash<string, string>,
-    uri is string,
+    body is ~byte[],
     mountPath is string,
     path is string,
-    method is string,
-    body is ~byte[],
     params is hash<string,list<string>>,
-    resHeaders is hash<string,array<string>>,
+    queryParams is hash<string,list<string>>,
+    bodyParams is hash<string, list<string>>,
+    allParams is hash<string,list<string>>,
+    cookies is hash<string,cookie>
 };
 
 
 typedef route = request -> asyncFunction<response>;
 
+escape = util.escape;
 
+/**
+ * Group: send (SEND)
+ *
+ * This function should be used to create the response struct
+ * Creates a new response structure which can be sent to the response
+ * handler.
+ *
+ * The headers hash of the response has a default set to an empty
+ * array which is also added to the hash itself.
+ */
+response statusCode headers body = 
+    ({var statusCode = statusCode, 
+     headers = 
+        ha = [:] is hash<string,array<string>>;
+        forHash headers do k v:
+            ha[k] := array [v]
+        done;
+        setHashDefault ha do k:
+            ar = array [];
+            ha[k] := ar is array<string>;
+            ar
+        done;
+        ha,
+     var body = body} is response);
 
-request {method,uri,path,headers} =
+/**
+ * Group: send
+ *
+ * Internal response object used to signal that the route-searching should
+ * continue
+ */
+continue is response = 
+    response (-1) [:] util.noneBody;
+
+_sContinue = Some continue;    
+
+/**
+ * Group: request (REQUEST)
+ *
+ * Creates a new request. This function should be used to create a request.
+ * The params, queryParams, bodyParams fields have a hash which defaults
+ * to an empty list. 
+ *
+ * Arguments:
+ * - method: the http method in upper case
+ * - url: the url of the request (whtihout domain and scheme)
+ * - path: the path part of the url without query
+ * - headers: a map of headers 
+ */
+request {method,url,path,headers} =
+    (
+    params = listHash(); 
+    queryParams = listHash(); 
+    bodyParams = listHash(); 
+    allParams = 
+        (ha = [:];
+        setHashDefault ha do k:
+            if k in params then
+                params[k];
+            elif k in queryParams then
+                queryParams[k];
+            elif k in bodyParams then
+                bodyParams[k]
+            else
+                []
+            fi;
+        done;
+        ha);
+                
     {
+    method = strUpper method,
+    url,
     headers,
-    uri,
+    body = util.noneBody,
+    mountPath = path,
     path,
-    method,
-    body = noneBody,
-    params = [:],
-    resHeaders = [:],
-    } is request;
+    params,
+    queryParams,
+    bodyParams,
+    allParams,
+    cookies = [:]
+    } is request);
 
 
 
 
-
-
-getCookies headers = 
-    (import io.netty.handler.codec.http:CookieDecoder,
-                                            Cookie;
-    str = headers["Cookie"];                                        
-    CookieDecoder#decode(str is string) 
-    |> (unsafely_as ~java.util.Collection)
-    |> mapJavaList do ob:
-        co = (ob unsafely_as ~Cookie);
-        ({name = co#getName(),
-        value = co#getValue(),
-        comment = co#getComment(),
-        commentUrl = co#getCommentUrl(),
-        domain = co#getDomain(),
-        maxage = co#getMaxAge(),
-        path = co#getPath(),
-        secure = co#isSecure()} is cookie)
-    done);
-
-getCookie headers name =
-    filter (( == name) . (.name)) (getCookies headers);
-
-
-
-params name req =
-    if name in ((req is request).params) then
-        req.params[name];
-    else
-        [] is list<string>
-    fi;
-
-maybeParam name falseFn valiFn ctxt =
-    (ls = params name ctxt;
-    if empty? ls then
-        valiFn (head ls);
-    else
-        falseFn ();
-    fi);
-
-param name ctx = 
-   (ls = params name ctx;
-   if not empty? ls then
-       head ls;
-    else
-        failWithValidation 
-            "No request-parameter for name \(name)" 
-            "";
-    fi);
-
-maybeHeader name req =
-    if name in (req is request).headers then
-        Some req.headers[name]
-    else 
-        none
-    fi;
-
-isAjax req = 
-    case maybeHeader "X-Requested-With" req of
-    None (): false;
-    Some v: (strLower v) == "xmlhttprequest"
-    esac;
-
-escape text =
-    (escapeT s =
-         "&#\(Character#codePointAt(s[0] is string, 0));";
-     strJoin '' (matchAll '[<>&"]' escapeT id "\(text)"));
-
-//"   
 
     
-//+++++++++++++++++++++++Utils ++++++++++++++++++++++++++++
-_date_formatsTH = threadLocal do:
-        import java.util:Locale,
-                         Calendar,
-                         TimeZone;
-        import java.text:SimpleDateFormat;
-        
-        cal = Calendar#getInstance();
-        cal#set(2000, Calendar#JANUARY, 1,0,0);
-        createFormat pattern =
-            (f = new SimpleDateFormat(pattern is string, Locale#US);
-            f#setTimeZone(TimeZone#getTimeZone("GMT"));
-            f#set2DigitYearStart(cal#getTime());
-            f);
-
-        formats = {
-            rfc1123 = createFormat "EEE, dd MMM yyy HH:mm:ss zzz",
-            rfc1036 = createFormat "EEEE, dd-MMM-yy HH:mm:ss zzz",
-            asctime = createFormat "EEE MMM d HH:mm:ss yyyy"
-        };
-        formats;
-    done;
-
-parseHttpDate dateValue =
-    (import java.text:ParseException;
-    dateValue = if strStarts? dateValue "'" and strEnds? dateValue "'" then
-            strSlice dateValue 1 ((strLength dateValue) - 1);
-        else
-            dateValue;
-        fi;
-    formats = _date_formatsTH.value;
-    try
-        Some (formats.asctime#parse(dateValue));
-    catch ParseException ex:
-        try
-            Some (formats.rfc1036#parse(dateValue));
-        catch ParseException ex:
-            try
-                Some (formats.rfc1123#parse(dateValue));
-            catch ParseException ex:
-                none
-            yrt
-        yrt
-    yrt);
-
-formatHttpDate date =
-    (_date_formatsTH.value).rfc1123#format(date);
-
-
-readBody req =
-    if req.body == noneBody then
-        ""
-    else
-        str = new String(req.body is ~byte[], "UTF-8");
-        string str;
-    fi;
-
-parseQuery query =
-    (ret = [:];
-    _ = matchAll '([^&=]+)(=([^&=]*))?'
-        do ar:
-            name = urlDecode (ar[1]);
-            value = urlDecode (ar[3]);
-            ols = if not name in ret then [] else ret[name] fi;
-            ret[name] := value :: ols;
-            "";
-        done
-        id
-        query;
-    ret);
-
-readFormData req =
-    case maybeHeader "Content-Type" req of
-    None (): ();
-    Some v:
-        if strStarts? v "application/x-www-form-urlencoded" then
-            insertHash req.params (parseQuery (readBody req));
-        else
-            ()
-        fi
-    esac;
-
-url strList = 
-    (if empty? strList then
-        ""
-    else
-        strb = new java.lang.StringBuilder();
-        var hasQuestion = false;
-        var isName = false;
-        var isFirstName = false;
-        for strList do str:
-            if (not hasQuestion) then
-                cut = strIndexOf str "?" 0;
-                if cut == ((strLength str )- 1) then
-                    if strb#length() > 0 then
-                        strb#append("/")
-                    fi;
-                    strb#append(str);
-                    hasQuestion := true;
-                    isName := true;
-                    isFirstName := true;
-                elif cut == 0 then
-                    strb#append(str);
-                    if not (strEnds? str "=") then
-                        strb#append("=");
-                    fi;
-                    hasQuestion := true;
-                    isName := false;
-                elif cut > 0 then
-                    if strb#length() > 0 then
-                        strb#append("/")
-                    fi;
-                    strb#append(str);
-                    if not (strEnds? str "=") then
-                        strb#append("=");
-                    fi;
-                    hasQuestion := true;
-                    isName := false;
-                else
-                    if strb#length() > 0 then
-                        strb#append("/")
-                    fi;
-                    strb#append(str);();
-                fi
-            else
-                if isName then
-                    if not isFirstName then strb#append("&"); fi;
-                    strb#append(str);
-                    strb#append("=");
-                    isName := false;
-                else
-                    r = urlEncode str;
-                    strb#append(r);
-                    isName := true;
-                fi
-           fi
-       done;
-       strb#toString();
-   fi);
-
-urlParam str name value = 
-    (hasQuestion = (strIndexOf str "?" 0) > -1;
-    strb = new java.lang.StringBuilder(str);
-    if hasQuestion then
-        strb#append("&");
-    else
-        strb#append("?");
-    fi;
-    strb#append(name)#append("=")#append(urlEncode value);
-    string strb);
-
-
-ptag name params content 
-        is string -> hash<string,string> -> list<string> -> string = 
-    (var strb = new java.lang.StringBuilder();
-    strb := strb#append("<")#append(escape name);
-    forHash params do k v:
-        strb := strb#append(" ")
-            #append(escape k)
-            #append('="')
-            #append(escape v)
-            #append('"');
-    done;
-    if empty? content then
-        strb := strb#append("/>");
-    else
-        strb := strb#append(">")
-            #append(strJoin "\n" content)
-            #append("</")
-            #append(name)
-            #append(">");
-    fi;
-    strb#toString());
 
 /*
 oldFlashKey = "org.yeb.session.oldflash";
@@ -446,7 +280,7 @@ _regexRoute method regex handler  =
 
     do req res:
         if checkMethod? and (meth != (strUpper req.method )) then
-            res continue;
+            res _sContinue;
         else
             matcher = pattern#matcher(req.path is string);
             if matcher#matches() then
@@ -476,25 +310,33 @@ _regexRoute method regex handler  =
                     yrt;        
                 done;
 
-                //set the new pathInfo and servletPath
-                path = if (contains? "rest" names) 
-                    and (defined? matcher#group("rest")) then
-                    string matcher#group("rest");        
-                else
-                    ""
-                fi;
-                nreq = req with { params, path};
+                nreq = req with { params};
 
                 try
                     handler nreq res
                 catch ValidationException ex:
-                    res continue;
+                    res _sContinue;
                 yrt;
             else
-                res continue;
+                res _sContinue;
             fi;
         fi;
     done);
+
+/**
+ * Mounts the request to the given prefix
+ * sets the mountPath the path and the url to the given value
+ */
+mount mountPrefix handler req response is string -> route -> route = 
+    (if strStarts? req.path mountPrefix then
+        nreq = req with {
+            mountPath = req.mountPath^mountPrefix,
+            path = strRight req.path (strLength mountPrefix)
+        };
+        handler nreq response
+    else
+        response _sContinue
+    fi);
 
 _methodPattern requestUrl = 
     case requestUrl of
@@ -520,7 +362,7 @@ regexRoute regex route =
     _regexRoute pa.fst pa.snd route);
 
 /**
- * Handleradapter which takes a request method and a pattern 
+ * RouteAdapter which takes a request method and a pattern 
  * (see patternToRegex) and 
  * executes on match the given route. 
  * Normally this is not used directly but a router is used.
@@ -529,15 +371,20 @@ patternRoute pattern route =
     (pa = _methodPattern pattern;
     _regexRoute pa.fst (patternToRegex pa.snd) route);
 
+/**
+ * Creates one route from many routes. The routes are executed
+ * one ofter the other as long as they respons with status-code 
+ * the internal status-code continue (= -1)
+ */
 routes handlers req responder is list<route> -> route =
     if empty? handlers then
-        responder continue;
+        responder _sContinue;
     else
         try
         (head handlers) req \case of
             None ex: responder (None (ex is ~Exception));
             Some res:
-                if res.statusCode == continueStatusCode then
+                if res.statusCode == continue.statusCode then
                     routes (tail handlers) req responder;
                 else
                     responder (Some res)
@@ -548,15 +395,80 @@ routes handlers req responder is list<route> -> route =
         yrt
     fi;
 
+/**
+ * Parses the query and form data in queryParams and bodyParams
+ */
+paramsMiddleware route req res =
+    (//the query
+    cut = strIndexOf req.uri "?" 0;
+    req = if cut >= 0 then
+            req with {
+                queryParams = parseQuery (strRight req.uri cut)
+            }
+        else
+            req
+        fi;
+    //the form data
+    req = req with {
+        bodyParams = util.readFormData req
+    };
 
+    route req res);
 
+/**
+ * Cookie parser parses the cookies 
+*/
+cookiesMiddleware route req res =
+    (nreq = req with {
+        cookies = util.parseCookies req
+    };
+    route nreq res);
+
+/**
+ * Error handler
+ */
+errorMiddleware handler route req res =
+    try
+        route req \case of
+        None ex: handler (ex is ~Exception) req res;
+        Some r : res (Some r);
+        esac;
+    catch Exception ex:
+        handler ex req res;
+    yrt;
+
+/**
+ * Condition middleware 
+ */
+ifReq fn route req res =
+    if fn req then
+        route req res
+    else
+        res _sContinue
+    fi;
+
+/**
+ * calculates the etag and set the header
+ */
+etagMiddleware route req resF =
+    route req \case of
+        None ex: resF (None ex);
+        Some res:
+            etag = messageByteDigest "MD5" res.body;
+            case maybeAt None Some "If-None-Match" req.headers of
+            None _: 
+                res.headers["ETag"] := array [etag];
+                resF (Some res);
+            Some et:
+                if et == etag then
+                    resF (Some (response 304 [:] (toUTF8bytes "Not modified")))
+                else
+                    res.headers["ETag"] := array [etag];
+                    resF (Some res);
+                fi
+            esac;
+        esac;
 {
-
-    patternToRegex,
-    regexRoute,
-    patternRoute,
-    routes,
-
     (==>>) = patternRoute,
     (~~>>) = regexRoute,
     (==>) p h = patternRoute p do req res:
@@ -569,58 +481,20 @@ routes handlers req responder is list<route> -> route =
     (<==) fn res is (either<response> -> ()) -> response -> ()= 
         fn (Some res),
 
-    HEADER_PRAGMA = "Pragma",
-    HEADER_EXPIRES = "Expires",
-    HEADER_CACHE_CONTROL = "Cache-Control",
-
-    noneBody,
-    fileResponse,
-
-    addEtag,
-
-    cookie,
-    setCookies,
-    getCookies,
-    getCookie,
-    addCookie,
-    continue,
-    continueStatusCode,
-    request,
-    response,
-    params,
-    param,
-    maybeParam,
-
-    addHeader,
-    maybeHeader,
-
-
-    isAjax,
-    escape,
-
-    writeRedirect,
-    writeStatus,
-    write500,
-    write401,
-    writeStatusType,
-    write,
-    newWriter,
-    writeHtml,
-    writeJsonResponse,
-    
-    cacheForSeconds,
-    
-    parseHttpDate,
-    formatHttpDate,
-    readBody,
-    parseQuery,
-    readFormData,
-    url,
-    urlParam,
-    ptag,
-
-
     (@) text = escape text,
 
-        
+    response,
+    continue,
+    request,
+    escape,
+    patternToRegex,
+    mount,
+    regexRoute,
+    patternRoute,
+    routes,
+    paramsMiddleware,
+    cookiesMiddleware,
+    errorMiddleware,
+    ifReq,
+    etagMiddleware
 }

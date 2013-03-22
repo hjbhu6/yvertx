@@ -1,0 +1,226 @@
+/*
+ * Copyright 2011 Christian Essl
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions
+ * and limitations under the License.
+ */
+
+module yeb.mvc.impl.util;
+
+load yeb.std;
+
+noneBody = new byte[0];
+
+escape text =
+    (import java.lang.Character;
+    escapeT s =
+         "&#\(Character#codePointAt(s[0] is string, 0));";
+     strJoin '' (matchAll '[<>&"]' escapeT id "\(text)"));
+
+//"   
+
+//+++++++++++++++++++++++Utils ++++++++++++++++++++++++++++
+_date_formatsTH = threadLocal do:
+        import java.util:Locale,
+                         Calendar,
+                         TimeZone;
+        import java.text:SimpleDateFormat;
+        
+        cal = Calendar#getInstance();
+        cal#set(2000, Calendar#JANUARY, 1,0,0);
+        createFormat pattern =
+            (f = new SimpleDateFormat(pattern is string, Locale#US);
+            f#setTimeZone(TimeZone#getTimeZone("GMT"));
+            f#set2DigitYearStart(cal#getTime());
+            f);
+
+        formats = {
+            rfc1123 = createFormat "EEE, dd MMM yyy HH:mm:ss zzz",
+            rfc1036 = createFormat "EEEE, dd-MMM-yy HH:mm:ss zzz",
+            asctime = createFormat "EEE MMM d HH:mm:ss yyyy"
+        };
+        formats;
+    done;
+
+parseHttpDate dateValue =
+    (import java.text:ParseException;
+    dateValue = if strStarts? dateValue "'" and strEnds? dateValue "'" then
+            strSlice dateValue 1 ((strLength dateValue) - 1);
+        else
+            dateValue;
+        fi;
+    formats = _date_formatsTH.value;
+    try
+        Some (formats.asctime#parse(dateValue));
+    catch ParseException ex:
+        try
+            Some (formats.rfc1036#parse(dateValue));
+        catch ParseException ex:
+            try
+                Some (formats.rfc1123#parse(dateValue));
+            catch ParseException ex:
+                none
+            yrt
+        yrt
+    yrt);
+
+formatHttpDate date =
+    (_date_formatsTH.value).rfc1123#format(date);
+
+
+readBody req =
+    if req.body == noneBody then
+        ""
+    else
+        str = new String(req.body is ~byte[], "UTF-8");
+        string str;
+    fi;
+
+
+parseCookies request =
+    (import io.netty.handler.codec.http:CookieDecoder,
+                                            Cookie;
+    ret = [:];
+    if "Cookie" in request.headers then
+        CookieDecoder#decode(request.headers["Cookie"] is string) 
+        |> (unsafely_as ~java.util.Collection)
+        |> mapJavaList do ob:
+            co = (ob unsafely_as ~Cookie);
+            ({name = co#getName(),
+            value = co#getValue(),
+            comment = co#getComment(),
+            commentUrl = co#getCommentUrl(),
+            domain = co#getDomain(),
+            maxage = co#getMaxAge(),
+            path = co#getPath(),
+            secure = co#isSecure()})
+        done
+        |> (flip for) do c: ret[c.name] := c done;
+    fi;
+    ret);
+
+
+readFormData req =
+    if "Content-Type" in req.headers 
+        and req.headers["Content-Type"] == "application/x-www-form-urlencoded"
+        then
+
+        parseQuery (readBody req);
+    else
+        listHash()
+    fi;
+        
+
+url strList = 
+    (if empty? strList then
+        ""
+    else
+        strb = new java.lang.StringBuilder();
+        var hasQuestion = false;
+        var isName = false;
+        var isFirstName = false;
+        for strList do str:
+            if (not hasQuestion) then
+                cut = strIndexOf str "?" 0;
+                if cut == ((strLength str )- 1) then
+                    if strb#length() > 0 then
+                        strb#append("/")
+                    fi;
+                    strb#append(str);
+                    hasQuestion := true;
+                    isName := true;
+                    isFirstName := true;
+                elif cut == 0 then
+                    strb#append(str);
+                    if not (strEnds? str "=") then
+                        strb#append("=");
+                    fi;
+                    hasQuestion := true;
+                    isName := false;
+                elif cut > 0 then
+                    if strb#length() > 0 then
+                        strb#append("/")
+                    fi;
+                    strb#append(str);
+                    if not (strEnds? str "=") then
+                        strb#append("=");
+                    fi;
+                    hasQuestion := true;
+                    isName := false;
+                else
+                    if strb#length() > 0 then
+                        strb#append("/")
+                    fi;
+                    strb#append(str);();
+                fi
+            else
+                if isName then
+                    if not isFirstName then strb#append("&"); fi;
+                    strb#append(str);
+                    strb#append("=");
+                    isName := false;
+                else
+                    r = urlEncode str;
+                    strb#append(r);
+                    isName := true;
+                fi
+           fi
+       done;
+       strb#toString();
+   fi);
+
+urlParam str name value = 
+    (hasQuestion = (strIndexOf str "?" 0) > -1;
+    strb = new java.lang.StringBuilder(str);
+    if hasQuestion then
+        strb#append("&");
+    else
+        strb#append("?");
+    fi;
+    strb#append(name)#append("=")#append(urlEncode value);
+    string strb);
+
+
+printTag name params content 
+        is string -> hash<string,string> -> list<string> -> string = 
+    (var strb = new java.lang.StringBuilder();
+    strb := strb#append("<")#append(escape name);
+    forHash params do k v:
+        strb := strb#append(" ")
+            #append(escape k)
+            #append('="')
+            #append(escape v)
+            #append('"');
+    done;
+    if empty? content then
+        strb := strb#append("/>");
+    else
+        strb := strb#append(">")
+            #append(strJoin "\n" content)
+            #append("</")
+            #append(name)
+            #append(">");
+    fi;
+    strb#toString());
+{
+    parseHttpDate,
+    formatHttpDate,
+    readBody,
+    parseCookies,
+    readFormData,
+    url,
+    urlParam,
+    printTag,
+    escape,
+    noneBody,
+
+}

@@ -19,7 +19,7 @@ module yeb.mvc.request;
 std = load yeb.std;
 load yeb.mvc.mvc;
 validation = load yeb.validation;
-util = load yeb.mvc.impl.util;
+
 
 
 /**
@@ -28,7 +28,7 @@ util = load yeb.mvc.impl.util;
  * Reads the Host header field from the request
  */
 host request = 
-    request.headers["host"];
+    req.headers["host"];
 
 /**
  * Group: url
@@ -36,8 +36,8 @@ host request =
  * Retrieves the protocol (either http or https)
  */
 protocol request = 
-    if "scheme" in request.headers then
-        request.headers["scheme"]
+    if "scheme" in headers then
+        headers[scheme]
     else
         "http"
     fi;
@@ -117,7 +117,7 @@ param noneFn someFn name params =
  */
 requireParam name = 
     param do:
-            validation.failWithValidation "No value for parameter \(name)" name
+            vali = failWithValidation "No value for parameter \(name)"
         done
         id 
         name;
@@ -140,8 +140,8 @@ _contentTypeRegex = like '^\s*([\*\w]+)(/([\*\w]+))?';
  *
  * Checks wheter the content-type of the rquest ist of the given mime/type
  */
-type? contentType request =
-    (ari = _contentTypeRegex contentType ();
+isType contentType request =
+    ari = _contentTypeRegex contentType ();
     if empty? ari then
         failWith "No valid mime-type pattern input \(contentType)";
     else
@@ -149,6 +149,7 @@ type? contentType request =
         aMi = ari[3];
         do request:
             if "Content-Type" in request.headers then
+                ct = request.headers["Content-Type"];
                 ar = _contentTypeRegex 
                         request.headers["Content-Type"]
                         ();
@@ -158,11 +159,11 @@ type? contentType request =
                     if aMi == "" then
                         aMa == "*" or aMa == rMi 
                     elif aMa == "*" then
-                        aMi == "*" or aMi == rMi
+                        aMi == "*" or aMi = rMi
                     elif aMi == "*" then
                         aMa == rMa
                     else
-                        aMa == rMa and aMi == rMi
+                        aMa == rMa and aMi rMi
                     fi
                 else
                     false
@@ -173,18 +174,18 @@ type? contentType request =
             fi;
 
         done;
-    fi);
+    fi;
 {
-    readBody = util.readBody,
     request,
     host,
     protocol,
-    secure?,
+    secure,
     domain,
     subdomains,
     param,
+    allParam,
     requireParam,
     xhr?,
-    type?,
+    isType,
 }
 

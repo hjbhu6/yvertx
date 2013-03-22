@@ -31,6 +31,30 @@ failWithValidation msg value =
 newValidationException msg value =
     new ValidationException(msg is string, value unsafely_as ~Object);
 
+
+failVali x = 
+    (import java.lang.Throwable;
+    import yeti.lang.Tag;
+    ob = x unsafely_as ~Object;
+    ob =if not defined? x then
+            ("" unsafely_as ~Object)
+        elif ob instanceof Tag then
+            t = (ob unsafely_as ~Tag);
+            if t#name == "None" or t#name == "none" then
+                t#value
+            else
+                ob
+            fi
+        else
+            ob
+        fi;
+
+    if ob instanceof Throwable then
+        throw (ob unsafely_as ~Throwable);
+    else 
+        failWithValidation "Failure Value: [\(ob)]" ob;
+    fi);
+
 validOr notValid validFn value =
     try
         validFn value;

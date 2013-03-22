@@ -1,0 +1,496 @@
+/*
+ * Copyright 2013 Christian Essl
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions
+ * and limitations under the License.
+ */
+
+module yeb.mvc.response;
+
+std = load yeb.std;
+load yeb.mvc.mvc;
+req = load yeb.mvc.request;
+
+/**
+ * Group: util (UTIL)
+ *
+ * a hash of all statuscodes to messages
+ */
+statusCodes = 
+    (//read them from netty
+    import io.netty.handler.codec.http:HttpResponseStatus;
+    import java.lang.reflect:Modifier;
+    ha = [:];
+    cl = classOf HttpResponseStatus;
+    fields = cl#getDeclaredFields();
+    for fields do field:
+        mod = field#getModifiers();
+        if Modifier#isStatic(mod) 
+            and Modifier#isFinal(mod)
+            and Modifier#isPublic(mod) then
+            ob = field#get(() as ~Object);
+            if ob instanceof HttpResponseStatus then
+                rs = ob unsafely_as ~HttpResponseStatus;
+                ha[rs#code()] := string rs#reasonPhrase()
+            fi
+        fi;
+    done;
+    setHashDefault ha do n: "Status-Code: \(n)" done;
+    ha);
+
+/**
+ * Group: header (HEADER)
+ *
+ * set a header field in an existing resposne. Will remove all existing
+ * headers.
+ *
+ */
+setHeader response name value is response -> string -> string -> () =
+    response.headers[name] := array [value];
+
+
+/**
+ * Group: util
+ *
+ * Creates a path for the location header field used ie in redirects.
+ *
+ * The path argument can have different forms:
+ *
+ * example:
+ *
+ * : calcLocationPath req "http://google.com"
+ *
+ * will take the path as is
+ *
+ * The second form is the host-relative path
+ *
+ * : calcLocationPath req "/admin"
+ *
+ * will give a path relative to the host ie http://some.org/admin
+ *
+ * The third form is the mount relative path
+ *
+ * : calcLocationPath req "admin"
+ *
+ * will give a path relative to the current mountPath ie
+ * http://some.org/sumodule/admin.
+ *
+ * Arguments:
+ * request - the current rquest
+ * path - the path
+ */
+calcLocationPath request path =
+    if path =~ '^[a-z]+://' then
+        path
+    elif strStarts? path "/" then
+        (req.protocol request)^"://" ^ req.host request ^ path;
+    else
+        request.mountPath ^path;
+    fi;
+
+
+
+/**
+ * Group: util
+ *
+ * Empty byte[] array. Same as new byte[0]
+ */
+noneBody = new byte[0];
+
+
+/**
+ * Group: header
+ *
+ * set the Content-Dispostion header field to "attachement". If 
+ * a filename is given the Content-Dispostition "filname="parameter will 
+ * be set. If the filename parameter is empty or undefined no parameter will
+ * be set
+ *
+ * Example:
+ *
+ * : attachement response "path/to/download.zip"
+ * : // Content-Disposition: attachement; filename="download.zip"
+ * :
+ * : attachement response ""
+ * : // Content-Disposition: attachement
+ *
+ */
+attachement response file =
+    (fn = if not defined? file or file == "" then
+            file;
+        else
+            import java.io.File;
+            l = strLength file;
+            cut = max (strLastIndexOf file "/" l)
+                      (strLastIndexOf file File#separator l);
+            '; filename="'^if cut <= 0 then
+                file
+            else
+                strRight file cut;
+            fi^'"';
+        fi;
+    setHeader response "Content-Disposition" "attachement\(fn)");
+
+/**
+ * Group: send
+ *
+ * Response which tells the server to send a file.
+ *
+ * The server itself uses org.vertx.java.core.http.HttpServerResponse#sendFile().
+ * This method will also set the Content-Type based on the file extension.
+ *
+ * Optionally you can pass Attachement true which will set the 
+ * Content-Disposition header field (see the attachement function)
+ *
+ * Arguments:
+ * options - options for the send - currently only Attachement
+ * fileName - name of the file to send
+ */
+sendfile opts fileName = 
+    (res = response (-2) ["file": fileName] noneBody;
+    for opts \case of
+        Attachement bo: 
+            if bo then
+                attachement res fileName
+            fi
+        esac;
+    res);
+
+/**
+ * Group: util
+ *
+ * Creates a structure which can be used in teti for printing.
+ *
+ * Use the value proeprty to get the printed string
+ */
+newWriter () =
+    (import java.lang.StringBuilder;
+    stb = new StringBuilder();
+    {
+        write str = stb#append(escape str),
+        echo str = stb#append(str is string),
+        stringBuilder = stb,
+        get value () = string stb#toString()
+    });
+
+
+/**
+ * Group: send
+ *
+ * Create a redirect response. The status-code is 302. The path
+ * is a location path (see createLocationPath function)
+ *
+ * Arguments:
+ * path - a location path
+ * request - the request
+ */
+redirect path request = 
+   response 302 ["Location":calcLocationPath request path] noneBody;
+
+/**
+ * Group: send
+ *
+ * Create an utf-8 encoded response with the given statusCode, 
+ * content-type and * string content
+ *
+ * Arguments:
+ * statusCode - the http status-code
+ * contentType - the contentType without charset, because charset utf-8 is 
+ * always added
+ * content - the string which will be encloded in utf-8 
+ */
+sendStatusType status contentType content =
+    response  status ["Content-Type":contentType^"; charset=utf-8"]
+        (std.toUTF8bytes content);
+
+/**
+ * Group: send
+ *
+ * Like sendStatusType but with status-code 200
+ *
+ * Arguments:
+ * 
+ * contentType - the contentType 
+ * content - the content
+ *
+ */
+send contentType content =
+    sendStatusType 200 contentType content;
+
+/**
+ * Group: send
+ *
+ * Send a status-code with the given msg. The content-type
+ *
+ * Arguments:
+ *
+ * status - the status code
+ * statusMessage - the statusMessage
+ */
+statusMsg status content =
+    sendStatusType status "text/plain" content;
+
+/**
+ * Group: send
+ *
+ * send a status. The status message will be taken from the 
+ * statusCode hash
+ *
+ * Arguments:
+ * 
+ * statusCode - the http status-code
+ */
+status stat =
+    statusMsg stat statusCodes[stat];
+
+/**
+ * Group: send
+ *
+ * send html content with status-code 200 and content-type text/html
+ *
+ * Arguments:
+ *
+ *  content - the html content
+ */
+html content =
+    send "text/html" content;
+
+/**
+ * Group: send
+ *
+ * send json content with status-code 200 and content-type application/json
+ *
+ * Arguments:
+ *
+ *  json - a json struct
+ */
+json json =
+    send "application/json" (std.writeJson json);
+
+/**
+ * Group: send
+ *
+ * send jsonp with contenten-type application/javascript
+ *
+ * The callback name is 'callback'
+ *
+ * Example:
+ * 
+ * : jsonp {user = "tobi", for_json = E()}
+ * : // => callback({"user":"tobi"})
+ *
+ * Arguments:
+ *
+ * json - the json struct
+ */
+jsonp json =
+    send "application/javascript" ("callback(\(std.writeJson json))");
+    
+
+/**
+ * Group: header
+ *
+ * Sets the cache for secnods header
+ */
+cacheForSeconds res seconds mustRevalidate = 
+    if seconds > 0 then
+        //HTTP1.0 header
+        setHeader res "Expires" 
+            (string (System#currentTimeMillis() + (seconds * 1000)));
+        //HTTP1.1 header
+        setHeader res "Cache-Control" 
+            "max-age=\(seconds)\(if mustRevalidate then 
+                                    ", must revalidate" else ""fi)";
+    else
+        setHeader res "Pragma" "no-cache";
+        setHeader res "Expires" "1";
+        setHeader res "Cache-Control" "no-cache, no-store";
+    fi;
+
+/**
+ * Group: header
+ *
+ * Calculates an MD5 digest from the response body and sets it as 
+ * etag.
+ *
+ * Arguments:
+ *
+ * response - the body must already be set
+ */
+etag response = 
+    (digest = std.messageByteDigest "MD5" response.body;
+    setHeader response "Etag" digest);
+    
+
+/**
+ * Group: cookie
+ *
+ * Sets a cookie on the response.
+ *
+ * Arguments:
+ *
+ * response - the response to set the cookie on
+ * options - optional cookie values which correspond to netty DefaultCookie
+ * see the api doc there
+ * name - the name of the cookie
+ * value - the value of the cookie
+ */
+cookie response opts name value =
+    (import io.netty.handler.codec.http:ServerCookieEncoder,
+                                        Cookie,
+                                        DefaultCookie;
+    
+    dc = new DefaultCookie(name is string, value is string);
+    
+    for opts do opt:
+        case opt of
+        Comment str: dc#setComment(str is string);
+        CommentUrl str : dc#setCommentUrl(str is string);
+        Clear bo: dc#setDiscard(bo is boolean);
+        Domain str : dc#setDomain(str is string);
+        Maxage n : dc#setMaxAge(n is number);
+        Path str : dc#setPath(str is string);
+        Ports an: dc#setPorts(an is array<number>);
+        Secure b: dc#setSecure(b is boolean);
+        Version n: dc#setVersion(n is number);
+        esac;
+    done;
+    str = ServerCookieEncoder#encode(dc as ~Cookie);
+    response.headers["Set-Cookie"] := str);
+
+/**
+ * Group: cookie
+ *
+ * Marks the cookie do be discarded
+ *
+ * Arguments:
+ *
+ * response - the response to add the dispose cookie
+ * name - the name of the cookie
+ */
+clearCookie response name =
+    cookie response [Clear true] name "";
+
+/**
+ * Group: header
+ *
+ * Set the location header on the given response.
+ *
+ * Arguments:
+ *
+ * request - the current request
+ * response - the response to set the header on
+ * path - the location path (see calcLocationPath function for description)
+ */
+location request response path =
+    setHeader response "Location" (calcLocationPath request path);
+
+_charsetMatcher = like '([\w/]*)(;\s*charset=(\S+))?';
+
+/**
+ * Group: header
+ *
+ * Sets the charset on the Content-Type header field. If no content-type
+ * header is prestent yet the mime-type is set to 'text/html; charset=..'
+ *
+ * Arguments:
+ *
+ * response - the response to set the header in
+ * charset - the charset
+ */
+charset response charset =
+    (headers = response.headers["Content-Type"];
+    c = if empty? headers then
+        "text/html; charset=utf-8";
+    else
+        header = head headers;
+        ar = _charsetMatcher header ();
+        mime = if empty? ar then
+            "text/html"
+            else 
+                ar[1]
+            fi;
+        mime ^"; charset="^charset;
+    fi;
+    setHeader response "Content-Type" c);
+
+/**
+ * Group: util
+ *
+ * Returns the mime-type for a file extension.
+ */
+mimeMapping ext = 
+    (import org.vertx.java.core.http.impl.MimeMapping;
+    r = MimeMapping#getMimeTypeForExtension(ext is string);
+    if not defined? r then
+        None ext
+    else
+        Some (string r)
+    fi);
+
+/**
+ * Group: header
+ *
+ * Sets the content-type header field to the given content-type
+ * 
+ * if the content-type starts with . it is assumed to be a file-extension
+ * and the content-type is looked up for that file extension (an exception
+ * is thrown if the fileextension is not known).
+ *
+ * The content-type may contain also the charset. If an old content-type
+ * exist it is replaced (including its charset).
+ *
+ * Arguments:
+ *
+ * response - response to set the contenttype one
+ * contentType - mime/type + charset or file-extension to set
+ */
+contentType response ts =
+    (ct = if strStarts? ts "." then
+            std.maybe' std.fail id (mimeMapping ts);
+        else
+            ts
+        fi;
+    setHeader response "Content-Type" ct);
+
+{
+    setHeader,
+    statusCodes,
+    calcLocationPath,
+    noneBody,
+    response,
+    continue,
+    attachement,
+    sendfile,
+    newWriter,
+    redirect,
+
+    sendStatusType,
+    send,
+    statusMsg,
+    status,
+    html,
+    json,
+    jsonp,
+    cacheForSeconds,
+    etag,
+    cookie,
+    clearCookie,
+    location,
+    charset,
+    mimeMapping,
+    contentType
+}
+
+
+
+

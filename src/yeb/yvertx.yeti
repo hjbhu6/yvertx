@@ -1204,7 +1204,6 @@ responseTrailers resp =
  */
 oauth consumerAuth userAuth  =
     (load yeb.std;
-    mvc = load yeb.mvc.mvc;
     //constantcs
     authorization = "Authorization";
     oauth_consumer_key = "oauth_consumer_key";
@@ -1252,7 +1251,7 @@ oauth consumerAuth userAuth  =
             else
                 path = strLeft path cut;
                 query = strRight path cut;
-                {path, queryParams = mvc.parseQuery query}
+                {path, queryParams = parseQuery query}
             fi);
 
         //construct base url (http(s)+hostPort+path)

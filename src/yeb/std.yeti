@@ -166,7 +166,7 @@ maybeHead noHead headF li =
  * - key: key to lookup in hash
  * - hash: the hash
  */
-maybeAt noValue valueF k hs =
+maybeAt  noValue valueF k hs =
     if k in hs then valueF (hs[k]) else (noValue k) fi;
 
 /**
@@ -443,6 +443,33 @@ messageDigest algorithm message =
         (import javax.xml.bind.DatatypeConverter;
         DatatypeConverter#parseBase64Binary(str is string)),
 
+    /**
+     * Group: helper
+     * creates a hash of lists which also returns as default value an empty
+     * list
+     */
+    listHash () = 
+        (ha = [:];
+        setHashDefault ha \([]);
+        ha),
+
+    /**
+     * Group: convert
+     * parses a url query-string in a listHash
+     */
+    parseQuery query =
+        (ret = listHash ();
+        _ = matchAll '([^&=]+)(=([^&=]*))?'
+            do ar:
+                name = urlDecode (ar[1]);
+                value = urlDecode (ar[3]);
+                ols = if not name in ret then [] else ret[name] fi;
+                ret[name] := value :: ols;
+                "";
+            done
+            id
+            query;
+        ret),
     /**
      * Group: maybe 
      * if the value is defined execute right function esl wrong function

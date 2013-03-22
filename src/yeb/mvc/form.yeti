@@ -107,7 +107,7 @@ createField minValues maxValues form unprefixedName converter toString
         ),
         read req = (
             clear();
-            ps = params name req;
+            ps = req.bodyParams[name];
             if not empty? ps then
                 //remember the stringValues
                 displayStrings := ps;
