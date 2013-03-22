@@ -54,7 +54,7 @@ statusCodes =
  * headers.
  *
  */
-setHeader response name value is response -> string -> string -> () =
+header response name value is response -> string -> string -> () =
     response.headers[name] := array [value];
 
 
@@ -138,7 +138,7 @@ attachement response file =
                 strRight file cut;
             fi^'"';
         fi;
-    setHeader response "Content-Disposition" "attachement\(fn)");
+    header response "Content-Disposition" "attachement\(fn)");
 
 /**
  * Group: send
@@ -304,16 +304,16 @@ jsonp json =
 cacheForSeconds res seconds mustRevalidate = 
     if seconds > 0 then
         //HTTP1.0 header
-        setHeader res "Expires" 
+        header res "Expires" 
             (string (System#currentTimeMillis() + (seconds * 1000)));
         //HTTP1.1 header
-        setHeader res "Cache-Control" 
+        header res "Cache-Control" 
             "max-age=\(seconds)\(if mustRevalidate then 
                                     ", must revalidate" else ""fi)";
     else
-        setHeader res "Pragma" "no-cache";
-        setHeader res "Expires" "1";
-        setHeader res "Cache-Control" "no-cache, no-store";
+        header res "Pragma" "no-cache";
+        header res "Expires" "1";
+        header res "Cache-Control" "no-cache, no-store";
     fi;
 
 /**
@@ -328,7 +328,7 @@ cacheForSeconds res seconds mustRevalidate =
  */
 etag response = 
     (digest = std.messageByteDigest "MD5" response.body;
-    setHeader response "Etag" digest);
+    header response "Etag" digest);
     
 
 /**
@@ -392,7 +392,7 @@ clearCookie response name =
  * path - the location path (see calcLocationPath function for description)
  */
 location request response path =
-    setHeader response "Location" (calcLocationPath request path);
+    header response "Location" (calcLocationPath request path);
 
 _charsetMatcher = like '([\w/]*)(;\s*charset=(\S+))?';
 
@@ -421,7 +421,7 @@ charset response charset =
             fi;
         mime ^"; charset="^charset;
     fi;
-    setHeader response "Content-Type" c);
+    header response "Content-Type" c);
 
 /**
  * Group: util
@@ -454,16 +454,16 @@ mimeMapping ext =
  * response - response to set the contenttype one
  * contentType - mime/type + charset or file-extension to set
  */
-contentType response ts =
+type response ts =
     (ct = if strStarts? ts "." then
             std.maybe' std.fail id (mimeMapping ts);
         else
             ts
         fi;
-    setHeader response "Content-Type" ct);
+    header response "Content-Type" ct);
 
 {
-    setHeader,
+    header,
     statusCodes,
     calcLocationPath,
     noneBody,
@@ -488,7 +488,7 @@ contentType response ts =
     location,
     charset,
     mimeMapping,
-    contentType
+    type
 }
 
 
