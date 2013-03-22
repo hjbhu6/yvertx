@@ -223,7 +223,7 @@ typedef yvertxJsonValue<a> = {
     jsonStruct is a
 };
 
-_jsonPrototype = {
+var _jsp = {
     str = none,
     num = none,
     bool = none,
@@ -233,6 +233,24 @@ _jsonPrototype = {
     type = 0,
     jsonStruct = (() unsafely_as ~Object) unsafely_as 'a
 };
+
+_jsonPrototype = {
+    str = none,
+    num = none,
+    bool = none,
+    bytes = none,
+    arr = [],
+    obj = 
+        ha = [:];
+        setHashDefault ha \(_jsp);
+        ha,
+    type = 0,
+    jsonStruct = (() unsafely_as ~Object) unsafely_as 'a
+};
+
+_jsp := _jsonPrototype;
+
+
 
 //the empty json object should just return itself so
 //any value will get none (it is just empty)
@@ -250,12 +268,21 @@ _fromJsonValue o is ~Object -> yvertxJsonValue<'a>=
     elif o instanceof JsonObject then
         jo = o unsafely_as ~JsonObject;
         ha = [:];
-        setHashDefault ha do k:
-            obj = jo#getField(k is string);
-            _fromJsonValue obj;
-        done;
+        var calculated? = false;
         _jsonPrototype with {
-            obj = ha,
+            get obj () = 
+                if calculated? then
+                    ha
+                else
+                    for (mapJavaList string jo#getFieldNames()) do name:
+                        ha[name] := 
+                            _fromJsonValue 
+                                jo#getField(name is string);
+                    done;
+                    setHashDefault ha \(_jsonPrototype);
+                    calculated? := true;
+                    ha
+                fi,
             get jsonStruct () = (_fromJsonToStruct o) unsafely_as 'a, 
             type = 1,
         }
