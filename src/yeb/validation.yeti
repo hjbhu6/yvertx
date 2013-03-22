@@ -25,13 +25,40 @@ import java.net: URLEncoder, URLDecoder;
 
 load yeb.std; 
 
+/**
+ * Group: misc (MISC)
+ *
+ * Creates a ValidationException and throws it
+ *
+ * Arguments:
+ * - msg : the message of the exception
+ * - value : the value which failed to validate
+ *
+ */
 failWithValidation msg value =
     throw new ValidationException(msg is string, value unsafely_as ~Object);
 
+/**
+ * Group: misc
+ *
+ * Creates a ValdationException but does not throw it
+ *
+ * Arguments:
+ * - msg : the message of the exception
+ * - value : the value which did not validate
+ */
 newValidationException msg value =
     new ValidationException(msg is string, value unsafely_as ~Object);
 
-
+/**
+ * Group: misc
+ *
+ * Fails with a ValidationException. Works like fail in yeb.std
+ * but throw a ValidationException
+ *
+ * Arguments:
+ * - obj: obj to fail (see yeb.std.fail for details)
+ */
 failVali x = 
     (import java.lang.Throwable;
     import yeti.lang.Tag;
@@ -55,14 +82,21 @@ failVali x =
         failWithValidation "Failure Value: [\(ob)]" ob;
     fi);
 
-validOr notValid validFn value =
-    try
-        validFn value;
-    catch ValidationException ex:
-        notValid ();
-    yrt;
-
-
+/**
+ * Group: misc
+ *
+ * Executes the validatonFn with the given value. If an ValidationException
+ * is thrown by teh validationFn then the notValidFn is called with the
+ * ex. If the validation passes the valueFn is called with the value
+ *
+ * Arguments:
+ * - notValidFn : function called when validation fails with the caught 
+ *   exception
+ * - valueFn : function called with the value when validation is 
+ *   succesful
+ * - validationFn : the validation function. It is given the value
+ * - value: the value to validate.
+ */
 maybeValid notValidFn valueFn validFn value =
     try
         v = validFn value;
@@ -71,8 +105,23 @@ maybeValid notValidFn valueFn validFn value =
         notValidFn ex;
     yrt;
         
-
-
+/**
+ * Group: vali (VALIDATOR)
+ *
+ * Utility to create a validtor using a function which checks whether the
+ * value is valid.
+ *
+ * Example:
+ * 
+ * : //check number whether it is even
+ * : evenValidator = valiCheck ((== 0) . (% 2))
+ * : evenNumber = evenValidator 2;
+ *
+ * Arguments:
+ * - fn: function which gets the value and return true if it is valid
+ *   of false if the value is not valid
+ * - value : the value to validate
+ */
 valiCheck fun value =
     if fun value then
         value;
@@ -80,7 +129,16 @@ valiCheck fun value =
         failWithValidation "wrong vaue" value;
     fi;
 
-
+/**
+ * Group: vali
+ *
+ * Validates the min and max length of a list
+ *
+ * Arguments:
+ * min - min length
+ * max - max length
+ * ls - list to validate
+ */
 valiListLength min max listIn is number -> number -> list<'a> -> list<'a>= 
     (l = length listIn;
     if l < min then
@@ -94,6 +152,17 @@ valiListLength min max listIn is number -> number -> list<'a> -> list<'a>=
         listIn
     fi);
 
+/**
+ * Group: vali
+ *
+ * Validate a number
+ *
+ * Arguments:
+ *
+ * - min : min value
+ * - max : max value
+ * - nume : the numer to validate
+ */
 valiNum min max num =
     if num > max then
         failWithValidation  
@@ -105,11 +174,29 @@ valiNum min max num =
         num
     fi;
 
-
+/**
+ * Group: vali
+ *
+ * Validates each element in a list with the given validator
+ *
+ * Arguments:
+ * - validatorFn : the validatorFn which is applied to each element
+ * - ls : the list to validate
+ */
 valiList vali listIn = 
     listIn |> map (maybeValid \none Some vali)
         |> catSome;
 
+/**
+ * Group: vali
+ *
+ * Validates the length of a string
+ *
+ * Arguments:
+ * - min : min length
+ * - max : max length
+ * - str : the string to validate
+ */
 valiString min max str = 
         if (strLength str) > max then
             failWithValidation
@@ -125,8 +212,15 @@ valiString min max str =
             str
         fi;
 
-
-
+/**
+ * Group: vali
+ *
+ * Validates a string based on a regex
+ *
+ * Arguments:
+ * - regexPattern : the regex-pattern to apply to the string
+ * - str : the string to validate
+ */
 valiRegex regexPattern str =
     if str =~ regexPattern then
       str
@@ -136,7 +230,13 @@ valiRegex regexPattern str =
             str;
     fi;
 
-strToNum str = 
+/**
+ * Group: parse (PARSE)
+ *
+ * Parses a string to a number. Same as yeti.lang.str.number but throws
+ * an ValidationException
+ */
+_number str = 
     try 
         number str;
     catch Exception ex:
@@ -160,28 +260,42 @@ numberFormat formatOpt =
                 df#applyPattern(pattern);
              fi;
              f);
-        None (): NumberFormat#getInstance();
+        Default (): NumberFormat#getInstance();
     esac;
 
-strFormatedToNum formatOpt str is 'a -> string -> number=
+/**
+ * Group: parse
+ *
+ * Parses a string to a number using the given NumberFormat or function
+ */
+toNum formatOpt str is 'a -> string -> number=
     try
-        format = numberFormat formatOpt;
-        format#parse(str)#doubleValue()
+        case formatOpt of
+        Format f: (numberFormat (Format f))#parse(str)#doubleValue();
+        Pattern f: (numberFormat (Patter f))#parse(str)#doubleValue();
+        PatternLoc f: (numberFormat (PatternLoc f))#parse(str)#doubleValue();
+        Default f: (numberFormat (Default f))#parse(str)#doubleValue();
+        None () : number str;
+        Some fn : fn str;
+        esac
     catch Exception e:
         failWithValidation "\(str) is no number" str;
     yrt;
 
-numToFormatedStr formatOpt num =
-    (numberFormat formatOpt)#format(num);
-
-strNumberToDate str =
-      try
-          new Date(number str)
-      catch java.lang.Exception ex:
-          failWithValidation "\(str) is no number" str;
-      yrt;
-
-dateToNumberStr date is ~Date -> string = string date#getTime();
+/**
+ * Group: format (FORMAT)
+ *
+ * Formats a number to a string given the provided NumberFormat
+ */
+stringNum formatOpt num =
+    case formatOpt of
+    Format f: (numberFormat (Format f))#format(num);
+    Pattern f: (numberFormat (Pattern f))#format(num);
+    PatternLoc f: (numberFormat (PatternLoc f))#format(num);
+    Default f: (numberFormat (Default f))#format(num);
+    None () : string num;
+    Some fn : fn num;
+    esac;
 
 dateFormat formatOpt = 
      case formatOpt of
@@ -190,37 +304,68 @@ dateFormat formatOpt =
         PatternLoc {pattern,loc}:
            (new SimpleDateFormat(pattern as ~java.lang.String,
                                 (loc as ~Locale))) as ~DateFormat;
-        None _ : DateFormat#getDateInstance();
+        Default () : DateFormat#getDateInstance();
      esac;
-     
-strToBoolean str is string -> boolean=
+
+/**
+ * Group: parse
+ *
+ * Parses a string to a date using the format
+ */
+toDate formatOpt str =
+    try
+        case formatOpt of
+        Format f: (dateFormat (Format f))#parse(str);
+        Pattern f: (dateFormat (Pattern f))#parse(str);
+        PatternLoc f: (dateFormat (PatternLoc f))#parse(str);
+        Default () f: (dateFormat (Default ()))#parse(str);
+        None (): new Date(number str);
+        Some fn: fn str;
+        esac
+    catch Exception ex:
+        failWithValidation "\(str) id no date" str;
+    yrt
+
+/**
+ * Group: format
+ *
+ * Formats a date to a string
+ */
+stringDate formatOpt date =
+    case formatOpt of
+    Format f: (dateFormat (Format f))#format(date);
+    Pattern f: (dateFormat (Pattern f))#format(date);
+    PatternLoc f: (dateFormat (PatternLoc f))#format(date);
+    Default () f: (dateFormat (Default ()))#format(date);
+    None (): string date;
+    Some fn: fn date;
+    esac
+
+/**
+ * Group: parse
+ *
+ * Parses a string to a boolean. If the string is case insensitive "true"
+ * then returns true otherwise always false
+ */
+toBool str is string -> boolean=
     if (strLower str) == "true" then true else false fi;
 
 {
     failWithValidation,
     newValidationException,
-    validOr, 
-    maybeValid,
-
-    
-
-    valiListLength, 
-    valiList,
-
-    valiString,
-    valiRegex, 
-    valiNum,
-
-    valiCheck, 
-
-    strToNum,
-
-    numberFormat, 
-    strFormatedToNum,
-    numToFormatedStr,
-    strNumberToDate, 
-    dateToNumberStr, 
-    dateFormat, 
-    strToBoolean
+    fail = failVali,
+    maybe = maybeValid,
+    check = valiCheck,
+    length = valiListLength, 
+    num = valiList,
+    string = valiString,
+    regex = valiRegex, 
+    num = valiNum,
+    number = _number,
+    toNum,
+    stringNum,
+    toDate,
+    stringDate,
+    toBool,
 
 }
