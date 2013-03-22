@@ -232,7 +232,8 @@ createStandardVerticle verticleName =
                      Struct;
 
     oldCl = Thread#currentThread()#getContextClassLoader();
-    {autoRedeploy, classLoader = cl} = _getClassLoader oldCl verticleName;
+    {autoRedeploy, classLoader = cl} = 
+                            _getClassLoader oldCl verticleName;
     Thread#currentThread()#setContextClassLoader(cl);
     
     try
