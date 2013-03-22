@@ -43,44 +43,27 @@ typedef cookie = {
 };
 
 typedef response = {
-    statusCode is number,
-    headers is hash<string,string>,
-    body is ~byte[],
-    for_json is E(),
+    var statusCode is number,
+    headers is hash<string,array<string>>,
+    var body is ~byte[],
 };
 
 
 typedef request = {
     headers is hash<string, string>,
     uri is string,
+    mountPath is string,
     path is string,
     method is string,
     body is ~byte[],
     params is hash<string,list<string>>,
-    resHeaders is hash<string,string>,
+    resHeaders is hash<string,array<string>>,
 };
 
 
 typedef route = request -> asyncFunction<response>;
 
 
-addEtag response = 
-    (digest = messageByteDigest "MD5" response.body;
-    response.header["Etag",digest];
-    response);
-    
-noneBody = new byte[0];
-
-continueStatusCode = -1;
-continue is Some response = Some {
-    statusCode = continueStatusCode,
-    headers = [:],
-    body = noneBody};
-
-fileResponse fileName = 
-    Some {statusCode = -2,
-    headers = ["file" : fileName],
-    body = noneBody};
 
 request {method,uri,path,headers} =
     {
@@ -95,63 +78,8 @@ request {method,uri,path,headers} =
 
 
 
-cookie opts name value = 
-    (var _comment = undef_str;
-    var _commentUrl = undef_str;
-    var _domain = undef_str;
-    var _maxage = Long#MAX_VALUE;
-    var _path = undef_str;
-    var _secure = false;
-    for opts do opt:
-        case opt of
-        Comment str: _comment := str;
-        CommentUrl str : _commentUrl := str;
-        Domain str : _domain := str;
-        Maxage n : _maxage := n;
-        Path str : _path := str;
-        Secure b: _secure := b;
-        esac;
-    done;
-
-    {
-        name is string,
-        value is string,
-        comment = _comment,
-        commentUrl = _commentUrl,
-        domain = _domain,
-        maxage = _maxage,
-        path = _path,
-        secure = _secure,
-    } is cookie);
 
 
-setCookies headers cookies =
-    (import io.netty.handler.codec.http:ServerCookieEncoder,
-                                               DefaultCookie;
-    cls = cookies |> map do co:
-        dc = new DefaultCookie((co is cookie).name, co.value);
-        if defined? co.comment then
-            dc#setComment(co.comment);
-        fi;
-        if defined? co.domain then
-            dc#setDomain(co.domain);
-        fi;
-        if defined? co.commentUrl then
-            dc#setCommentUrl(co.commentUrl)
-        fi;
-        if co.maxage != Long#MAX_VALUE then
-            dc#setMaxAge(co.maxage)
-        fi;
-        if defined? co.path then
-            dc#setPath(co.path)
-        fi;
-        dc#setSecure(co.secure);
-        dc;
-    done;
-    str = ServerCookieEncoder#encode(array cls);
-    //TODO: make headers use list string 
-    //TODO: cookies native support
-    headers["Set-Cookie"] := strJoin "; " (mapJavaList string str));
 
 getCookies headers = 
     (import io.netty.handler.codec.http:CookieDecoder,
@@ -170,11 +98,6 @@ getCookies headers =
         path = co#getPath(),
         secure = co#isSecure()} is cookie)
     done);
-
-addCookie headers cookie =
-    (cs = getCookies headers;
-    ncs = filter (( != cookie.name) . (.name)) cs;
-    setCookies headers (cookie :: ncs));
 
 getCookie headers name =
     filter (( == name) . (.name)) (getCookies headers);
@@ -206,13 +129,6 @@ param name ctx =
             "";
     fi);
 
-addHeader name value req =
-    (hs = (req is request).resHeaders;
-    if name in hs then
-        hs[name is string] := hs[name] ^","^ value;
-    else
-        hs[name] := value;
-    fi);    
 maybeHeader name req =
     if name in (req is request).headers then
         Some req.headers[name]
@@ -233,66 +149,7 @@ escape text =
 
 //"   
 
-response req statusCode headers body =
-    {statusCode = statusCode, 
-     headers = 
-        (insertHash req.resHeaders headers;
-        (req is request).resHeaders),
-     body = body,
-     for_json = E()} is response; 
-
     
-writeRedirect path req = 
-   response req 301 ["Location":path] noneBody;
-
-
-
-writeStatusType status contentType content req =
-    response  req status ["Content-Type":contentType^"; charset=utf-8"]
-        (toUTF8bytes content);
-
-write contentType content req =
-    writeStatusType 200 contentType content req;
-
-writeStatus status content req =
-    writeStatusType status "text/plain" content req;
-
-write401 msg = writeStatus 401 msg;
-write500 msg = writeStatus 500 msg;
-
-newWriter () =
-    (import java.lang.StringBuilder;
-    stb = new StringBuilder();
-    {
-        write str = stb#append(escape str),
-        echo str = stb#append(str is string),
-        stringBuilder = stb,
-        get value () = string stb#toString()
-    });
-
-writeHtml content req =
-    write "text/html" content req;
-
-writeJsonResponse json req =
-    write "application/json" (writeJson json) req;
-
-cacheForSeconds seconds mustRevalidate res = 
-    (headers = res.headers;
-    if seconds > 0 then
-        //HTTP1.0 header
-        headers["Expires"]:= 
-            string (System#currentTimeMillis() + (seconds * 1000));
-        //HTTP1.1 header
-        hv = 
-            "max-age=\(seconds)\(if mustRevalidate then 
-                                    ", must revalidate" else ""fi)";
-        headers["Cache-Control"] := hv;
-    else
-        headers["Pragma"] := "no-cache";
-        headers["Expires"] := "1";
-        headers["Cache-Control"]:= "no-cache, no-store";
-    fi);
-
 //+++++++++++++++++++++++Utils ++++++++++++++++++++++++++++
 _date_formatsTH = threadLocal do:
         import java.util:Locale,

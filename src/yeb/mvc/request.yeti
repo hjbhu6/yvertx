@@ -1,0 +1,159 @@
+/*
+ * Copyright 2013 Christian Essl
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions
+ * and limitations under the License.
+ */
+
+module yeb.mvc.request;
+
+std = load yeb.std;
+load yeb.mvc.mvc;
+
+statusCodes = 
+    (//read them from netty
+    import io.netty.handler.codec.http:HttpResponseStatus;
+    import java.lang.reflect:Modifier;
+    ha = [:];
+    cl = classOf HttpResponseStatus;
+    fields = cl#getDelcaredFields();
+    for fields do field:
+        mod = field#getModifiers();
+        if Modifier#isStatic(mod) 
+            and Modifier#isFinal(mod)
+            and Modifier#isPublic(mod) then
+            ob = field#get();
+            if ob instanceof HttpResponseStatus then
+                rs = ob unsafely_as ~HttpResponseStatus;
+                ha[rs#code(), string rs#reasonPhrase()]
+            fi
+        fi;
+    done;
+    setHashDefault ha do n: "Status-Code: \(n)" done;
+    ha);
+
+setHeader response name value is response -> string -> string -> () =
+    response.headers[name] := array [value];
+
+addHeader response name value is response -> string -> string -> () =
+    (ar = if name in response.headers then
+            response.headers[name];
+        else
+            ar = array [];
+            response.headers[name] := ar;
+            ar
+        fi;
+    push ar value);
+
+    
+noneBody = new byte[0];
+
+response statusCode headers body = 
+    {var statusCode = 200, 
+     headers = 
+        ha = [:];
+        forHash headers do k v:
+            ha[k] := array[v]
+        done;
+        ha,
+     var body = body} is response;
+
+continue is response = 
+    response -1 [:] noneBody;
+
+fileResponse fileName = 
+    response -2 ["file": array[fileName]] noneBody;
+
+newWriter () =
+    (import java.lang.StringBuilder;
+    stb = new StringBuilder();
+    {
+        write str = stb#append(escape str),
+        echo str = stb#append(str is string),
+        stringBuilder = stb,
+        get value () = string stb#toString()
+    });
+
+writeRedirect path = 
+   response 301 ["Location":path] noneBody;
+
+
+
+writeStatusType status contentType content =
+    response  status ["Content-Type":contentType^"; charset=utf-8"]
+        (toUTF8bytes content);
+
+write contentType content =
+    writeStatusType 200 contentType content;
+
+writeStatusMsg status content =
+    writeStatusType status "text/plain" content;
+
+writeStatus status =
+    writeStatusMsg status statusCodes[status];
+
+
+writeHtml content =
+    write "text/html" content;
+
+writeJsonResponse json =
+    write "application/json" (writeJson json);
+
+cacheForSeconds res seconds mustRevalidate = 
+    if seconds > 0 then
+        //HTTP1.0 header
+        setHeader res "Expires" 
+            (string (System#currentTimeMillis() + (seconds * 1000)));
+        //HTTP1.1 header
+        setHeader res "Cache-Control" 
+            "max-age=\(seconds)\(if mustRevalidate then 
+                                    ", must revalidate" else ""fi)";
+    else
+        setHeader res "Pragma" "no-cache";
+        setHeader res "Expires" "1";
+        setHeader res "Cache-Control" "no-cache, no-store";
+    fi;
+
+etag response = 
+    (digest = std.messageByteDigest "MD5" response.body;
+    setHeader response "Etag" digest);
+    
+
+setCookie response opts name value =
+    (import io.netty.handler.codec.http:ServerCookieEncoder,
+                                        Cookie,
+                                        DefaultCookie;
+    
+    dc = new DefaultCookie(name is string, value is string);
+    
+    for opts do opt:
+        case opt of
+        Comment str: dc#setComment(str is string);
+        CommentUrl str : dc#setCommentUrl(str is string);
+        Discard bo: dc#setDiscard(bo is boolean);
+        Domain str : dc#setDomain(str is string);
+        Maxage n : dc#setMaxAge(n is number);
+        Path str : dc#setPath(str is string);
+        Ports an: dc#setPorts(an is array<number>);
+        Secure b: dc#setSecure(b is boolean);
+        Version n: dc#setVersion(n is number);
+        esac;
+    done;
+    str = ServerCookieEncoder#encode(dc as ~Cookie);
+    addHeader response "Set-Cookie" str);
+
+discardCookie response name =
+    setCookie response [Discard true] name "";
+
+calcPath request 
+
+
