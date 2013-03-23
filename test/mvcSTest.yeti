@@ -133,6 +133,10 @@ done,
             checkPattern
 done,
 
+"mvc:tempt" : do:
+    assertEquals 2 1;
+done,
+
 "response:header" : do:
     res = response 400 ["cookie":"foo"] rBody;
     resm.header res "co2" "v2";

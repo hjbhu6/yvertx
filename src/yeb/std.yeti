@@ -248,19 +248,24 @@ findCodeAtLine sourceDirs fileName lineNumber linesSourround =
     fi);
 
 
-class YebAssertException(String reason) 
-    extends java.lang.IllegalStateException(reason)
+class YebAssertionError(String reason) 
+    extends java.lang.AssertionError(reason)
 end;
 
 assert msg bo =
     if not bo then
-        throw new YebAssertException(msg is string);
+        msg = if not defined? msg or msg == "" then
+            " "
+        else
+            msg
+        fi;
+        throw new YebAssertionError(msg is string);
     fi;
 
 assertEquals test right =
     if right != test then
         throw new 
-            YebAssertException("Expected \(right) but was \(test)");
+            YebAssertionError("Expected \(right) but was \(test)");
     fi;
 
 simpleTest exit? println testHash =
@@ -276,11 +281,29 @@ simpleTest exit? println testHash =
         try
             f();
             println "ok \(count) - \(name)";
-        catch YebAssertException ex:
-            println "not ok \(count) - \(name)\n\(ex)";
+        catch YebAssertionError ex:
+
+            //extract linke number
+            import java.lang.StackTraceElement;
+            var ster = () as ~StackTraceElement;
+            for ex#getStackTrace() do ste:
+                if nullptr? ster and 
+                    not strStarts? ste#getClassName() "yeb.std" then
+                    ster := ste
+                fi
+            done;
+            //print out
+            println ("not ok \(count) - \(name) because [\(ex#getMessage())] "
+                    ^ "at [\(ster)]");
+
             bad := bad + 1;
-        catch Exception ex:
+        catch Throwable ex:
             println "not ok \(count) - \(name)\n\(ex)";
+            import java.io:StringWriter, PrintWriter;
+            sw = new StringWriter();
+            pw = new PrintWriter(sw);
+            ex#printStackTrace(pw);
+            println (string ex);
             exception := exception + 1;
         yrt
         
