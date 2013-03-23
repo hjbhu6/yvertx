@@ -1,0 +1,143 @@
+program mvcSTest;
+
+load yeb.std;
+load yeb.mvc.mvc;
+resm = load yeb.mvc.response;
+
+rBody = randomByteArray 50;
+
+_ = simpleTest true println [
+"mvc:response": do:
+    body = randomByteArray 50;
+    res = response 340 ["Cookie":"foo"] body;
+    assertEquals res.body body;
+    assertEquals res.statusCode  340;
+    assertEquals (res.headers is hash<string, array<string>>) 
+            (["Cookie" : array ["foo"]] is hash<string,array<string>>);
+done,
+"mvc:response-headers fill themselves" : do:
+    res = response 400 ["Cookie": "foo"] rBody;
+    assertEquals res.headers["no"] (array []);
+    push res.headers["no"]  "some";
+    assertEquals res.headers["no"] (array ["some"]);
+done,
+
+"mvc:request-has-none empty params" : do:
+    req = request {method = "POST", 
+                    url="/some/foo", 
+                    path="/some/foo",
+                    headers = [:]};
+    assertEquals req.params["foo"] [];
+    assertEquals req.queryParams["foo"] [];
+    assertEquals req.bodyParams["foo"] [];
+    assertEquals req.mountPath "";
+    assert "empty headers" (empty? req.headers);
+done,
+
+"mvc:request path does not end with /" : do:
+    req = request {method = "POST", 
+                    url="/some/foo/", 
+                    path="/some/foo/",
+                    headers = [:]};
+    assertEquals req.path "/some/foo";
+    assertEquals req.url "/some/foo/"
+done,
+
+"mvc:request method uppercase" : do:
+    req = request {method = "post", 
+                    url="/some/foo/", 
+                    path="/some/foo/",
+                    headers = [:]};
+    assertEquals req.method "POST";
+done,
+
+"mvc:pattern-to-regex": do:
+    import yeti.lang.Tag;
+    checkPattern {match, pat, path,params} =
+        (rt = patternRoute pat do req res:
+            ha = [:];
+            forHash params do k v:
+                ha[k] := [v];
+            done;
+            ha2 = [:];
+            forHash req.params do k v:
+                if k != "__urlParams" then
+                    ha2[k] := v;
+                fi
+            done;
+            assertEquals ha2 ha;
+            res <== resm.html "hier";
+        done;
+        req = request 
+                {method = "PUT",
+                url=path,
+                path,
+                headers = [:]};
+        rt req \case of
+            None _: assert "Excpetion" false;
+            Some res: 
+                assert "status \(pat) \(path)" 
+                    if match then 
+                        res.statusCode > 0
+                    else
+                        res.statusCode == (-1)
+                    fi
+            esac);
+    makePath match pat path params =
+        {match, pat, path, params};
+    
+    for [makePath true (Put "customer/id") "customer/id" [:],
+    makePath true (Put "customer/:id") "customer/1" ["id":"1"],
+    makePath false (Post "customer/:id") "customer/1" ["id":"1"],
+    makePath true (All "customer/:id") "customer/1" ["id":"1"],
+    makePath true (Put ":type/:id") "cu/1" ["type":"cu", "id":"1"],
+    makePath true (Put ":type/:id?") "cu" ["type":"cu"],
+    makePath true (Put ":type/:id?") "cu/1" ["type":"cu", "id":"1"],
+    makePath true (Put ":type/:id?/*") "cu/1/f" 
+                        ["type":"cu", "id":"1", "rest":"f"],
+    makePath true (Put ":type/:id?/*") "cu/" ["type":"cu"],
+    makePath true (Put ":type/:id") "cu/1/" ["type":"cu", "id":"1"],
+    makePath true (Put ':type/:id$\d+$') "cu/1/" ["type":"cu", "id":"1"],
+    makePath false (Put ':type/:id$\d+$') "cu/x/" ["type":"cu", "id":"1"],
+    ] checkPattern;
+done,
+
+"mvc:mount": do:
+    checkPattern {match, prefix, path, newPath, mountPath} =
+        (rt = mount prefix do req res:
+            assertEquals req.path newPath;
+            assertEquals req.mountPath mountPath;
+            res <== resm.html "here";
+        done;
+        req = request
+                {method="POST",
+                url=path,
+                path,
+                headers=[:]};
+        rt req \case of
+            None _ : assert "Exception" false;
+            Some res:
+                assert "status"
+                    if match then
+                        res.statusCode > 0;
+                    else
+                        res.statusCode == (-1);
+                    fi;
+            esac);
+    makePath match prefix path newPath mountPath =
+        {match, prefix, path, newPath, mountPath};
+    for [makePath true "chris/" "chris/elisabeth" "elisabeth" "chris/",
+    makePath false "chris/" "elisabeth/chris" "" "",
+    makePath true "start/customer/" "start/customer/foo" "foo" 
+            "start/customer/"]
+            checkPattern
+done,
+
+"response:header" : do:
+    res = response 400 ["cookie":"foo"] rBody;
+    resm.header res "co2" "v2";
+    assertEquals res.headers["co2"] (array ["v2"]);
+    resm.header res "cookie" "v3";
+    assertEquals res.headers["cookie"] (array ["v3"]);
+done,
+]
