@@ -246,10 +246,24 @@ findCodeAtLine sourceDirs fileName lineNumber linesSourround =
             toLineNumber = fromLineNumber + linesSourround
         }
     fi);
-        
-                        
 
-simpleTest println testHash =
+
+class YebAssertException(String reason) 
+    extends java.lang.IllegalStateException(reason)
+end;
+
+assert msg bo =
+    if not bo then
+        throw new YebAssertException(msg is string);
+    fi;
+
+assertEquals test right =
+    if right != test then
+        throw new 
+            YebAssertException("Expected \(right) but was \(test)");
+    fi;
+
+simpleTest exit? println testHash =
    (var bad = 0;
     var exception = 0;
 
@@ -260,14 +274,13 @@ simpleTest println testHash =
     forHash testHash do name f:
         count := count + 1;
         try
-            if f () then
-                println "ok \(count) - \(name)";
-            else 
-                println "not ok \(count) - \(name)";
-                bad := bad + 1
-            fi
+            f();
+            println "ok \(count) - \(name)";
+        catch YebAssertException ex:
+            println "not ok \(count) - \(name)\n\(ex)";
+            bad := bad + 1;
         catch Exception ex:
-            println "not ok \(count) - \(name) \(ex)";
+            println "not ok \(count) - \(name)\n\(ex)";
             exception := exception + 1;
         yrt
         
@@ -275,10 +288,15 @@ simpleTest println testHash =
 
     total = length testHash;
     if bad == 0 and exception == 0 then
-        println "Testing done, \(total) OK."
+        println "Testing done, \(total) OK.";
+        0  
     else
         println ("FAILURE: Testing done, \(exception) exceptions, "
-        ^ "\(bad) failed, \(total - bad - exception) ok of total \(total)") 
+        ^ "\(bad) failed, \(total - bad - exception) ok of total \(total)");
+        if exit? then
+            _ = System#exit(-1);
+        fi;
+        (-1)
     fi);
 
 //json things
@@ -325,7 +343,9 @@ messageByteDigest algorithm message =
 messageDigest algorithm message =
     messageByteDigest algorithm ((message is string) as ~String)#getBytes(); 
 
-{       
+{      
+    assert,
+    assertEquals,
     messageDigest, 
 
     messageByteDigest,

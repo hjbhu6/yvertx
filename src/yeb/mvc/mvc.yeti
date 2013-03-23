@@ -136,13 +136,18 @@ request {method,url,path,headers} =
             fi;
         done;
         ha);
-                
+    //stript off last slash
+    path = if strEnds? path "/" then
+            strLeft path (strLength path - 1);
+        else
+            path;
+        fi;
     {
     method = strUpper method,
     url,
     headers,
     body = util.noneBody,
-    mountPath = path,
+    mountPath = "",
     path,
     params,
     queryParams,
@@ -289,7 +294,7 @@ _regexRoute method regex handler  =
                 for [0..matcher#groupCount()] do c:
                     push urlParams matcher#group(c);
                 done;
-                params["urlPrams"] := list urlParams;
+                params["__urlParams"] := list urlParams;
                 
                 //add the named parameters
                 for names do name:
@@ -312,7 +317,7 @@ _regexRoute method regex handler  =
                 nreq = req with { params};
 
                 try
-                    handler nreq res
+                    handler nreq res;
                 catch ValidationException ex:
                     res _sContinue;
                 yrt;
@@ -320,22 +325,29 @@ _regexRoute method regex handler  =
                 res _sContinue;
             fi;
         fi;
+        ()
     done);
 
 /**
  * Mounts the request to the given prefix
  * sets the mountPath the path and the url to the given value
  */
-mount mountPrefix handler req response is string -> route -> route = 
-    (if strStarts? req.path mountPrefix then
-        nreq = req with {
-            mountPath = req.mountPath^mountPrefix,
-            path = strRight req.path (strLength mountPrefix)
-        };
-        handler nreq response
-    else
-        response _sContinue
-    fi);
+mount mountPrefix handler is string -> route -> route = 
+    (if not strEnds? mountPrefix "/" then
+        failWith "mount prefix must start with / but is \(mountPrefix)"
+    fi;
+    do req response:
+        if strStarts? req.path mountPrefix then
+            nreq = req with {
+                mountPath = req.mountPath^mountPrefix,
+                path = strRight req.path (strLength mountPrefix)
+            };
+            handler nreq response
+        else
+            response _sContinue
+        fi;
+        ()
+    done);
 
 _methodPattern requestUrl = 
     case requestUrl of

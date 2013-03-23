@@ -55,7 +55,9 @@ statusCodes =
  *
  */
 header response name value is response -> string -> string -> () =
-    response.headers[name] := array [value];
+    (ar = response.headers[name];
+    clearArray ar;
+    push ar value);
 
 
 /**
