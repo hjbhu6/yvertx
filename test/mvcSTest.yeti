@@ -133,8 +133,50 @@ done,
             checkPattern
 done,
 
-"mvc:tempt" : do:
-    assertEquals 2 1;
+"mvc:routes": do:
+    checkRoute patterns hit =
+        (rts = patterns 
+            |> map2 pair [0..length patterns]
+            |> map do {fst = i ,snd = pat}:
+                patternRoute (Get pat) do req res:
+                    if i != hit then
+                        assert "matched \(pat) as \(i)" false;
+                    fi;
+                    res <== resm.html "here";    
+                done;
+            done;
+            
+        path = if hit < 0 then 
+                "impossilbe_path_is_that"
+            else
+                patterns[hit]
+            fi;
+        req = request 
+            {method = "GET",
+            url = path,
+            path,
+            headers = [:]};
+        
+        routes rts req \case of
+            None ex : assert "Exception \(ex)" false;
+            Some res:
+                if hit < 0 then
+                    assertEquals res.statusCode (-1);
+                else
+                    assert "\(res.statusCode) \(hit) \(path)" 
+                        (res.statusCode == 200);
+                fi;
+        esac);
+
+    patterns =  ["/id", "", "/customer","/static","/index"]
+        |> concatMap do s:
+            map ((s^) . string) [1 .. 2000]
+        done
+        |> array;
+    checkRoute patterns (length patterns - 10);
+    //for [0..(length patterns) - 1] (checkRoute patterns);
+    checkRoute patterns (-1);
+            
 done,
 
 "response:header" : do:
@@ -144,4 +186,6 @@ done,
     resm.header res "cookie" "v3";
     assertEquals res.headers["cookie"] (array ["v3"]);
 done,
+
+
 ]
