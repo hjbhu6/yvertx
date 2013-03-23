@@ -290,6 +290,7 @@ _regexRoute method regex handler  =
             if matcher#matches() then
                 //add the paramters
                 params = copy req.params;
+                setHashDefault params \([]);
                 urlParams = array [];
                 for [0..matcher#groupCount()] do c:
                     push urlParams matcher#group(c);
@@ -298,15 +299,10 @@ _regexRoute method regex handler  =
                 
                 //add the named parameters
                 for names do name:
-                    ls = if name in params then
-                            params[name];
-                         else
-                            []
-                         fi;
                     try
                         v = matcher#group(name);
                         if defined? v and strLength (string v) > 0 then
-                            params[name] := v :: ls;
+                            params[name] := v :: params[name];
                         fi;
                     catch IllegalArgumentException ex:
                         println 
@@ -382,30 +378,38 @@ patternRoute pattern route =
     (pa = _methodPattern pattern;
     _regexRoute pa.fst (patternToRegex pa.snd) route);
 
+
 /**
  * Creates one route from many routes. The routes are executed
  * one ofter the other as long as they respons with status-code 
  * the internal status-code continue (= -1)
  */
-routes handlers req responder is list<route> -> route =
-    if empty? handlers then
-        responder _sContinue;
-    else
+routes handlersIn req responder is list<route> -> route =
+    (var handlers = handlersIn;
+    var cond = true;
+    internalResponder = \case of
+        None ex: responder (None (ex is ~Exception));
+        Some res:
+            if res.statusCode == continue.statusCode then
+                cond := true;
+            else
+                cond := false;
+                responder (Some res);
+            fi
+        esac;
+    (cond and not empty? handlers) loop
+        (handler = head handlers;
+        handlers := tail handlers;
+        
+        //set cond to false and the handler can set it back to
+        //true but only before it retursn on the same tick
+        cond := false;
         try
-        (head handlers) req \case of
-            None ex: responder (None (ex is ~Exception));
-            Some res:
-                if res.statusCode == continue.statusCode then
-                    routes (tail handlers) req responder;
-                else
-                    responder (Some res)
-                fi
-            esac;
+            handler req internalResponder;
         catch Exception ex:
+            cond := false;
             responder (None ex);
-        yrt
-    fi;
-
+        yrt));
 /**
  * Parses the query and form data in queryParams and bodyParams
  */
