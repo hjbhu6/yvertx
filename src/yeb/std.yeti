@@ -248,8 +248,33 @@ findCodeAtLine sourceDirs fileName lineNumber linesSourround =
     fi);
 
 
+/**
+ * Group: helper
+ *
+ * First invocation of the function takes the current system time.
+ * Invaocation of the resulting function returns the milliseconds passed
+ *
+ * Example:
+ * :
+ * : //first invocation remembers current time
+ * : tr = timer ();
+ * : // after ie 1200 ms call tr
+ * : tr ();
+ * : // => 1200 //returns the time passed between creation and call
+ * :
+ * : //after another 1000 ms call again 
+ * : tr ();
+ * : // => 2200 //the total time alpsed since creation
+ * : 
+ */
+timer () =
+    (start = System#currentTimeMillis();
+    do:
+        System#currentTimeMillis() - start
+    done);
+
 class YebAssertionError(String reason) 
-    extends java.lang.AssertionError(reason)
+    extends java.lang.AssertionError(reason,() as ~Throwable)
 end;
 
 assert msg bo =
@@ -278,9 +303,12 @@ simpleTest exit? println testHash =
     
     forHash testHash do name f:
         count := count + 1;
+        var startTime = System#currentTimeMillis();
+        tr = timer ();
         try
+            
             f();
-            println "ok \(count) - \(name)";
+            println "ok \(count) - \(name) [\((tr())/1000) s] ";
         catch YebAssertionError ex:
 
             //extract linke number
@@ -293,12 +321,12 @@ simpleTest exit? println testHash =
                 fi
             done;
             //print out
-            println ("not ok \(count) - \(name) because [\(ex#getMessage())] "
-                    ^ "at [\(ster)]");
+            println ("not ok \(count) - \(name) [\((tr())/1000) s] "
+                    ^"because [\(ex#getMessage())] at [\(ster)]");
 
             bad := bad + 1;
         catch Throwable ex:
-            println "not ok \(count) - \(name)\n\(ex)";
+            println "not ok \(count) - \(name) [\((tr())/1000) s] \n\(ex)";
             import java.io:StringWriter, PrintWriter;
             sw = new StringWriter();
             pw = new PrintWriter(sw);
