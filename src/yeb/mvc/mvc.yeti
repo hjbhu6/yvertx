@@ -498,6 +498,7 @@ etagMiddleware route req resF =
 
     (@) text = escape text,
 
+    noneBody = util.noneBody,
     response,
     continue,
     request,
