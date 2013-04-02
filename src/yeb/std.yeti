@@ -303,7 +303,6 @@ simpleTest exit? println testHash =
     
     forHash testHash do name f:
         count := count + 1;
-        var startTime = System#currentTimeMillis();
         tr = timer ();
         try
             
