@@ -132,7 +132,7 @@ done,
                     else
                         res.statusCode == (-1);
                     fi;
-            esac
+            esac;
         assert "called" called);
     makePath match prefix path newPath mountPath =
         {match, prefix, path, newPath, mountPath};
@@ -179,7 +179,7 @@ done,
                     assert "\(res.statusCode) \(hit) \(path)" 
                         (res.statusCode == 200);
                 fi;
-        esac
+        esac;
         assert "called" called;
         );
 
@@ -210,9 +210,9 @@ done,
         body = if empty? bodyParams then
                 noneBody;
             else
-                toUTF8Bytes (encodeParams bodyParams);
+                toUTF8bytes (encodeParams bodyParams);
             fi;
-        req = request {method="POST", path, url, [:]};
+        req = request {method="POST", path, url, headers = [:]};
         if not empty? bodyParams then
             req.headers["Content-Type"] := "application/x-www-form-urlencoded";
         fi;
@@ -224,11 +224,11 @@ done,
             assert "bodyParams \(req.bodyParams) \(bodyParams)"
                     (req.bodyParams == bodyParams);
 
-            res <== mres.html "some";
+            res <== rs.html "some";
         done;
 
         var called = false;
-        ret req \(called := true);
+        rt req \(called := true);
         assert "called" called);
 
     params = ["k1" :["v1","v2","v3"],
@@ -364,9 +364,9 @@ done,
 done,
 
 "response:locationpath" : do:
-    req = request {method="get", url = "/foo/some?query", path="some
+    req = request {method="get", url = "/foo/some?query", path="some"};
     assertEquals "http://google.com" (rs.calcLocationPath "http://google.com");
 done,
 
 
-]
+];
