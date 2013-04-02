@@ -64,7 +64,7 @@ typedef request = {
 };
 
 
-typedef route = request -> asyncFunction<response>;
+typedef route = request -> promise<response>;
 
 escape = util.escape;
 
@@ -102,7 +102,7 @@ response statusCode headers body =
 continue is response = 
     response (-1) [:] util.noneBody;
 
-_sContinue = Some continue;    
+_sContinue = return continue;    
 
 /**
  * Group: request (REQUEST)
@@ -274,7 +274,7 @@ patternToRegex pat =
 _nameMatchAll = matchAll '\?\<([A-Za-z0-9]+)\>' 
                         (Some . ((flip at) 1)) None;     
 
-_regexRoute method regex handler  = 
+_regexRoute method regex handler is string -> string -> route -> route  = 
    (import java.util.regex.Pattern;
     meth = strUpper method;
     var checkMethod? = meth != "ALL";
@@ -282,9 +282,9 @@ _regexRoute method regex handler  =
     names = _nameMatchAll regex |> catSome;
     pattern = Pattern#compile(regex);
 
-    do req res:
+    do req:
         if checkMethod? and (meth != (strUpper req.method )) then
-            res _sContinue;
+            _sContinue;
         else
             matcher = pattern#matcher(req.path is string);
             if matcher#matches() then
@@ -313,15 +313,14 @@ _regexRoute method regex handler  =
                 nreq = req with { params};
 
                 try
-                    handler nreq res;
+                    handler nreq;
                 catch ValidationException ex:
-                    res _sContinue;
+                    _sContinue;
                 yrt;
             else
-                res _sContinue;
+                _sContinue;
             fi;
         fi;
-        ()
     done);
 
 /**
@@ -332,17 +331,16 @@ mount mountPrefix handler is string -> route -> route =
     (if not strEnds? mountPrefix "/" then
         failWith "mount prefix must start with / but is \(mountPrefix)"
     fi;
-    do req response:
+    do req:
         if strStarts? req.path mountPrefix then
             nreq = req with {
                 mountPath = req.mountPath^mountPrefix,
                 path = strRight req.path (strLength mountPrefix)
             };
-            handler nreq response
+            handler nreq
         else
-            response _sContinue
+            return continue
         fi;
-        ()
     done);
 
 _methodPattern requestUrl = 
@@ -384,17 +382,19 @@ patternRoute pattern route =
  * one ofter the other as long as they respons with status-code 
  * the internal status-code continue (= -1)
  */
-routes handlersIn req responder is list<route> -> route =
+routes handlersIn req is list<route> -> route =
     (var handlers = handlersIn;
     var cond = true;
+    prom = valuePromise();
+    
     internalResponder = \case of
-        None ex: responder (None (ex is ~Exception));
+        None ex: prom.setValue (None (ex is ~Exception));
         Some res:
             if res.statusCode == continue.statusCode then
                 cond := true;
             else
                 cond := false;
-                responder (Some res);
+                prom.setValue (Some res);
             fi
         esac;
     (cond and not empty? handlers) loop
@@ -405,20 +405,21 @@ routes handlersIn req responder is list<route> -> route =
         //true but only before it retursn on the same tick
         cond := false;
         try
-            handler req internalResponder;
+            fulfill internalResponder (handler req) ;
         catch Exception ex:
             cond := false;
-            responder (None ex);
-        yrt));
+            prom.setValue (None ex);
+        yrt);
+    prom.promise);
 /**
  * Parses the query and form data in queryParams and bodyParams
  */
-paramsMiddleware route req res =
+paramsMiddleware route req is route -> route =
     (//the query
-    cut = strIndexOf req.uri "?" 0;
+    cut = strIndexOf req.url "?" 0;
     req = if cut >= 0 then
             req with {
-                queryParams = parseQuery (strRight req.uri cut)
+                queryParams = parseQuery (strRight req.url cut)
             }
         else
             req
@@ -428,73 +429,58 @@ paramsMiddleware route req res =
         bodyParams = util.readFormData req
     };
 
-    route req res);
+    route req);
 
 /**
  * Cookie parser parses the cookies 
 */
-cookiesMiddleware route req res =
+cookiesMiddleware route req is route -> route=
     (nreq = req with {
         cookies = util.parseCookies req
     };
-    route nreq res);
+    route nreq);
 
-/**
- * Error handler
- */
-errorMiddleware handler route req res =
-    try
-        route req \case of
-        None ex: handler (ex is ~Exception) req res;
-        Some r : res (Some r);
-        esac;
-    catch Exception ex:
-        handler ex req res;
-    yrt;
 
 /**
  * Condition middleware 
  */
-ifReq fn route req res =
+ifReq fn route req is 'f -> route -> route=
     if fn req then
-        route req res
+        route req 
     else
-        res _sContinue
+        _sContinue
     fi;
 
 /**
  * calculates the etag and set the header
  */
-etagMiddleware route req resF =
-    route req \case of
-        None ex: resF (None ex);
-        Some res:
+etagMiddleware route req =
+    route req 
+        |> bind do res:
             etag = messageByteDigest "MD5" res.body;
             case maybeAt None Some "If-None-Match" req.headers of
             None _: 
                 res.headers["ETag"] := array [etag];
-                resF (Some res);
+                return res;
             Some et:
                 if et == etag then
-                    resF (Some (response 304 [:] (toUTF8bytes "Not modified")))
+                    return (response 304 [:] (toUTF8bytes "Not modified"))
                 else
                     res.headers["ETag"] := array [etag];
-                    resF (Some res);
+                    return res;
                 fi
             esac;
-        esac;
+        done;
 {
     (==>>) = patternRoute,
     (~~>>) = regexRoute,
-    (==>) p h = patternRoute p do req res:
-        try res (Some (h req)) catch Exception ex: res (None ex) yrt
+    (==>) p h = patternRoute p do req:
+        try return (h req) catch Exception ex: returnEither (None ex) yrt
     done,
-    (~~>) p h = regexRoute p do req res:
-        try res (Some (h req)) catch Exception ex: res (None ex) yrt
+    (~~>) p h = regexRoute p do req:
+        try returnEither (Some (h req)) catch 
+            Exception ex: returnEither (None ex) yrt
     done,
-
-    (<==) fn res is (either<response> -> ()) -> response -> ()= 
-        fn (Some res),
 
     (@) text = escape text,
 
@@ -510,7 +496,6 @@ etagMiddleware route req resF =
     routes,
     paramsMiddleware,
     cookiesMiddleware,
-    errorMiddleware,
     ifReq,
     etagMiddleware
 }

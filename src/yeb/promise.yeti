@@ -20,28 +20,77 @@ import java.lang:Exception,
                 RuntimException;
 
 //callback functions
-typedef either<a> = None ~Exception | Some a; 
-typedef asyncFunction<a> = (either<a> -> ()) -> ();
+typedef either<a> = None ~Exception | Some a;
+typedef opaque promise<a> = (either<a> -> ()) -> (); 
+
+_idT r is ((either<'a> -> ()) -> ()) ->
+       ((either<'a> -> ()) -> ()) =
+        r;
+//_create = (r as ((either<'a> -> ()) -> ()) -> promise<'a>);
+_resolve is promise<'a> -> ((either<'a> -> ()) -> ()) 
+    = (_idT as promise<'a> -> ((either<'a> -> ()) -> ()));
+
 
 /**
- * Group: async (ASYNC)
- * Transforms a value in an asyncFunction
+ * Group: async
+ * Fulfill the value of promise in the given function. If the promise
+ * has the value than the function will be called with the value.
+ * 
+ * Arguments:
+ * fn - the function which is given the Some value or None Exception
+ * promise - the promise
+ */
+fulfill fn pro =
+    (_resolve pro) fn;
+
+/**
+ * Group: async
+ * Create a setable promise. The value can be set once with the value function
+ */
+valuePromise () =
+    (var val = none;
+    var listener = \();
+    {
+        setValue x = case val of
+            None _ :
+                val := Some x;
+                listener x;
+            Some v :
+                failWith "Value already set";
+            esac,
+        promise = do cb:
+            case val of
+            None _ :
+                ol = listener;
+                listener :=  
+                    do x: 
+                        try ol x finally cb x yrt
+                    done;
+            Some v: cb v;
+            esac
+        done as promise<'a>
+    });
+                        
+
+/**
+ * Group: async (PROMISE)
+ * Transforms a value in an promise
  *
  * Arguments:
  *  value - value to which the created function will pass in the reciever
  */
-returnEither v is either<'a> -> asyncFunction<'a> = 
-    do cb: cb v done;
+returnEither v is either<'a> -> promise<'a> = 
+    (do cb: cb v done) as promise<'a>;
 
 /**
  * Group: async (ASYNC)
- * Transforms a value in an asyncFunction which always return some. Same as
+ * Transforms a value in an promise which always return some. Same as
  * return (Some v)
  *
  * Arguments:
  *  value - value to which the created function will pass in the reciever
  */
-return v is 'a -> asyncFunction<'a> =
+return v is 'a -> promise<'a> =
     returnEither (Some v);
 
 class AsyncException(String msg) extends RuntimeException
@@ -60,37 +109,37 @@ failNone msg =
  * Group: async 
  * creates an AsyncException from a string
  */
-returnNone msg = returnEither (failNone msg);
+returnFail msg = returnEither (failNone msg);
 
 /**
  * Group: async
- * Joins two asyncFunctions in sequenc, where the second function
+ * Joins two promises in sequenc, where the second function
  * is dependent on the result of the first.
  *
  * see also the (->) operator for a shorthand and exmples 
  *
  * Arguments:
- * mappingFunction - is given the value of the first asyncFunction and should
+ * mappingFunction - is given the value of the first promise and should
  * returns the second callback funcion
- * asyncFunction - the first callback function in the sequence
+ * promise - the first callback function in the sequence
  */
-bindEither fn cbfn
-    is  (either<'a> -> asyncFunction<'b>) 
-        -> asyncFunction<'a> -> asyncFunction<'b> =
-    do cb:
-        cbfn do a:
-                afn = try
-                        fn a
-                    catch Exception ex:
-                        returnEither (None ex);
-                    yrt;
-                afn cb;
-             done;
+bindEither fn promise
+    is  (either<'a> -> promise<'b>) 
+        -> promise<'a> -> promise<'b> =
+    (ret = valuePromise ();
+    promise |> fulfill do a:
+        try 
+            pron = fn a;
+            pron |> fulfill ret.setValue;
+        catch Exception ex:
+            ret.setValue (None ex);
+        yrt
     done;
+    ret.promise);
 
 /**
  * Group: async
- * Joins two asyncFunctions in sequenc with the value, where the second function
+ * Joins two promises in sequenc with the value, where the second function
  * is dependent on the result of the first.
  *
  * Differnt to bind the second function only gets the value of a positit Some
@@ -99,14 +148,14 @@ bindEither fn cbfn
  * see also the (->>) operator for a shorthand and exmples 
  *
  * Arguments:
- * mappingFunction - is given the value of the first asyncFunction and should
+ * mappingFunction - is given the value of the first promise and should
  * returns the second callback funcion
- * asyncFunction - the first callback function in the sequence
+ * promise - the first callback function in the sequence
  */
-bind fn cbfn
-    is  ('a -> asyncFunction<'b>) 
-        -> asyncFunction<'a> -> asyncFunction<'b> =
-    cbfn |> bindEither \case of
+bind fn promise
+    is  ('a -> promise<'b>) 
+        -> promise<'a> -> promise<'b> =
+    promise |> bindEither \case of
         None msg: returnEither (None msg);
         Some a: fn a;
         esac;
@@ -122,34 +171,35 @@ bind fn cbfn
  * see also the (-|>) operator for a shorthand and exmples 
  *
  * Arguments:
- * mappingFunction - is given the value of the first asyncFunction and should
+ * mappingFunction - is given the value of the first promise and should
  * returns the second callback funcion
- * asyncFunction - the first callback function in the sequence
+ * promise - the first callback function in the sequence
  */
-bindNone fn cbfn
-    is  ( ~Exception -> asyncFunction<'b>) 
-        -> asyncFunction<'a> -> asyncFunction<'b> =
-    cbfn |> bindEither \case of
+bindNone fn promise
+    is  ( ~Exception -> promise<'b>) 
+        -> promise<'a> -> promise<'b> =
+    promise |> bindEither \case of
         None ex: fn ex;
         Some a: return a;
         esac;
 
 /**
  * Group: async
- * Executes a sequence of asyncFunctions in parallel and calls the callback 
+ * Executes a sequence of promises in parallel and calls the callback 
  * with either a list of results or the first exception which occured
  *
  * Arguments:
- * asycnFunctions - the list of asyncFunctions to execute
+ * asycnFunctions - the list of promises to execute
  * callback - the callbac function which gets called with the result
  */
-parallel cbfns cb 
-    is list?<asyncFunction<'a>> -> asyncFunction<list<'a>> =
-    (res = array [];
+parallel promises 
+    is list?<promise<'a>> -> promise<list<'a>> =
+    (ret = valuePromise ();
+    res = array [];
     var handled = false;
-    for cbfns do c:
+    for promises do c:
         try
-        c do r:
+        c |> fulfill do r:
             finished = synchronized res \case r of
                 None str: 
                     if not handled then
@@ -161,7 +211,7 @@ parallel cbfns cb
                 Some a:
                     if not handled then
                         push res a;
-                        if length res == length cbfns then
+                        if length res == length promises then
                             handled := true;
                             Some (Some(list res));
                         else
@@ -173,31 +223,32 @@ parallel cbfns cb
                 esac;
             case finished of
                 None _ : ();
-                Some arg : cb arg;
+                Some arg : ret.setValue arg;
             esac;
         done;
         catch Exception ex:
-            cb (None ex);
+            ret.setValue (None ex);
         yrt;
-    done);
+    done;
+    ret.promise);
 
 
 /**
  * Group: async
  * Only used inside a function given to 'cbColllect'. Executes the given
- * asyncFunction and returns a function containin the value
+ * promise and returns a function containin the value
  *
  * For an example see cbCollect
  *
  * Arguments:
- * asyncFunction - the asyncFunction from which to take the value
+ * promise - the promise from which to take the value
  */
-setAsync ctr cbfn is 'b -> asyncFunction<'a> -> (() -> 'a) =
+setAsync ctr promise is 'b -> promise<'a> -> (() -> 'a) =
     (ctr.starting();
     mutex = ctr.mutex;
     var hasReceived = false;
     var res = NotSet ();
-    cbfn do r:
+    promise |> fulfill do r:
         call? = synchronized mutex \case r of
             None ex: 
                 if not hasReceived then
@@ -229,16 +280,17 @@ setAsync ctr cbfn is 'b -> asyncFunction<'a> -> (() -> 'a) =
 
 /**
  * Group: async
- * Used to collect the results asyncFunctions which get executed in parrallel.
+ * Used to collect the results promises which get executed in parrallel.
  *
  * Arguments:
- * prepareFunction - function to setup the asyncFunctions to execute
+ * prepareFunction - function to setup the promises to execute
  * callback - callback which receives the result of the prepare function
  * or the exception of the first not succesful result
  *
  */
-collectAsync inex cb is ('b -> 'a) -> asyncFunction<'a>=
-    (mutex = new Object();
+collectAsync inex is ('b -> 'a) -> promise<'a>=
+    (pro = valuePromise ();
+     mutex = new Object();
      var called = false;
      var requests = 0;
      var received = 0;
@@ -273,7 +325,7 @@ collectAsync inex cb is ('b -> 'a) -> asyncFunction<'a>=
 
             case call? of
             None _ : ();
-            Some arg: cb arg
+            Some arg: pro.setValue arg
             esac),
     };
     try 
@@ -288,7 +340,7 @@ collectAsync inex cb is ('b -> 'a) -> asyncFunction<'a>=
             fi);
         case call? of
         None _ : ();
-        Some arg: cb arg;
+        Some arg: pro.setValue arg;
         esac;
             
     catch Exception ex:
@@ -301,10 +353,10 @@ collectAsync inex cb is ('b -> 'a) -> asyncFunction<'a>=
             fi);
         case call? of 
         None _: ();
-        Some arg: cb arg;
+        Some arg: pro.setValue arg;
         esac;
     yrt;
-    ());
+    pro.promise);
 
 //run stru = (stru.f1 ()) \();
 
@@ -312,10 +364,12 @@ collectAsync inex cb is ('b -> 'a) -> asyncFunction<'a>=
 
 {
     //callback functions
+    valuePromise,
+    fulfill,
     failNone,
     return,
     returnEither,
-    returnNone,
+    returnFail,
     bind,
     bindEither,
     bindNone,

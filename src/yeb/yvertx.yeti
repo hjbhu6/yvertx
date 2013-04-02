@@ -72,7 +72,7 @@ yvf = load yeb.yvertx.vertxholder;
  * If the asyncFunction sends a None ~Exception. The exception is thrown.
  * If the timeout is 0 or negative blocks for ever
  */
-await timeoutMs asyncFn is number -> asyncFunction<'a> -> 'a =
+await timeoutMs asyncFn is number -> promise<'a> -> 'a =
     (import java.lang.RuntimeException;
     import java.util.concurrent:CountDownLatch,
                                  TimeUnit;
@@ -85,10 +85,10 @@ await timeoutMs asyncFn is number -> asyncFunction<'a> -> 'a =
     //it will never be called because the latch will block
     _ = ((yvf.vertx) unsafely_as ~VertxInternal)
             #startInBackground(runnable do:
-        asyncFn do v:
+        fulfill do v:
             avalue.value := v;
             latch#countDown();
-        done;
+        done asyncFn;
     done,false);
 
     if timeoutMs < 1 then
@@ -374,6 +374,8 @@ _currentContext () =
  * current thread. Its closed hooks will be called when the close hooks
  * of the creating verticle are called.
  *
+ * Returns a promise which gets the unit value when the worker is created.
+ *
  * Similar to a worker verticle but run with a function.
  *
  * Note that the startfn will run on a different worker-thread. So it is not 
@@ -381,10 +383,8 @@ _currentContext () =
  *
  * Arguments:
  * startfn - function run first on the worker thread. 
- * cb - callback called when succesful created on. Called on the calling 
- * context
  */ 
-newWorker startfn cb=     
+newWorker startfn =     
     (vertx = (getVertx()) unsafely_as ~VertxInternal;
     ctxt = _currentContext();
     if not defined? ctxt then
@@ -393,6 +393,8 @@ newWorker startfn cb=
 
     idw = new Object();
 
+    prom = valuePromise();
+    
     newCtxt = vertx#startInBackground(runnable do:
         r = try 
             startfn();
@@ -400,9 +402,10 @@ newWorker startfn cb=
         catch Exception ex:
             None ex;
         yrt;
-        ctxt#execute(runnable \((cb is (either<string> -> ())) r));
+        ctxt#execute(runnable \(prom.setValue ()));
         done,false);
-    ctxt#putCloseHook(idw, runnable \newCtxt#runCloseHooks()));
+    ctxt#putCloseHook(idw, runnable \newCtxt#runCloseHooks());
+    prom);
 
 /**
  * Group: experimental 
