@@ -24,7 +24,7 @@ import yeti.lang: Fun, Struct;
 import org.yeb:ValidationException, YebUtils;
 
 load yeb.std;
-load yeb.async;
+load yeb.promise;
 load yeb.mvc.mvc;
 vali = load yeb.validation;
 yvertx = load yeb.yvertx;

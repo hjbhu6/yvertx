@@ -14,7 +14,7 @@
  * and limitations under the License.
  */
 
-module yeb.async;
+module yeb.promise;
 
 import java.lang:Exception,
                 RuntimException;

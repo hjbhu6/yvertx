@@ -58,7 +58,7 @@ import org.vertx.java.platform:Verticle,
 
 
 
-load yeb.async;
+load yeb.promise;
 load yeb.yvertx.json;
 
 yvf = load yeb.yvertx.vertxholder;
@@ -1094,9 +1094,7 @@ routeToHttpHandler opts yebroute =
  * fan out its request to the route produced by the factory function
  */
 createRequestWorkers numberOfWorkers yebHandlerFactoryFn = 
-    (load yeb.async;
-
-    fibre = newFibre();
+    (fibre = newFibre();
 
     [1 .. numberOfWorkers]
     |>map' \(newWorker 
@@ -1113,9 +1111,7 @@ createRequestWorkers numberOfWorkers yebHandlerFactoryFn =
  * yebHandlers
  */
 createYebHttpServer timeOutMs httpOpts numberOfWorkers yebHandlerFactoryFn =
-    (load yeb.async;
-
-    createRequestWorkers numberOfWorkers yebHandlerFactoryFn
+    (createRequestWorkers numberOfWorkers yebHandlerFactoryFn
         |> bind (return . routeToHttpHandler httpOpts)
         |> await timeOutMs
         |> createHttpServerWithHandler);
