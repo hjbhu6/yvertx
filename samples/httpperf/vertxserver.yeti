@@ -3,10 +3,11 @@ module httpperf.vertxserver;
 import org.vertx.java.core.buffer.Buffer;
 
 load yeb.yvertx;
+load yeb.promise;
 
 verticle do :
     (createHttpServerWithHandler do req:
-        fileSystem.readFile "httpperf/foo.html" \case of
+        fileSystem.readFile "httpperf/foo.html" >>- \case of
             Some buffer:
                putResponseHeaders req 
                     ["Content-Length": string (buffer is ~Buffer)#length(),

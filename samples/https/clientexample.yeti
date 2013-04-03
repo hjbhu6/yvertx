@@ -20,14 +20,14 @@ import org.vertx.java.core.buffer.Buffer;
  
 load yeb.yvertx;
 load yeb.std;
-load yeb.async;
+load yeb.promise;
 
 verticle do :
     client = createHttpClient [] "localhost:4443";
     _ = client.vertxClient#setSSL(true)
              #setTrustAll(true);
     
-    httpRequestNow client (Get "/") []
+    httpRequestNow client (Get "/") [] >>-
         \case of
         None ex: println "Exception in request \(ex)";
         Some {body = buffer,response}:

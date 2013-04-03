@@ -16,6 +16,7 @@
 module upload.uploadserver;
 
 load yeb.yvertx;
+load yeb.promise;
 
 import org.vertx.java.core.file.AsyncFile;
 
@@ -26,12 +27,12 @@ verticle do :
     (createHttpServerWithHandler do req:
         req#pause();
         filename = "upload/file-\(UUID#randomUUID()).upload";
-        fileSystem.open [] filename \case of
+        fileSystem.open [] filename >>- \case of
             Some file:
                (pump = createPump req (file is ~AsyncFile)#getWriteStream();
                 start = System#currentTimeMillis();
                 endHandler req do:
-                    fileSystem.closeAFile file \case of
+                    fileSystem.closeAFile file >>- \case of
                         Some _ : 
                             (req#response#end();
                              end = System#currentTimeMillis();

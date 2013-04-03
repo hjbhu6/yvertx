@@ -16,6 +16,7 @@
 module upload.uploadclient;
 
 load yeb.yvertx;
+load yeb.promise;
  
 import org.vertx.java.core.AsyncResult;
 import org.vertx.java.core.AsyncResultHandler;
@@ -49,14 +50,14 @@ verticle do :
     // For a chunked upload you don't need to specify size, just do:
     // req.setChunked(true);
 
-    fileSystem.open [] filename \case of
+    fileSystem.open [] filename >>- \case of
         None ex: (ex is ~Exception)#printStackTrace(System#err);
         Some file :
             (pump = createPump (file is ~AsyncFile)#getReadStream() req;
              pump#start();
              
              file#getReadStream()#endHandler(toHandler do:
-                fileSystem.closeAFile file \case of
+                fileSystem.closeAFile file >>- \case of
                     Some _ :
                         (req#end();
                          println "File sent");
