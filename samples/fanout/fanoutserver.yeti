@@ -19,6 +19,7 @@ module fanout.fanoutserver;
 import org.vertx.java.core:Vertx;
 
 load yeb.yvertx; 
+load yeb.promise;
 
 verticle do :
    connections = sharedData#getSet("conns");
@@ -29,7 +30,7 @@ verticle do :
             it#hasNext() loop
                  eventBus#publish(string it#next(), buffer);
         done;
-        netsocketClosed socket do:
+        netsocketClosed socket >>- do:
             _ = connections#remove(socket#writeHandlerID)
         done;
     done)#listen(1234);

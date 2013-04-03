@@ -65,7 +65,7 @@ yvf = load yeb.yvertx.vertxholder;
 
 
 /**
- * Group: async (ASYNC)
+ * Group: async (PROMISE)
  * blocks for the given time in ms on the asnyc function and returns the
  * result or throws an exception.
  *
@@ -621,9 +621,8 @@ lateVerticle runFn
  * moduleName - name of the module to deploy
  * config - JSON config to provide to the module (given as struct)
  * instances - number of instances to deploy
- * doneHandler - handler called when the module is succesful deployed
  */
-deployModule name config instances handler =
+deployModule name config instances =
     (prom = promise();
     (getContainer ())#deployModule(name is string, 
                                             toJson config, 
@@ -646,7 +645,7 @@ deployModule name config instances handler =
  * config - JSON config to provide to the verticle (given as struct)
  * instances - number of instances
  */
-deployVerticle name config instances handler= 
+deployVerticle name config instances= 
     (prom = promise();
     (getContainer ())#deployVerticle(name is string, 
                                                 toJson config, 
@@ -669,9 +668,8 @@ deployVerticle name config instances handler=
  * config - JSON config to provide to the verticle (given as struct)
  * instances - number of instances
  * mulitThreaded - wheter multithreaded
- * handler - called when succesful deploid. The handler is given the uniqueid
  */
-deployWorkerVerticle name config instances multiThreaded handler= 
+deployWorkerVerticle name config instances multiThreaded= 
     (prom = promise ();
     (getContainer ())#deployWorkerVerticle(name is string, 
                                                 toJson config, 
@@ -710,7 +708,7 @@ _enviroment () =
  * Arguments:
  * moduleId - the id of the module
  */
-undeployModule deploymentID handler =
+undeployModule deploymentID =
     (prom = promise ();
     (getContainer ())#undeployModule(deploymentID, 
                                     toSimpleHandler (prom.setValue . Some));
@@ -729,7 +727,7 @@ undeployModule deploymentID handler =
  * verticleId - deploymentId of the verticle
  * handler - called when undeployment is complete
  */
-undeployVerticle deploymentID handler =
+undeployVerticle deploymentID =
     (prom = promise();
     (getContainer ())#undeployVerticle(deploymentID, 
                                     toHandler (prom.setValue . Some));
@@ -825,7 +823,7 @@ createHttpServerWithHandler handler =
  * Arguments:
  * server - the http server to close
  */
-closeHttpServer server handler =
+closeHttpServer server =
     (prom = promise ();
     (server is ~HttpServer)#close(toSimpleHandler (prom.setValue . Some));
     prom.promise);
@@ -1053,7 +1051,6 @@ serveStaticFileAtPath opts =
  * Group: httpServer
  * Add a bodyHandler to HttpServerRequest
  *
- * returns a promise with the boddy buffer
  *
  * Arguments:
  * httpStream - the HttpReadStreamBase
@@ -1607,18 +1604,12 @@ connectWebSocketClient client uri handler =
  * 
  * calls WebSocket#closedHandler
  *
- * retruns a promise which is fulfilled with () when the socket is
- * closed
- *
  * Arguments:
  * socket - the WebSocket
  * handler - the closedHandler
  */
-closedWebSocket socket =
-   (prom = promise ();
-   (socket is ~WebSocket)#closedHandler(toSimpleHandler 
-                                            (prom.setValue . Some));
-   prom.promise);
+closedWebSocket socket handler =
+   (socket is ~WebSocket)#closedHandler(toSimpleHandler handler);
 
 
 //sockjs functions
@@ -1735,10 +1726,7 @@ bridgeSockJS server opts sjsConfig inboundPermitted outboundPermitted =
  * socket - NetSocket
  */
 netsocketClosed socket handler =
-    (prom = promise();
-    (socket is ~NetSocket)#closedHandler(toSimpleHandler 
-                        (prom.setValue . Some));
-    prom.promise);
+    (socket is ~NetSocket)#closedHandler(toSimpleHandler handler);
 
 /**
  * Group: net
@@ -1831,7 +1819,7 @@ createAndConnectNetServer handler =
  * Arguments:
  * server - the NetServer
  */
-closeNetServer server handler =
+closeNetServer server =
     (prom = promise();
     (server is ~NetServer)#close(toSimpleHandler 
                     (prom.setValue . Some));
@@ -2094,29 +2082,29 @@ unregisterBusHandler {address,object} =
 
 //filesystem
 fsHelper = {
-    closeAFile file handler =
+    closeAFile file =
         (prom = promise();
-        (file is ~AsyncFile)#close(toAsyncResultHandler handler);
+        (file is ~AsyncFile)#close(toAsyncResultHandler prom);
         prom.promise),
 
-    flushAFile file handler =
+    flushAFile file =
         (prom = promise();
-        (file is ~AsyncFile)#flush(toAsyncResultHandler handler);
+        (file is ~AsyncFile)#flush(toAsyncResultHandler prom);
         prom.promise),
 
-    readAFile file buffer offset position length handler =
+    readAFile file buffer offset position length =
         (prom = promise();
         (file is ~AsyncFile)#read(buffer is ~Buffer, offset is number,
                                   position is number,
                                   length is number,
                                   toTypedAsyncResultHandler 
-                                    (unsafely_as ~Buffer) handler);
+                                    (unsafely_as ~Buffer) prom);
         prom.promise),
 
-    writeAFile file buffer position handler =
+    writeAFile file buffer position =
         (prom = promise();
         (file is ~AsyncFile)#write(buffer is ~Buffer, position is number,
-                                   toAsyncResultHandler handler);
+                                   toAsyncResultHandler prom);
         prom.promise),
 };
 
@@ -2127,147 +2115,147 @@ fsHelper = {
  */
 fileSystem = ({
     get fs () = ((getVertx ())#fileSystem()),
-    chmod path perms handler =
+    chmod path perms =
         (prom = promise();
         ((getVertx())#fileSystem())#chmod(path is string, perms is string, 
-                    toAsyncResultHandler handler);
+                    toAsyncResultHandler prom);
         prom.promise),
 
-    chmodDir path perms dirPerms handler =
+    chmodDir path perms dirPerms =
         (prom = promise();
         ((getVertx ())#fileSystem())#chmod(path is string, 
                          perms is string, dirPerms is string,
-                         toAsyncResultHandler handler);
+                         toAsyncResultHandler prom);
         prom.promise),
 
-    copy from to recursive handler =
+    copy from to recursive =
         (prom = promise();
         ((getVertx ())#fileSystem())#copy(from is string, to is string, 
-                         recursive is boolean, toAsyncResultHandler handler);
+                         recursive is boolean, toAsyncResultHandler prom);
         prom.promise),
 
-    createFile path perms handler =
+    createFile path perms =
         (prom = promise();
         case perms of
         None _ :
             ((getVertx ())#fileSystem())#createFile(path is string, 
-                                            toAsyncResultHandler handler);
+                                            toAsyncResultHandler prom);
         Some perm:
             ((getVertx ())#fileSystem())#createFile(path, perm is string, 
-                        toAsyncResultHandler handler);
+                        toAsyncResultHandler prom);
         esac;
         prom.promise),
 
-    delete path recursive handler =
+    delete path recursive =
         (prom = promise();
         ((getVertx ())#fileSystem())#delete(path is string, 
                     recursive is boolean, 
-                    toAsyncResultHandler handler);
+                    toAsyncResultHandler prom);
         prom.promise),
 
-    exists path handler =
+    exists path =
         (prom = promise();
         ((getVertx ())#fileSystem())#exists(path is string, 
-                toTypedAsyncResultHandler (unsafely_as boolean) handler);
+                toTypedAsyncResultHandler (unsafely_as boolean) prom);
         prom.promise),
         
-    fsProps path handler =
+    fsProps path =
         (prom = promise();
         ((getVertx ())#fileSystem())#fsProps(path is string, 
                      toTypedAsyncResultHandler 
-                        (unsafely_as ~FileSystemProps) handler);
+                        (unsafely_as ~FileSystemProps) prom);
         prom.promise),
 
-    link link existing handler =
+    link link existing =
         (prom = promise();
         ((getVertx ())#fileSystem())#link(link is string, existing is string, 
-                    toAsyncResultHandler handler);
+                    toAsyncResultHandler prom);
         prom.promise),
      
-    lprops path handler =
+    lprops path =
         (prom = promise();
         ((getVertx ())#fileSystem())#lprops(path is string, 
                     toTypedAsyncResultHandler 
-                        (unsafely_as ~FileProps) handler);
+                        (unsafely_as ~FileProps) prom);
         prom.promise),
 
-    mkdir path perms createParents handler =
+    mkdir path perms createParents =
         (prom = promise();
         case perms of
         None () : 
             ((getVertx ())#fileSystem())#mkdir(path is string, 
-                       createParents is boolean, toAsyncResultHandler handler);
+                       createParents is boolean, toAsyncResultHandler prom);
         Some perm:
             ((getVertx ())#fileSystem())#mkdir(path is string, perm is string, 
-                       createParents is boolean, toAsyncResultHandler handler);
+                       createParents is boolean, toAsyncResultHandler prom);
         esac;
         prom.promise),
 
-    move from to handler =
+    move from to =
         (prom = promise();
         ((getVertx ())#fileSystem())#move(from is string, to is string, 
-                                          toAsyncResultHandler handler);
+                                          toAsyncResultHandler prom);
         prom.promise),
 
-    props path handler =
+    props path =
         (prom = promise();
         ((getVertx ())#fileSystem())#props(path is string, 
-                   toTypedAsyncResultHandler (unsafely_as ~FileProps) handler);
+                   toTypedAsyncResultHandler (unsafely_as ~FileProps) prom);
         prom.promise),
         
-    readDir path filter handler =
+    readDir path filter =
         (prom = promise();
         mfn obj = ((obj is ~Object) unsafely_as ~String[]) as list<string>;
         case filter of
         None ():
             ((getVertx ())#fileSystem())#readDir(path is string, 
-                         toTypedAsyncResultHandler mfn handler);
+                         toTypedAsyncResultHandler mfn prom);
         Some fil:
             ((getVertx ())#fileSystem())#readDir(path is string, 
-                         fil is string, toTypedAsyncResultHandler mfn handler);
+                         fil is string, toTypedAsyncResultHandler mfn prom);
         esac;
         prom.promise),
 
-    readFile path handler =
+    readFile path =
         (prom = promise();
         ((getVertx ())#fileSystem())#readFile(path is string, 
-                      toTypedAsyncResultHandler (unsafely_as ~Buffer) handler);
+                      toTypedAsyncResultHandler (unsafely_as ~Buffer) prom);
         prom.promise),
 
-    readSymlink path handler =
+    readSymlink path =
         (prom = promise();
         ((getVertx ())#fileSystem())#readSymlink(path is string, 
                          toTypedAsyncResultHandler 
-                            (unsafely_as string) handler);
+                            (unsafely_as string) prom);
         prom.promise),
         
-    symlink link existing handler =
+    symlink link existing =
         (prom = promise();
         ((getVertx ())#fileSystem())#symlink(link is string, 
                      existing is string, 
-                     toAsyncResultHandler handler);
+                     toAsyncResultHandler prom);
         prom.promise),
 
-    truncate path len handler =
+    truncate path len =
         (prom = promise();
         ((getVertx ())#fileSystem())#truncate(path is string, 
-                      len is number, toAsyncResultHandler handler);
+                      len is number, toAsyncResultHandler prom);
         prom.promise),
 
-    unlink link handler =
+    unlink link =
         (prom = promise();
         ((getVertx ())#fileSystem())#unlink(link is string, 
-                                            toAsyncResultHandler handler);
+                                            toAsyncResultHandler prom);
         prom.promise),
 
-    writeFile path data handler =
+    writeFile path data =
         (prom = promise();
         ((getVertx ())#fileSystem())#writeFile(path is string, 
                        data is ~Buffer, 
-                       toAsyncResultHandler handler);
+                       toAsyncResultHandler prom);
         prom.promise),
 
-    open opts path handler =
+    open opts path =
        (prom = promise();
         var createNew = true;
         var flush = false;
@@ -2287,7 +2275,7 @@ fileSystem = ({
         ((getVertx ())#fileSystem())#open(path is string, perms, read, 
                   write, createNew, flush, 
                   toTypedAsyncResultHandler 
-                        (unsafely_as ~AsyncFile) handler);
+                        (unsafely_as ~AsyncFile) prom);
         prom.promise),
 
     } with fsHelper);
