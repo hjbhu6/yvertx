@@ -26,13 +26,12 @@ typedef opaque promise<a> = (either<a> -> ()) -> ();
 _idT r is ((either<'a> -> ()) -> ()) ->
        ((either<'a> -> ()) -> ()) =
         r;
-//_create = (r as ((either<'a> -> ()) -> ()) -> promise<'a>);
-_resolve is promise<'a> -> ((either<'a> -> ()) -> ()) 
-    = (_idT as promise<'a> -> ((either<'a> -> ()) -> ()));
+//_create = _idT as ((either<'a> -> ()) -> ()) -> promise<'a>;
+_resolve = (_idT as promise<'a> -> ((either<'a> -> ()) -> ()));
 
 
 /**
- * Group: async
+ * Group: fulfill (FULFILL)
  * Fulfill the value of promise in the given function. If the promise
  * has the value than the function will be called with the value.
  * 
@@ -43,52 +42,78 @@ _resolve is promise<'a> -> ((either<'a> -> ()) -> ())
 fulfill fn pro =
     (_resolve pro) fn;
 
+_nilListener = \();
 /**
- * Group: async
- * Create a setable promise. The value can be set once with the value function
+ * Group: new (CONSTRUCT)
+ * Create a setable promise. 
+ *
+ * Retruns a struct with a function (setValue) to set the promise value
+ * and a field with the promise 
+ * The value can be set once with the value function
  */
-valuePromise () =
-    (var val = none;
-    var listener = \();
+promise () =
+    (var val = None _nilListener;
+    mutex = new Object();
     {
-        setValue x = case val of
-            None _ :
-                val := Some x;
-                listener x;
-            Some v :
-                failWith "Value already set";
-            esac,
-        promise = do cb:
-            case val of
-            None _ :
-                ol = listener;
-                listener :=  
-                    do x: 
-                        try ol x finally cb x yrt
-                    done;
-            Some v: cb v;
-            esac
-        done as promise<'a>
+        /**
+         * set promise value. The value first set will always be the value of
+         * the promise. If therey are already registered listeners
+         * on the promise than these will be called. If not
+         * than 
+         */
+        setValue x = 
+            fn = synchronized mutex do:
+                case val of
+                None l :
+                    val := Some x;
+                    l;
+
+                Some v :
+                    _nilListener;
+                esac
+            done;
+            fn x;
+            (),
+        /**
+         * the promise. 
+         */
+        promise cb = 
+            fn = synchronized mutex do:
+                case val of
+                None ol :
+                    val := None 
+                        do x: 
+                            try ol x finally cb x yrt
+                        done;
+                    _nilListener;
+                Some v: \(cb v);
+                esac
+            done;
+            fn (),
+    } as {
+        setValue is either<'a> -> (),
+        promise is promise<'a>
     });
                         
 
 /**
- * Group: async (PROMISE)
- * Transforms a value in an promise
+ * Group: new
+ * Transforms a value in an promise. The promise will always evaluate to the
+ * given value.
  *
  * Arguments:
- *  value - value to which the created function will pass in the reciever
+ *  value - the value of the promise
  */
 returnEither v is either<'a> -> promise<'a> = 
     (do cb: cb v done) as promise<'a>;
 
 /**
- * Group: async (ASYNC)
- * Transforms a value in an promise which always return some. Same as
- * return (Some v)
+ * Group: new
+ * Transforms a value in an promise which always evalutes to Some value. 
+ * Same as returnEither (Some v)
  *
  * Arguments:
- *  value - value to which the created function will pass in the reciever
+ *  value - value 
  */
 return v is 'a -> promise<'a> =
     returnEither (Some v);
@@ -98,72 +123,82 @@ end;
 
 
 /**
- * Group: async
- * crates a None with Excpetion
+ * Group: new
+ * returns none with a FailureException with the given string.
  */
 failNone msg = 
     (import yeti.lang:FailureException;
     (None ((new FailureException(msg is string)) as ~Exception)));
 
 /**
- * Group: async 
- * creates an AsyncException from a string
+ * Group: new 
+ * 
+ * creates a promise which always evaluates to the None with the given string
+ * in a failure excpeiont
  */
 returnFail msg = returnEither (failNone msg);
 
 /**
- * Group: async
- * Joins two promises in sequenc, where the second function
- * is dependent on the result of the first.
- *
- * see also the (->) operator for a shorthand and exmples 
+ * Group: bind (BINDING)
+ * Maps the either value of one promise to another promise using the given 
+ * mapping function
  *
  * Arguments:
- * mappingFunction - is given the value of the first promise and should
- * returns the second callback funcion
- * promise - the first callback function in the sequence
+ * mappingFunction - is given the value of the promise and should
+ * returns promise returned by this function
+ * promise - the promise which should be mapped
  */
-bindEither fn promise
+bindEither fn prom
     is  (either<'a> -> promise<'b>) 
         -> promise<'a> -> promise<'b> =
-    (ret = valuePromise ();
-    promise |> fulfill do a:
+    (ret = promise ();
+    fulfill do a:
         try 
             pron = fn a;
-            pron |> fulfill ret.setValue;
+            fulfill ret.setValue pron;
         catch Exception ex:
             ret.setValue (None ex);
         yrt
-    done;
+        done
+        prom;
     ret.promise);
 
 /**
- * Group: async
- * Joins two promises in sequenc with the value, where the second function
- * is dependent on the result of the first.
+ * Group: bind
+ * Maps the success (Some) value of one promise to another promise 
+ * using the given mapping function.
  *
- * Differnt to bind the second function only gets the value of a positit Some
- * result of the callback. If there is a failure this is given further.
- *
- * see also the (->>) operator for a shorthand and exmples 
+ * If the value of the original promise is None (ex) then this is transferred
+ * directly further to the resulting promise.
  *
  * Arguments:
- * mappingFunction - is given the value of the first promise and should
- * returns the second callback funcion
- * promise - the first callback function in the sequence
+ * mappingFunction - is given the value of the promise and should
+ * returns promise returned by this function
+ * promise - the promise which should be mapped
+ *
  */
-bind fn promise
+bind fn prom
     is  ('a -> promise<'b>) 
         -> promise<'a> -> promise<'b> =
-    promise |> bindEither \case of
-        None msg: returnEither (None msg);
-        Some a: fn a;
+    (ret = promise();
+    (_resolve prom) \case of
+        None msg: ret.setValue (None (msg is ~Exception));
+        Some v: 
+            pron = fn v;
+            (_resolve pron) \case of
+                    None ex: ret.setValue (None (ex is ~Exception));
+                    Some v2: ret.setValue (Some v2);
+                    esac
         esac;
+    ret.promise);
 
 
 /**
  * Group: async
- * Handles failure in an async functiond and returns a new one.
+ * Maps a failed promise.
+ *
+ * If the promise value is None the map function is called with the exception.
+ * Otherwise the value is given directly further.
  *
  * Differnt to bind the second function only gets the failure. If the callback
  * receives a falid value it is passed further.
@@ -184,17 +219,17 @@ bindNone fn promise
         esac;
 
 /**
- * Group: async
+ * Group: parallel (PARALLEL)
  * Executes a sequence of promises in parallel and calls the callback 
  * with either a list of results or the first exception which occured
  *
  * Arguments:
- * asycnFunctions - the list of promises to execute
+ * promises - the list of promises to execute
  * callback - the callbac function which gets called with the result
  */
 parallel promises 
     is list?<promise<'a>> -> promise<list<'a>> =
-    (ret = valuePromise ();
+    (ret = promise ();
     res = array [];
     var handled = false;
     for promises do c:
@@ -234,8 +269,8 @@ parallel promises
 
 
 /**
- * Group: async
- * Only used inside a function given to 'cbColllect'. Executes the given
+ * Group: parallel
+ * Only used inside a function given to 'colllectPromises'. Executes the given
  * promise and returns a function containin the value
  *
  * For an example see cbCollect
@@ -279,7 +314,7 @@ setAsync ctr promise is 'b -> promise<'a> -> (() -> 'a) =
       esac));    
 
 /**
- * Group: async
+ * Group: parallel
  * Used to collect the results promises which get executed in parrallel.
  *
  * Arguments:
@@ -288,8 +323,8 @@ setAsync ctr promise is 'b -> promise<'a> -> (() -> 'a) =
  * or the exception of the first not succesful result
  *
  */
-collectAsync inex is ('b -> 'a) -> promise<'a>=
-    (pro = valuePromise ();
+collectPromises inex is ('b -> 'a) -> promise<'a>=
+    (pro = promise ();
      mutex = new Object();
      var called = false;
      var requests = 0;
@@ -363,8 +398,12 @@ collectAsync inex is ('b -> 'a) -> promise<'a>=
 
 
 {
+    (>>=) p fn = bind fn p,
+    (<-) fn p = bind fn p,
+    (>>-) p fn = fulfill fn p,
+
     //callback functions
-    valuePromise,
+    promise,
     fulfill,
     failNone,
     return,
@@ -375,5 +414,5 @@ collectAsync inex is ('b -> 'a) -> promise<'a>=
     bindNone,
     parallel,
     setAsync,
-    collectAsync,
+    collectPromises,
 }

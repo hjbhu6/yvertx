@@ -37,7 +37,7 @@ import org.vertx.java.platform: Verticle,
 teti = load yeb.teti;                                    
 vhl = load yeb.yvertx.vertxholder;
 std = load yeb.std;
-
+load yeb.promise;
         
 
 class MockVerticle extends Verticle
@@ -82,7 +82,7 @@ class ReplVerticle extends Verticle
                 cb code
             done
         done
-        do:
+        >>- do:
             //after worker is created this function is called
             //send over the fibre to the worker the inital message
             //and als repsonse handler the handler of the code

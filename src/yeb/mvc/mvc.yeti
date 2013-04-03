@@ -385,7 +385,7 @@ patternRoute pattern route =
 routes handlersIn req is list<route> -> route =
     (var handlers = handlersIn;
     var cond = true;
-    prom = valuePromise();
+    prom = promise();
     
     internalResponder = \case of
         None ex: prom.setValue (None (ex is ~Exception));

@@ -178,15 +178,15 @@ toLongHandler fn =
  * Arguments:
  * handler - funciton taking either Exception ex or Value v
  */
-toAsyncResultHandler fn 
-    is (either<~Object> -> ()) -> ~AsyncResultHandler =
+toAsyncResultHandler promise 
+    is 'b -> ~AsyncResultHandler =
        (class IYetiAsyncResultHandler extends AsyncResultHandler
             void handle(Object o)
                 r = o unsafely_as ~AsyncResult;
                 if (r is ~AsyncResult)#succeeded() then
-                    fn (Some r#result)
+                    promise.setValue (Some r#result)
                 else
-                    fn (None r#exception);
+                    promise.setValue (None r#exception);
                 fi,
         end;
         new IYetiAsyncResultHandler());
@@ -200,15 +200,15 @@ toAsyncResultHandler fn
  * handlerFucntion - either gets the value (casted by castFunction) or
  * Exception ex
  */
-toTypedAsyncResultHandler tfn fn 
-    is (~Object -> 'a) -> (either<'a> -> ()) -> ~AsyncResultHandler =
+toTypedAsyncResultHandler tfn promise 
+    is (~Object -> 'a) -> 'p -> ~AsyncResultHandler =
        (class IYetiAsyncResultHandler extends AsyncResultHandler
             void handle(Object o)
                 r = o unsafely_as ~AsyncResult;
                 if (r is ~AsyncResult)#succeeded() then
-                   fn (Some (tfn r#result))
+                   promise.setValue (Some (tfn r#result))
                 else
-                   fn (None r#exception);
+                   promise.setValue (None r#exception);
                 fi,
         end;
         new IYetiAsyncResultHandler());
@@ -393,7 +393,7 @@ newWorker startfn =
 
     idw = new Object();
 
-    prom = valuePromise();
+    prom = promise();
     
     newCtxt = vertx#startInBackground(runnable do:
         r = try 
@@ -402,10 +402,10 @@ newWorker startfn =
         catch Exception ex:
             None ex;
         yrt;
-        ctxt#execute(runnable \(prom.setValue ()));
+        ctxt#execute(runnable \(prom.setValue r));
         done,false);
     ctxt#putCloseHook(idw, runnable \newCtxt#runCloseHooks());
-    prom);
+    prom.promise);
 
 /**
  * Group: experimental 
@@ -614,41 +614,55 @@ lateVerticle runFn
  *
  * Calls ~Container#deployModule
  *
+ * returns a promise with the id of the module when the container. The 
+ * promise is fulfilled when the module is succesfully deplyed.
+ *
  * Arguments:
  * moduleName - name of the module to deploy
  * config - JSON config to provide to the module (given as struct)
  * instances - number of instances to deploy
  * doneHandler - handler called when the module is succesful deployed
  */
-deployModule name config instances handler = 
+deployModule name config instances handler =
+    (prom = promise();
     (getContainer ())#deployModule(name is string, 
                                             toJson config, 
                                             instances is number, 
-                                            toStringHandler handler);
+                                            toStringHandler 
+                                                (prom.setValue . Some));
+    prom.promise);
 
 /**
  * Group: container
  * Deploy a verticle progammatically
  *
- * Calls ~Container#deployVerticle
+ * Calls ~Container#deployVerticle.
+ *
+ * Returns a promise which is fullfilled with the id of the verticle, when
+ * it is succesfully deployed
  *
  * Arguments:
  * verticleName - name of the verticle to deploy
  * config - JSON config to provide to the verticle (given as struct)
  * instances - number of instances
- * handler - called when succesful deploid. The handler is given the uniqueid
  */
 deployVerticle name config instances handler= 
+    (prom = promise();
     (getContainer ())#deployVerticle(name is string, 
                                                 toJson config, 
                                                 instances is number, 
-                                                toStringHandler handler);
+                                                toStringHandler 
+                                                    (prom.setValue . Some));
+    prom.promise);
 
 /**
  * Group: container
  * Deploy a worker verticle progammatically
  *
  * Calls ~Container#deployWorkerVerticle
+ *
+ * Returns a promise which is fulfilled with the id of the verticle, wehn
+ * it is successfully deployed
  *
  * Arguments:
  * verticleName - name of the verticle to deploy
@@ -658,11 +672,14 @@ deployVerticle name config instances handler=
  * handler - called when succesful deploid. The handler is given the uniqueid
  */
 deployWorkerVerticle name config instances multiThreaded handler= 
+    (prom = promise ();
     (getContainer ())#deployWorkerVerticle(name is string, 
                                                 toJson config, 
                                                 instances is number, 
                                                 multiThreaded is boolean,
-                                                toStringHandler handler);
+                                                toStringHandler 
+                                                    (prom.setValue . Some));
+    prom.promise);
 
 /**
  * Group: container
@@ -686,27 +703,37 @@ _enviroment () =
  * undeploys the module with the given moduleId
  *
  * calls Container#undeployModule
+ * 
+ * returns a promise which is fulfilled with () if when the module is
+ * undeployed
  *
  * Arguments:
  * moduleId - the id of the module
- * hanlder - called when succesful undeployed
  */
 undeployModule deploymentID handler =
+    (prom = promise ();
     (getContainer ())#undeployModule(deploymentID, 
-                                    toSimpleHandler handler);
+                                    toSimpleHandler (prom.setValue . Some));
+    prom.promise);
+
 /**
  * Group: container
  * undeploys a verticle
  *
  * calls Container#undeployVerticle
  *
+ * returns a promise which is fulfilled with () when the verticle is
+ * undeployed.
+ *
  * Arguments:
  * verticleId - deploymentId of the verticle
  * handler - called when undeployment is complete
  */
 undeployVerticle deploymentID handler =
+    (prom = promise();
     (getContainer ())#undeployVerticle(deploymentID, 
-                                    toHandler handler);
+                                    toHandler (prom.setValue . Some));
+    prom.promise);
 
 class TimeOutException(long time) extends RuntimeException("Timedout \(time)")
      long getTime()
@@ -715,32 +742,35 @@ end;
 
 /**
  * Group: async
- * Wraps an async callback function with timeout behauviour.
+ * Wraps creates a promise with async callback function with timeout behauviour.
  *
  * If the callback is not invoke within the given timeoutMs than
  * an TimeOutException is passed in Excepition.
  *
  * Arguments:
  * timeoutMs - the timouout in Ms
- * callback - the callback function
+ * promise - the promise to timeout
  */
-timeout timeMs asfn cb 
-    is number -> asyncFunction<'a> -> asyncFunction<'a> = 
+timeout timeMs promi 
+    is number -> promise<'a> -> promise<'a> = 
     (var handled = false;
-
+    prom = promise ();
     _ = setTimer (timeMs) do:
         if not handled then
             handled := true;
-            cb (None ((new TimeOutException(timeMs)) as ~Exception));
+            prom.setValue 
+                (None ((new TimeOutException(timeMs)) as ~Exception));
         fi
     done;
     
-    asfn do v:
-        if not handled then
-            handled := true;
-            cb v
-        fi
-    done);
+    fulfill do v:
+            if not handled then
+                handled := true;
+                prom.setValue v
+            fi
+        done
+        promi;
+    prom.promise);
 
 //http server things
 
@@ -790,12 +820,15 @@ createHttpServerWithHandler handler =
  *
  * Calls server#close(handler)
  *
+ * return a promise which is fullfilled when the server is finally closed.
+ *
  * Arguments:
  * server - the http server to close
- * doneHandler - called when server close is complete
  */
 closeHttpServer server handler =
-    (server is ~HttpServer)#close(toSimpleHandler handler);
+    (prom = promise ();
+    (server is ~HttpServer)#close(toSimpleHandler (prom.setValue . Some));
+    prom.promise);
 
 /**
  * Group: httpServer
@@ -1020,9 +1053,11 @@ serveStaticFileAtPath opts =
  * Group: httpServer
  * Add a bodyHandler to HttpServerRequest
  *
+ * returns a promise with the boddy buffer
+ *
  * Arguments:
  * httpStream - the HttpReadStreamBase
- * handler - the handler getting a buffer
+ * handler - callback which gets the buffer
  */
 serverBodyHandler response handler =
    (response is ~HttpServerRequest)#bodyHandler(
@@ -1099,13 +1134,17 @@ routeToHttpHandler opts yebroute =
 createRequestWorkers numberOfWorkers yebHandlerFactoryFn = 
     (fibre = newFibre();
 
-    [1 .. numberOfWorkers]
+    a = [1 .. numberOfWorkers]
     |>map' \(newWorker 
         \(route = yebHandlerFactoryFn ();
-        _ = fibre.register do req res: route req res done;
-        ))
-    |>parallel 
-    |>bind \(return fibre.send));
+        _ = fibre.register do req res: fulfill res (route req)  done;
+        ));
+    
+    b = a |>parallel;
+
+    bind do: return fibre.send done b);
+
+    //bind \(return fibre.send) b);
 
 /**
  * Group: httpServer
@@ -1493,26 +1532,28 @@ clientBodyHandler response handler =
  * Calls - depending on the muri - one of the HttpClient request mehtod (get, 
  * put, post, delete etc)
  *
+ * returns a promise containing the body and the response object
+ *
  * Arguments:
  * client - the httpclient
  * muri - the uri with the method as a Tag (Post, Get, Delete etc)
  * options - options to set headers, send content and work on the request 
- * handler - the reqeusthandler
  *
  */
-httpRequestNow client murl opts handler =  
-    (var handled = false;
+httpRequestNow client murl opts =  
+    (prom = promise ();
+    var handled = false;
     req = httpRequest client murl opts do response:
         exceptionHandler response do ex:
             if not handled then
                 handled := true;
-                handler (None ex)
+                prom.setValue (None ex)
             fi
         done;
         clientBodyHandler response do body:
             if not handled then
                 handled := true;
-                handler (Some {body, response});
+                prom.setValue (Some {body, response});
             fi;
         done
     done;
@@ -1520,11 +1561,12 @@ httpRequestNow client murl opts handler =
     wsExceptionHandler req do ex:
         if not handled then
             handled := true;
-            handler (None ex);
+            prom.setValue (None ex);
         fi
     done;
 
-    req#end());
+    req#end();
+    prom.promise);
 
 //websocket functions
 
@@ -1565,12 +1607,18 @@ connectWebSocketClient client uri handler =
  * 
  * calls WebSocket#closedHandler
  *
+ * retruns a promise which is fulfilled with () when the socket is
+ * closed
+ *
  * Arguments:
  * socket - the WebSocket
  * handler - the closedHandler
  */
-closedWebSocket socket handler =
-   (socket is ~WebSocket)#closedHandler(toSimpleHandler handler);
+closedWebSocket socket =
+   (prom = promise ();
+   (socket is ~WebSocket)#closedHandler(toSimpleHandler 
+                                            (prom.setValue . Some));
+   prom.promise);
 
 
 //sockjs functions
@@ -1681,12 +1729,16 @@ bridgeSockJS server opts sjsConfig inboundPermitted outboundPermitted =
  *
  * calls NetSocket#closed
  *
+ * returns a promise which is called when the handler is closed.
+ *
  * Arguments:
  * socket - NetSocket
- * hanlder - closedHanlder
  */
 netsocketClosed socket handler =
-    (socket is ~NetSocket)#closedHandler(toSimpleHandler handler);
+    (prom = promise();
+    (socket is ~NetSocket)#closedHandler(toSimpleHandler 
+                        (prom.setValue . Some));
+    prom.promise);
 
 /**
  * Group: net
@@ -1774,12 +1826,16 @@ createAndConnectNetServer handler =
  *
  * calls NetServer#close
  *
+ * returns a promise which gets called when the server is closed
+ *
  * Arguments:
  * server - the NetServer
- * doneHandler - handler called when close is complete
  */
 closeNetServer server handler =
-    (server is ~NetServer)#close(toSimpleHandler handler);
+    (prom = promise();
+    (server is ~NetServer)#close(toSimpleHandler 
+                    (prom.setValue . Some));
+    prom.promise);
 
 /**
  * Group: net
@@ -1929,7 +1985,8 @@ sendToBus address msg =
 
 /**
  * Group: eventbus
- * send a Json message on the eventbus with a normal handler
+ * send a Json message on the eventbus and receive a promise which gets a full
+ * hanlder
  *
  * Note only struct can be send/received 
  *
@@ -1938,20 +1995,21 @@ sendToBus address msg =
  * Arguments:
  * address - the address to send to
  * structMessage - struct iwht will be sind
- * handler - the callback function receiving the response
  */
 sendToBusWithHandler address msg handler =
+    (prom = promise();
     (getVertx ())#eventBus()#send(address is string, toJson msg, 
-            toJsonMessageHandler address handler);
+            toJsonMessageHandler address (prom.setValue . Some));
+    prom.promise);
 
 
 /**
  * Group: eventbus
- * send a Json message on the eventbus and receive either
+ * send a Json message on the eventbus and get a promise with either
  * Some jsonResponse or None exception. 
  *
  * If the response has the field status with error (like busmods do)
- * a None is given as value to the callback, Otherwise a Some with the
+ * a None is given by the promise, Otherwise a Some with the
  * the json value.
  *
  * Note only struct can be sent as message here.
@@ -1960,18 +2018,20 @@ sendToBusWithHandler address msg handler =
  *
  * address - the address to send to
  * structMessage - the struct which will be sind as JSON
- * responseHandler - the handler which gets the response struct
  *
  * example:
- * : requestFromBus "fooAdress" {msg="some", for_json=E()} \case of:
- * :    None ex: //hanlde failure
- * :    Some val: //handle json value
+ * : promise = requestFromBus "fooAdress" {msg="some", for_json=E()};
+ * : promise |> fulfill \case of:
+ * :    None ex: println ex; //an exception has happened
+ * :    Some val: println val //handle json value
  * : esac;
  *
  */
-requestFromBus address msg handler =
+requestFromBus address msg =
+    (prom = promise();
     (getVertx ())#eventBus()#send(address is string, toJson msg, 
-            toRequestMessageHandler handler);
+            toRequestMessageHandler prom.setValue);
+    prom.promise);
 
 /**
  * Group: eventbus
@@ -1979,21 +2039,22 @@ requestFromBus address msg handler =
  *
  * Note only JsonMessages can be handled this way
  *
+ * returns a promise when all the handler is registered on all nodes
+ *
  * calls EventBus#registerHandler
  *
  * Arguments:
  * address - the bus address to register to
- * readyHandler - is informed when the message handler is registered in
- * the whole cluster
  * messageHandler - the handler which receives the messages
  */
-registerBusHandler address resultHandler handler =
-    (ha = toJsonMessageHandler address handler;
+registerBusHandler address handler =
+    (prom = promise ();
+    ha = toJsonMessageHandler address handler;
     ret = {object = ha, address};
     (getVertx ())#eventBus()#registerHandler(address is string,
                             ha,
-                            toAsyncResultHandler \(resultHandler ret));
-    ret);
+                            toAsyncResultHandler prom);
+    ret with {promise = prom});
 
 /**
  * Group: eventbus
@@ -2024,29 +2085,39 @@ registerLocalBusHandler address handler =
  * handler - the hanlder to deregister 
  *      (it is given to the handler on each call)
  */
-unregisterBusHandler {address,object} resultHandler =
+unregisterBusHandler {address,object} =
+    (prom = promise();
     (getVertx ())#eventBus()#unregisterHandler(address is string, object, 
-                          toAsyncResultHandler resultHandler);
+                          toAsyncResultHandler prom);
+    prom.promise);
 
 
 //filesystem
 fsHelper = {
     closeAFile file handler =
-        (file is ~AsyncFile)#close(toAsyncResultHandler handler),
+        (prom = promise();
+        (file is ~AsyncFile)#close(toAsyncResultHandler handler);
+        prom.promise),
 
     flushAFile file handler =
-        (file is ~AsyncFile)#flush(toAsyncResultHandler handler),
+        (prom = promise();
+        (file is ~AsyncFile)#flush(toAsyncResultHandler handler);
+        prom.promise),
 
     readAFile file buffer offset position length handler =
+        (prom = promise();
         (file is ~AsyncFile)#read(buffer is ~Buffer, offset is number,
                                   position is number,
                                   length is number,
                                   toTypedAsyncResultHandler 
-                                    (unsafely_as ~Buffer) handler),
+                                    (unsafely_as ~Buffer) handler);
+        prom.promise),
 
     writeAFile file buffer position handler =
+        (prom = promise();
         (file is ~AsyncFile)#write(buffer is ~Buffer, position is number,
-                                   toAsyncResultHandler handler),
+                                   toAsyncResultHandler handler);
+        prom.promise),
 };
 
 /**
@@ -2057,19 +2128,26 @@ fsHelper = {
 fileSystem = ({
     get fs () = ((getVertx ())#fileSystem()),
     chmod path perms handler =
+        (prom = promise();
         ((getVertx())#fileSystem())#chmod(path is string, perms is string, 
-                    toAsyncResultHandler handler),
+                    toAsyncResultHandler handler);
+        prom.promise),
 
     chmodDir path perms dirPerms handler =
+        (prom = promise();
         ((getVertx ())#fileSystem())#chmod(path is string, 
                          perms is string, dirPerms is string,
-                         toAsyncResultHandler handler),
+                         toAsyncResultHandler handler);
+        prom.promise),
 
     copy from to recursive handler =
+        (prom = promise();
         ((getVertx ())#fileSystem())#copy(from is string, to is string, 
-                         recursive is boolean, toAsyncResultHandler handler),
+                         recursive is boolean, toAsyncResultHandler handler);
+        prom.promise),
 
     createFile path perms handler =
+        (prom = promise();
         case perms of
         None _ :
             ((getVertx ())#fileSystem())#createFile(path is string, 
@@ -2077,32 +2155,44 @@ fileSystem = ({
         Some perm:
             ((getVertx ())#fileSystem())#createFile(path, perm is string, 
                         toAsyncResultHandler handler);
-        esac,
+        esac;
+        prom.promise),
 
     delete path recursive handler =
+        (prom = promise();
         ((getVertx ())#fileSystem())#delete(path is string, 
                     recursive is boolean, 
-                    toAsyncResultHandler handler),
+                    toAsyncResultHandler handler);
+        prom.promise),
 
     exists path handler =
+        (prom = promise();
         ((getVertx ())#fileSystem())#exists(path is string, 
-                toTypedAsyncResultHandler (unsafely_as boolean) handler),
+                toTypedAsyncResultHandler (unsafely_as boolean) handler);
+        prom.promise),
         
     fsProps path handler =
+        (prom = promise();
         ((getVertx ())#fileSystem())#fsProps(path is string, 
                      toTypedAsyncResultHandler 
-                        (unsafely_as ~FileSystemProps) handler),
+                        (unsafely_as ~FileSystemProps) handler);
+        prom.promise),
 
     link link existing handler =
+        (prom = promise();
         ((getVertx ())#fileSystem())#link(link is string, existing is string, 
-                    toAsyncResultHandler handler),
+                    toAsyncResultHandler handler);
+        prom.promise),
      
     lprops path handler =
+        (prom = promise();
         ((getVertx ())#fileSystem())#lprops(path is string, 
                     toTypedAsyncResultHandler 
-                        (unsafely_as ~FileProps) handler),
+                        (unsafely_as ~FileProps) handler);
+        prom.promise),
 
     mkdir path perms createParents handler =
+        (prom = promise();
         case perms of
         None () : 
             ((getVertx ())#fileSystem())#mkdir(path is string, 
@@ -2110,18 +2200,24 @@ fileSystem = ({
         Some perm:
             ((getVertx ())#fileSystem())#mkdir(path is string, perm is string, 
                        createParents is boolean, toAsyncResultHandler handler);
-        esac,
+        esac;
+        prom.promise),
 
     move from to handler =
+        (prom = promise();
         ((getVertx ())#fileSystem())#move(from is string, to is string, 
-                                          toAsyncResultHandler handler),
+                                          toAsyncResultHandler handler);
+        prom.promise),
 
     props path handler =
+        (prom = promise();
         ((getVertx ())#fileSystem())#props(path is string, 
-                   toTypedAsyncResultHandler (unsafely_as ~FileProps) handler),
+                   toTypedAsyncResultHandler (unsafely_as ~FileProps) handler);
+        prom.promise),
         
     readDir path filter handler =
-       (mfn obj = ((obj is ~Object) unsafely_as ~String[]) as list<string>;
+        (prom = promise();
+        mfn obj = ((obj is ~Object) unsafely_as ~String[]) as list<string>;
         case filter of
         None ():
             ((getVertx ())#fileSystem())#readDir(path is string, 
@@ -2129,37 +2225,51 @@ fileSystem = ({
         Some fil:
             ((getVertx ())#fileSystem())#readDir(path is string, 
                          fil is string, toTypedAsyncResultHandler mfn handler);
-        esac),
+        esac;
+        prom.promise),
 
     readFile path handler =
+        (prom = promise();
         ((getVertx ())#fileSystem())#readFile(path is string, 
-                      toTypedAsyncResultHandler (unsafely_as ~Buffer) handler),
+                      toTypedAsyncResultHandler (unsafely_as ~Buffer) handler);
+        prom.promise),
 
     readSymlink path handler =
+        (prom = promise();
         ((getVertx ())#fileSystem())#readSymlink(path is string, 
                          toTypedAsyncResultHandler 
-                            (unsafely_as string) handler),
+                            (unsafely_as string) handler);
+        prom.promise),
         
     symlink link existing handler =
+        (prom = promise();
         ((getVertx ())#fileSystem())#symlink(link is string, 
                      existing is string, 
-                     toAsyncResultHandler handler),
+                     toAsyncResultHandler handler);
+        prom.promise),
 
     truncate path len handler =
+        (prom = promise();
         ((getVertx ())#fileSystem())#truncate(path is string, 
-                      len is number, toAsyncResultHandler handler),
+                      len is number, toAsyncResultHandler handler);
+        prom.promise),
 
     unlink link handler =
+        (prom = promise();
         ((getVertx ())#fileSystem())#unlink(link is string, 
-                                            toAsyncResultHandler handler),
+                                            toAsyncResultHandler handler);
+        prom.promise),
 
     writeFile path data handler =
+        (prom = promise();
         ((getVertx ())#fileSystem())#writeFile(path is string, 
                        data is ~Buffer, 
-                       toAsyncResultHandler handler),
+                       toAsyncResultHandler handler);
+        prom.promise),
 
     open opts path handler =
-       (var createNew = true;
+       (prom = promise();
+        var createNew = true;
         var flush = false;
         var read = true;
         var write = true;
@@ -2177,7 +2287,8 @@ fileSystem = ({
         ((getVertx ())#fileSystem())#open(path is string, perms, read, 
                   write, createNew, flush, 
                   toTypedAsyncResultHandler 
-                        (unsafely_as ~AsyncFile) handler)),
+                        (unsafely_as ~AsyncFile) handler);
+        prom.promise),
 
     } with fsHelper);
 
