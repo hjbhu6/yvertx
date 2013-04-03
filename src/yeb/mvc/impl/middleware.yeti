@@ -61,7 +61,7 @@ structRoute opts nextHandler is 'o -> 'h -> route =
         DefaultFunction n: functionName := n;
     esac;
 
-    do req res:
+    do req:
         import org.vertx.java.core.json:JsonObject,
                                         JsonArray;
         import org.vertx.java.core.eventbus:Message;
