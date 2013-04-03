@@ -178,15 +178,15 @@ toLongHandler fn =
  * Arguments:
  * handler - funciton taking either Exception ex or Value v
  */
-toAsyncResultHandler promise 
+toAsyncResultHandler handler 
     is 'b -> ~AsyncResultHandler =
        (class IYetiAsyncResultHandler extends AsyncResultHandler
             void handle(Object o)
                 r = o unsafely_as ~AsyncResult;
                 if (r is ~AsyncResult)#succeeded() then
-                    promise.setValue (Some r#result)
+                    handler (Some r#result)
                 else
-                    promise.setValue (None r#exception);
+                    handler (None r#exception);
                 fi,
         end;
         new IYetiAsyncResultHandler());
@@ -200,15 +200,15 @@ toAsyncResultHandler promise
  * handlerFucntion - either gets the value (casted by castFunction) or
  * Exception ex
  */
-toTypedAsyncResultHandler tfn promise 
+toTypedAsyncResultHandler tfn handler 
     is (~Object -> 'a) -> 'p -> ~AsyncResultHandler =
        (class IYetiAsyncResultHandler extends AsyncResultHandler
             void handle(Object o)
                 r = o unsafely_as ~AsyncResult;
                 if (r is ~AsyncResult)#succeeded() then
-                   promise.setValue (Some (tfn r#result))
+                   handler (Some (tfn r#result))
                 else
-                   promise.setValue (None r#exception);
+                   handler (None r#exception);
                 fi,
         end;
         new IYetiAsyncResultHandler());
@@ -801,8 +801,8 @@ createHttpServer () =
  * Creates an HttpServer and sets the given handler as requestHandler
  *
  * Same as
- * : server = createHttpServer ()
- * : httpServerRequestHandler handler
+ * : server = createHttpServer ();
+ * : httpServerRequestHandler server handler;
  * : server
  *
  * Arguments:
@@ -1851,24 +1851,6 @@ _toMessageJS v =
     esac;
 
 
-toRequestMessageHandler fn =
-    (class YvertxRequestMessageHandler extends Handler
-        void handle(Object ob)
-            msg = ob unsafely_as ~Message;
-            {jsonStruct = body} = fromJson (msg#body unsafely_as ~JsonObject);
-            if defined? body.status and body.status == "error" then
-                emg = if defined? body.message then
-                          string body.message
-                      else 
-                          "error but no message" 
-                      fi;
-                fn (failNone emg);
-            else
-                fn (Some body)
-            fi,
-
-    end;
-    new YvertxRequestMessageHandler() as ~Handler);
 
 toEitherJsonMessageHandler address fn =
     (class YvertxEitherMessageHandler extends Handler
@@ -2015,11 +1997,47 @@ sendToBusWithHandler address msg handler =
  * : esac;
  *
  */
-requestFromBus address msg =
+busRequest address msg =
     (prom = promise();
-    (getVertx ())#eventBus()#send(address is string, toJson msg, 
-            toRequestMessageHandler prom.setValue);
+    class YvertxRequestMessageHandler extends Handler
+        void handle(Object ob)
+            msg = ob unsafely_as ~Message;
+            
+            body = fromJson (msg#body unsafely_as ~JsonObject);
+            jsonStruct = body.jsonStruct;
+            if defined? jsonStruct.status and jsonStruct.status == "error" then
+                emg = if defined? jsonStruct.message then
+                          string jsonStruct.message
+                      else 
+                          "error but no message" 
+                      fi;
+                prom.setValue (failNone emg);
+            else
+                prom.setValue (Some body)
+            fi,
+
+    end;
+    ha = new YvertxRequestMessageHandler() as ~Handler;
+    (getVertx ())#eventBus()#send(address is string, toJson msg, ha);
     prom.promise);
+
+_registerBusHandler address handlerOb =
+    (ret = promise ();
+    {snd = address, fst = global} = case address of
+        Global adr : pair true adr;
+        Local adr : pair false adr;
+    esac;
+    ids = Some {object = handlerOb, address};
+    eb = (getVertx())#eventBus();
+    if global then
+        eb#registerHandler(address is string,
+                        handlerOb,
+                        toAsyncResultHandler \(ret.setValue ids));
+    else
+        eb#registerLocalHandler(address is string, handlerOb);
+        ret.setValue(ids);
+    fi;
+    ret.promise);
 
 /**
  * Group: eventbus
@@ -2032,35 +2050,49 @@ requestFromBus address msg =
  * calls EventBus#registerHandler
  *
  * Arguments:
- * address - the bus address to register to
+ * address - the bus address to register to; Local address means only
+ * local handler registration, Global means global registration
  * messageHandler - the handler which receives the messages
  */
 registerBusHandler address handler =
-    (prom = promise ();
-    ha = toJsonMessageHandler address handler;
-    ret = {object = ha, address};
-    (getVertx ())#eventBus()#registerHandler(address is string,
-                            ha,
-                            toAsyncResultHandler prom);
-    ret with {promise = prom});
+    (adr = case address of
+        Local adr:adr;
+        Global adr:adr;
+    esac;
+    _registerBusHandler address (toJsonMessageHandler adr handler));
+
 
 /**
  * Group: eventbus
- * registers a local handler on the eventubs
+ * register a JSON message handler on the eventbus
  *
- * Note only JsonMessage can be handled this way
+ * Note only JsonMessages can be handled this way
  *
- * calls EventBus#registerLocalHandler
+ * returns a promise when all the handler is registered on all nodes
+ *
+ * calls EventBus#registerHandler
  *
  * Arguments:
- * address - the address to regsiter to
- * handler - the message handeler
+ * address - the bus address to register to; Local address means only
+ * local handler registration, Global means global registration
+ * messageHandler - the handler which receives the jsonMessage and should
+ * return a promise
  */
-registerLocalBusHandler address handler =
-    (ha = toJsonMessageHandler address handler;
-    (getVertx ())#eventBus()#registerLocalHandler(address is string,
-                   ha);
-    {object = ha, address});
+busRequestHandler address handler = 
+    (class YvertxRequestMessageHandler extends Handler
+        void handle(Object ob)
+            msg = ob unsafely_as ~Message;
+            try 
+                body = fromJson (msg#body unsafely_as ~JsonObject);
+                promise = handler body;
+                promise >>- do v: msg#reply(_toMessageJS v) done;
+            catch Exception ex:
+                msg#reply(_toMessageJS (None ex));
+            yrt
+    end;
+    
+    _registerBusHandler address (new YvertxRequestMessageHandler()));
+
         
 /**
  * Group: eventbus
@@ -2076,7 +2108,7 @@ registerLocalBusHandler address handler =
 unregisterBusHandler {address,object} =
     (prom = promise();
     (getVertx ())#eventBus()#unregisterHandler(address is string, object, 
-                          toAsyncResultHandler prom);
+                          toAsyncResultHandler prom.setValue);
     prom.promise);
 
 
@@ -2084,12 +2116,12 @@ unregisterBusHandler {address,object} =
 fsHelper = {
     closeAFile file =
         (prom = promise();
-        (file is ~AsyncFile)#close(toAsyncResultHandler prom);
+        (file is ~AsyncFile)#close(toAsyncResultHandler prom.setValue);
         prom.promise),
 
     flushAFile file =
         (prom = promise();
-        (file is ~AsyncFile)#flush(toAsyncResultHandler prom);
+        (file is ~AsyncFile)#flush(toAsyncResultHandler prom.setValue);
         prom.promise),
 
     readAFile file buffer offset position length =
@@ -2098,13 +2130,13 @@ fsHelper = {
                                   position is number,
                                   length is number,
                                   toTypedAsyncResultHandler 
-                                    (unsafely_as ~Buffer) prom);
+                                    (unsafely_as ~Buffer) prom.setValue);
         prom.promise),
 
     writeAFile file buffer position =
         (prom = promise();
         (file is ~AsyncFile)#write(buffer is ~Buffer, position is number,
-                                   toAsyncResultHandler prom);
+                                   toAsyncResultHandler prom.setValue);
         prom.promise),
 };
 
@@ -2118,20 +2150,20 @@ fileSystem = ({
     chmod path perms =
         (prom = promise();
         ((getVertx())#fileSystem())#chmod(path is string, perms is string, 
-                    toAsyncResultHandler prom);
+                    toAsyncResultHandler prom.setValue);
         prom.promise),
 
     chmodDir path perms dirPerms =
         (prom = promise();
         ((getVertx ())#fileSystem())#chmod(path is string, 
                          perms is string, dirPerms is string,
-                         toAsyncResultHandler prom);
+                         toAsyncResultHandler prom.setValue);
         prom.promise),
 
     copy from to recursive =
         (prom = promise();
         ((getVertx ())#fileSystem())#copy(from is string, to is string, 
-                         recursive is boolean, toAsyncResultHandler prom);
+                         recursive is boolean, toAsyncResultHandler prom.setValue);
         prom.promise),
 
     createFile path perms =
@@ -2139,10 +2171,10 @@ fileSystem = ({
         case perms of
         None _ :
             ((getVertx ())#fileSystem())#createFile(path is string, 
-                                            toAsyncResultHandler prom);
+                                            toAsyncResultHandler prom.setValue);
         Some perm:
             ((getVertx ())#fileSystem())#createFile(path, perm is string, 
-                        toAsyncResultHandler prom);
+                        toAsyncResultHandler prom.setValue);
         esac;
         prom.promise),
 
@@ -2150,33 +2182,33 @@ fileSystem = ({
         (prom = promise();
         ((getVertx ())#fileSystem())#delete(path is string, 
                     recursive is boolean, 
-                    toAsyncResultHandler prom);
+                    toAsyncResultHandler prom.setValue);
         prom.promise),
 
     exists path =
         (prom = promise();
         ((getVertx ())#fileSystem())#exists(path is string, 
-                toTypedAsyncResultHandler (unsafely_as boolean) prom);
+                toTypedAsyncResultHandler (unsafely_as boolean) prom.setValue);
         prom.promise),
         
     fsProps path =
         (prom = promise();
         ((getVertx ())#fileSystem())#fsProps(path is string, 
                      toTypedAsyncResultHandler 
-                        (unsafely_as ~FileSystemProps) prom);
+                        (unsafely_as ~FileSystemProps) prom.setValue);
         prom.promise),
 
     link link existing =
         (prom = promise();
         ((getVertx ())#fileSystem())#link(link is string, existing is string, 
-                    toAsyncResultHandler prom);
+                    toAsyncResultHandler prom.setValue);
         prom.promise),
      
     lprops path =
         (prom = promise();
         ((getVertx ())#fileSystem())#lprops(path is string, 
                     toTypedAsyncResultHandler 
-                        (unsafely_as ~FileProps) prom);
+                        (unsafely_as ~FileProps) prom.setValue);
         prom.promise),
 
     mkdir path perms createParents =
@@ -2184,23 +2216,23 @@ fileSystem = ({
         case perms of
         None () : 
             ((getVertx ())#fileSystem())#mkdir(path is string, 
-                       createParents is boolean, toAsyncResultHandler prom);
+                       createParents is boolean, toAsyncResultHandler prom.setValue);
         Some perm:
             ((getVertx ())#fileSystem())#mkdir(path is string, perm is string, 
-                       createParents is boolean, toAsyncResultHandler prom);
+                       createParents is boolean, toAsyncResultHandler prom.setValue);
         esac;
         prom.promise),
 
     move from to =
         (prom = promise();
         ((getVertx ())#fileSystem())#move(from is string, to is string, 
-                                          toAsyncResultHandler prom);
+                                          toAsyncResultHandler prom.setValue);
         prom.promise),
 
     props path =
         (prom = promise();
         ((getVertx ())#fileSystem())#props(path is string, 
-                   toTypedAsyncResultHandler (unsafely_as ~FileProps) prom);
+                   toTypedAsyncResultHandler (unsafely_as ~FileProps) prom.setValue);
         prom.promise),
         
     readDir path filter =
@@ -2209,50 +2241,50 @@ fileSystem = ({
         case filter of
         None ():
             ((getVertx ())#fileSystem())#readDir(path is string, 
-                         toTypedAsyncResultHandler mfn prom);
+                         toTypedAsyncResultHandler mfn prom.setValue);
         Some fil:
             ((getVertx ())#fileSystem())#readDir(path is string, 
-                         fil is string, toTypedAsyncResultHandler mfn prom);
+                         fil is string, toTypedAsyncResultHandler mfn prom.setValue);
         esac;
         prom.promise),
 
     readFile path =
         (prom = promise();
         ((getVertx ())#fileSystem())#readFile(path is string, 
-                      toTypedAsyncResultHandler (unsafely_as ~Buffer) prom);
+                      toTypedAsyncResultHandler (unsafely_as ~Buffer) prom.setValue);
         prom.promise),
 
     readSymlink path =
         (prom = promise();
         ((getVertx ())#fileSystem())#readSymlink(path is string, 
                          toTypedAsyncResultHandler 
-                            (unsafely_as string) prom);
+                            (unsafely_as string) prom.setValue);
         prom.promise),
         
     symlink link existing =
         (prom = promise();
         ((getVertx ())#fileSystem())#symlink(link is string, 
                      existing is string, 
-                     toAsyncResultHandler prom);
+                     toAsyncResultHandler prom.setValue);
         prom.promise),
 
     truncate path len =
         (prom = promise();
         ((getVertx ())#fileSystem())#truncate(path is string, 
-                      len is number, toAsyncResultHandler prom);
+                      len is number, toAsyncResultHandler prom.setValue);
         prom.promise),
 
     unlink link =
         (prom = promise();
         ((getVertx ())#fileSystem())#unlink(link is string, 
-                                            toAsyncResultHandler prom);
+                                            toAsyncResultHandler prom.setValue);
         prom.promise),
 
     writeFile path data =
         (prom = promise();
         ((getVertx ())#fileSystem())#writeFile(path is string, 
                        data is ~Buffer, 
-                       toAsyncResultHandler prom);
+                       toAsyncResultHandler prom.setValue);
         prom.promise),
 
     open opts path =
@@ -2275,7 +2307,7 @@ fileSystem = ({
         ((getVertx ())#fileSystem())#open(path is string, perms, read, 
                   write, createNew, flush, 
                   toTypedAsyncResultHandler 
-                        (unsafely_as ~AsyncFile) prom);
+                        (unsafely_as ~AsyncFile) prom.setValue);
         prom.promise),
 
     } with fsHelper);
@@ -2472,9 +2504,9 @@ fileSystem = ({
     publishToBus,
     sendToBus,
     sendToBusWithHandler,
-    requestFromBus,
+    busRequest,
     registerBusHandler,
-    registerLocalBusHandler,
+    busRequestHandler,
     unregisterBusHandler,
 
     /**
