@@ -426,8 +426,52 @@ collectPromises inex is ('b -> 'a) -> promise<'a>=
 
 
 {
+    /**
+     * Group: bind
+     * Same as the bind function but takes the promise as first argument
+     * Can be used to chain promises
+     *
+     * Example:
+     * : (return 1) >>= do n: return "number \(n)" done;
+     *
+     * Arguments:
+     * promise - the promise to map
+     * fn - the mapping function
+     */
     (>>=) p fn = bind fn p,
+    
+    /**
+     * Group: bind
+     * Same as bind but as operator used to do multibinding
+     *
+     * Example:
+     * : {
+     * :    f = f1 <- return 1,
+     * :    f1 n = f2 n <- return 2,
+     * :    f2 n1 n2 = return (n1 + n2)
+     * : }.f >>= println
+     *
+     * Arguments:
+     * fn - mapping function
+     * promise - the promise to map
+     */
     (<-) fn p = bind fn p,
+    
+    /**
+     * Group: fulfill
+     *
+     * Extracts the value of apromis by giving it to a function (when it is
+     * ready)
+     *
+     * Example:
+     * : promise >>- \case of 
+     * :     Some v: println "Success: \(v)";
+     * :     None ex: prinntln "Failure \(ex)";
+     * : esac;
+     *
+     * Arguments:
+     * callbackFn - functino called with the value
+     */
     (>>-) p fn = fulfill fn p,
 
     //callback functions
