@@ -39,7 +39,7 @@ _resolve = (_idT as promise<'a> -> ((either<'a> -> ()) -> ()));
  * fn - the function which is given the Some value or None Exception
  * promise - the promise
  */
-fulfill fn pro =
+fulfill fn pro is (either<'a> -> ()) -> promise<'a> -> ()=
     (_resolve pro) fn;
 
 _nilListener = \();
@@ -95,6 +95,32 @@ promise () =
         promise is promise<'a>
     });
                         
+
+/**
+ * Group: new
+ * Takes an async function and creates a promise of it
+ *
+ * Arguments:
+ * asyncFn - async function
+ */
+toEitherPromise fn is ((either<'a> -> ()) -> ()) -> promise<'a> =
+    (prom = promise();
+    fn prom.setValue;
+    prom.promise);
+
+/**
+ * Group: new
+ * Takes an async function and creates a promise of it. Wrapping the value
+ * in Some
+ *
+ * Arguments:
+ * asyncFn - asnyc function
+ */
+toPromise fn is (('a -> ()) -> ()) -> promise<'a> =
+    (prom = promise ();
+    fn (prom.setValue . Some);
+    prom.promise);
+
 
 /**
  * Group: new
@@ -181,15 +207,17 @@ bind fn prom
     is  ('a -> promise<'b>) 
         -> promise<'a> -> promise<'b> =
     (ret = promise();
-    (_resolve prom) \case of
+    fulfill \case of
         None msg: ret.setValue (None (msg is ~Exception));
         Some v: 
             pron = fn v;
-            (_resolve pron) \case of
+            fulfill \case of
                     None ex: ret.setValue (None (ex is ~Exception));
                     Some v2: ret.setValue (Some v2);
                     esac
-        esac;
+                    pron
+        esac
+        prom;
     ret.promise);
 
 
@@ -404,6 +432,8 @@ collectPromises inex is ('b -> 'a) -> promise<'a>=
 
     //callback functions
     promise,
+    toEitherPromise,
+    toPromise,
     fulfill,
     failNone,
     return,
