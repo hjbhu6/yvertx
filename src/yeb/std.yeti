@@ -330,7 +330,7 @@ simpleTest exit? println testHash =
             sw = new StringWriter();
             pw = new PrintWriter(sw);
             ex#printStackTrace(pw);
-            println (string ex);
+            println (string sw);
             exception := exception + 1;
         yrt
         
@@ -494,8 +494,12 @@ messageDigest algorithm message =
      * url decodes the given string UTF-8
      */
     urlDecode value =
-        (import java.net.URLDecoder;
-        URLDecoder#decode(value, "UTF-8")),
+        if not defined? value then
+            ""
+        else
+            import java.net.URLDecoder;
+            URLDecoder#decode(value is string, "UTF-8")
+        fi,
    
     /**
      * Group: convert
@@ -529,16 +533,19 @@ messageDigest algorithm message =
      */
     parseQuery query =
         (ret = listHash ();
-        _ = matchAll '([^&=]+)(=([^&=]*))?'
+        for (matchAll '([^&=]+)(=([^&=]*))?'
             do ar:
                 name = urlDecode (ar[1]);
                 value = urlDecode (ar[3]);
-                ols = if not name in ret then [] else ret[name] fi;
-                ret[name] := value :: ols;
+                ols = if not name in ret then 
+                    ret[name] := [value];
+                else
+                    ret[name] := reverse (value :: ret[name]);
+                fi;
                 "";
             done
             id
-            query;
+            query) \();
         ret),
     /**
      * Group: maybe 

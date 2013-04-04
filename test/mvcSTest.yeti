@@ -200,30 +200,37 @@ done,
     encodeParams ha =
         (strs = array[];
         forHash ha do k vs:
-            vs = if empty? vs then [""] else vs fi;
-            for vs do v:
-                push strs "\(urlEncode k)=\(urlEncode v)";
-            done
+            if empty? vs then 
+                push strs (urlEncode k);
+            else
+                for vs do v:
+                    push strs "\(urlEncode k)=\(urlEncode v)";
+                done
+            fi
         done;
         strJoin "&" strs);
     check path queryParams checkQueryParams bodyParams =
-        (url = "\(path)&\(encodeParams queryParams)";
+        (url = "\(path)\(encodeParams queryParams)";
         body = if empty? bodyParams then
                 noneBody;
             else
                 toUTF8bytes (encodeParams bodyParams);
             fi;
-        req = request {method="POST", path, url, headers = [:]};
+        req = request {method="POST", path, url, headers = [:]} with {body};
+        
         if not empty? bodyParams then
             req.headers["Content-Type"] := "application/x-www-form-urlencoded";
         fi;
 
         
         rt = paramsMiddleware do req:
-            assert "queryParams \(req.queryParams) \(checkQueryParams)"
-                    (req.queryParams == checkQueryParams);
-            assert "bodyParams \(req.bodyParams) \(bodyParams)"
-                    (req.bodyParams == bodyParams);
+            assert 
+                "url \(url) reqQueryParams \(req.queryParams) 
+                check: \(checkQueryParams)"
+                (req.queryParams == checkQueryParams);
+            assert 
+                "url \(url) bodyParams \(req.bodyParams) check: \(bodyParams)"
+                (req.bodyParams == bodyParams);
 
             return (rs.html "some");
         done;
@@ -232,19 +239,21 @@ done,
         rt req >>- \(called := true);
         assert "called" called);
 
-    params = ["k1" :["v1","v2","v3"],
+    paramsq = ["k1" :["v1","v2","v3"],
               "k2" :[],
               "k3" :[""],
               "k4" :["true"]];
-    params2 = copy params;
-    params2["given"] := [""];
+    paramsc = copy paramsq;
+    paramsc["k2"] := [""];
+    paramsc2 = copy paramsc;
+    paramsc2["given"] := [""];
 
-    check "path?" params params params;
-    check "path?given&" params params2 params;
-    check "path" [:] [:] [:];
-    check "path?" params params [:];
-    check "path?" [:] [:] params;
-    check "path" [:] [:] params;
+    check "body?" paramsq paramsc paramsc;
+    check "body2?given&" paramsq paramsc2 paramsc;
+    check "path3" [:] [:] [:];
+    check "path4?" paramsq paramsc [:];
+    check "body5?" [:] [:] paramsc;
+    check "body6" [:] [:] paramsc;
 
 done,
 

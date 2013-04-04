@@ -541,7 +541,7 @@ paramsMiddleware route req is route -> route =
     cut = strIndexOf req.url "?" 0;
     req = if cut >= 0 then
             req with {
-                queryParams = parseQuery (strRight req.url cut)
+                queryParams = parseQuery (strRight req.url (cut+1))
             }
         else
             req
