@@ -342,8 +342,14 @@ simpleTest exit? println testHash =
     var count = 0;
     println "TAP version 13";
     println "1..\(length testHash)";
-    
-    forHash testHash do name f:
+   
+    //sort the string/fn pairs by name in a list
+    pairs = array [];
+    forHash testHash do k v: push pairs (pair k v) done;
+    pairs = sortBy do {fst} {fst = f2}: fst < f2 done pairs;
+
+    //execute the sorted tests
+    for pairs do {fst = name, snd = f}:
         count := count + 1;
         tr = timer ();
         try
