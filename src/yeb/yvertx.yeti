@@ -1594,7 +1594,7 @@ connectWebSocketServer server fn =
  * handler - the function which gets the WebSocket
  */
 connectWebSocketClient client uri handler =
-    (client is ~HttpClient)
+    (client.vertxClient  is ~HttpClient)
         #connectWebsocket(uri is string,
                           toHandler (handler .(unsafely_as ~WebSocket)));
 

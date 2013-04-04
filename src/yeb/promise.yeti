@@ -306,7 +306,7 @@ parallel promises
  * Arguments:
  * promise - the promise from which to take the value
  */
-setAsync ctr promise is 'b -> promise<'a> -> (() -> 'a) =
+setProm ctr promise is 'b -> promise<'a> -> (() -> 'a) =
     (ctr.starting();
     mutex = ctr.mutex;
     var hasReceived = false;
@@ -487,6 +487,6 @@ collectPromises inex is ('b -> 'a) -> promise<'a>=
     bindEither,
     bindNone,
     parallel,
-    setAsync,
+    setProm,
     collectPromises,
 }

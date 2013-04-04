@@ -16,19 +16,16 @@ _ = load yvertx.deploy.child;
 fileDir = "../../target/yeti-test-output";
 
 fshelper = {
-    clean dir after = 
-        fileSystem.exists dir >>- maybe () do exi:
+    clean dir = 
+        fileSystem.exists dir 
+        >>= do exi:
             if exi then
-                fileSystem.delete dir true >>- maybe () do:
-                    fileSystem.mkdir dir none true 
-                        >>- maybe () (after is 'a -> ())
-                done;
-                
+                fileSystem.delete dir true 
+                >>= \(fileSystem.mkdir dir none true)
             else
-                fileSystem.mkdir dir none true >>- maybe () after
+                fileSystem.mkdir dir none true 
             fi
         done;
-    
 };
 
 httpMethod opts method variant rstu =
@@ -102,10 +99,9 @@ httpMethod opts method variant rstu =
 
         sentBuff = newRandomBuffer(1000);
         
-        
-        client = createHttpClient "localhost:8080";
+        client = createHttpClient [] "localhost:8080";
 
-        request = httpRequest client (variant uri) headers
+        request = httpRequest client (variant uri) [Headers headers]
         do resp:
 
             rstu.assert "statusCode" (200 == resp#statusCode);
@@ -124,13 +120,13 @@ httpMethod opts method variant rstu =
                                     ["trailer1":"vtrailer1",
                                     "trailer2":"vtrailer2"]);
                 fi;
-                closeHttpServer server do:
+                closeHttpServer server >>- do:
                     rstu.assure "" true;
                 done;
             done;
         done;
         if ssl then
-            client#setSSL(true)
+            (client.vertxClient)#setSSL(true)
                 #setKeyStorePath("keystores/client-keystore.jks")
                 #setKeyStorePassword("wibble")
                 #setTrustStorePath("keystores/client-truststore.jks")
@@ -160,7 +156,7 @@ websocketEcho binary rs =
 
     
     _ = setTimer 1000 do:
-        client = createHttpClient "localhost:8080";
+        client = createHttpClient [] "localhost:8080";
         
         {buff,str} = if binary then
                 {buff = newRandomBuffer 1000, str = ""};
@@ -175,8 +171,8 @@ websocketEcho binary rs =
                 _ = received#appendBuffer(data);
                 if received#length() == buff#length() then
                     rs.assert "be" (received == buff);
-                    client#close();
-                    closeHttpServer server do:
+                    (client.vertxClient)#close();
+                    closeHttpServer server >>- do:
                         rs.assure "finished" true;
                     done;
                 fi;
@@ -230,43 +226,43 @@ done,
     //make services 
     adresses = [1..10] |> map (("adr"^) . string);
     for adresses do adr:
-        registerBusHandler adr do {reply, handler}:
+        _ = registerBusHandler (Global adr) do {reply, handlerId}:
             reply {value = 1, 
                    for_json=E()};
-            unregisterBusHandler adr handler \();
+            _ = unregisterBusHandler handlerId;
         done
     done;
     handlers = adresses |> map do adr:
-        requestMessageFromBus adr emptyJS 
-        |>bind do {body} : 
+        busRequest adr emptyJS 
+        |>bind do {jsonStruct = body} : 
             return body.value 
         done;
     done;
-    parallel handlers (maybe () do res:
+    parallel handlers >>- maybe () do res:
         rs.assure "\(res)" (10 == fold (+) 0 res);
-    done)
+    done
 done,
 
 "promise:colllectPromise" : do rs:
     register adr =
-        registerBusHandler adr \() do {reply, handler} :
+        (_ = registerBusHandler (Global adr) do {reply, handlerId} :
             reply {value = adr ^ "foo", for_json=E()};
-            unregisterBusHandler adr handler \();
-        done;
+            _ = unregisterBusHandler handlerId;
+        done);
     
     for [1..2] (register . ("adr"^) . string);
 
     cfn = collectPromises do s:{
-         a = setPromise s
-            (requestFromBus "adr1" emptyJS |> bind (return . (.value))),
-         b = setPromise s
-            (requestFromBus "adr2" emptyJS |> bind (return . (.value))),
+         a = setProm s
+            (busRequest "adr1" emptyJS |> bind (return . (.value))),
+         b = setProm s
+            (busRequest "adr2" emptyJS |> bind (return . (.value))),
         }done;
         
-    cfn (maybe () do r :
+    cfn >>- maybe () do r :
             rs.assure "\(r)" (r.a() == "adr1foo" 
                               and r.b() == "adr2foo");
-        done);
+        done;
 done,
 
 
@@ -277,7 +273,7 @@ done,
     var handled = false;
     _ = registerBusHandler (Global address) do {body, handlerId}:
         _ = unregisterBusHandler handlerId;
-        rs.assure "\(body)" (body == msg and not handled);
+        rs.assure "\(body)" (body.jsonStruct == msg and not handled);
         handled := true;
     done;
     sendToBus address msg;
@@ -287,9 +283,9 @@ done,
     var handled = false;
     adr = "foo";
     msg = emptyJS;
-    _ = registerBusHandler (Locale adr) do {body,handlerId}:
+    _ = registerBusHandler (Local adr) do {body,handlerId}:
         _ = unregisterBusHandler handlerId;
-        rs.assure "\(body)" (body == msg and not handled);
+        rs.assure "\(body)" (body.jsonStruct == msg and not handled);
         //should do nothing
         _ = unregisterBusHandler handlerId;
         handled := true;
@@ -301,8 +297,8 @@ done,
     var handled = false;
     msg = {count = 1, foo = "foo", for_json=E()};
     var assertion = true;
-    _ = registerBusHandler "foo" do {body,handlerId}:
-        assertion := assertion and (body == msg and not handled);
+    _ = registerBusHandler (Local "foo") do {body ,handlerId}:
+        assertion := assertion and (body.jsonStruct == msg and not handled);
         _ = unregisterBusHandler handlerId;
         handled := true;
         _ = setTimer 100 do:
@@ -318,15 +314,15 @@ done,
     msg = {count=1, foo = "foo2", for_json=E()};
     repl = {reply = true, for_json=E()};
     var asserts = true;
-    _ = registerBusHandler "foo" do {body,handler, reply}:
-        asserts := asserts and (not handled and msg == body);
-        _ = unregisterBusHandler "foo" handler;
+    _ = registerBusHandler (Global "foo") do {body,handlerId, reply}:
+        asserts := asserts and (not handled and msg == body.jsonStruct);
+        _ = unregisterBusHandler handlerId;
         handled := true;
         reply repl;
     done;
 
-    requestMessageFromBus "foo" msg >>- maybe () do {body}:
-        rs.assure "\(body)" (asserts and (body == repl));
+    busRequest "foo" msg >>- maybe () do {body}:
+        rs.assure "\(body)" (asserts and (body.jsonStruct == repl));
     done;
 done,
 
@@ -337,19 +333,19 @@ done,
     repl = {msg = "repl", for_json=E()};
     repl2 = {msg = "repl2", for_json=E()};
     repl3 = {msg = "repl3", for_json=E()};
-    _ = registerBusHandler adr do {body, handler, request}:
-        rs.assert "" (msg == body);
+    _ = registerBusHandler (Local adr) do {body, handlerId, request}:
+        rs.assert "" (msg == body.jsonStruct);
         request repl (maybe () do {body, reply}:
-            rs.assert "" (repl2 == body);
+            rs.assert "" (repl2 == body.jsonStruct);
             reply repl3;
-            unregisterBusHandler adr handler \();
+            _ = unregisterBusHandler handlerId;
         done)
     done;
 
-    requestMessageFromBus adr msg >>- maybe () do {body,request}:
-        rs.assert "" (body == repl);
+    busRequest adr msg >>- maybe () do {body,request}:
+        rs.assert "" (body.jsonStruct == repl);
         request repl2 (maybe ()do {body}:
-            rs.assure "" (body == repl3);
+            rs.assure "" (body.jsonStruct == repl3);
         done)
     done;
 done,
@@ -359,14 +355,14 @@ done,
     var handled = false;
     adr = "foo";
     msg = emptyJS;
-    _ = registerBusHandler adr do {reply, body, handler}:
+    _ = registerBusHandler (Global adr) do {reply, body, handlerId}:
         rs.assert "" (not handled);
-        rs.assert "" (msg == body);
-        _ = unregisterBusHandler adr handler;
+        rs.assert "" (msg == body.jsonStruct);
+        _ = unregisterBusHandler handlerId;
         handled := true;
         reply emptyJS;
     done;
-    requestMessageFromBus adr msg >>- maybe ()do {body, reply}:
+    busRequest adr msg >>- maybe ()do {body, reply}:
         rs.assure "" true;
     done;
 done,
@@ -377,11 +373,11 @@ done,
     to = dir ^"/bar.tmp";
     content = "some-data";
     
-    fshelper.clean dir 
+    pr = fshelper.clean dir 
     >>= \(fileSystem.writeFile from (newStringBuffer content))
     >>= \(fileSystem.copy from to true) 
-    >>= \(fileSystem.readFile)
-    >>- maybe () do res:
+    >>= \(fileSystem.readFile to);
+    pr >>- maybe () do res:
             rs.assure "" ((string res) == content)
         done;
 done,
@@ -422,7 +418,7 @@ done,
     fshelper.clean dir 
     >>= \(fileSystem.writeFile file content)
     >>= \(fileSystem.props file)
-    >>- do res:
+    >>- maybe () do res:
         rs.assert "" (res is ~FileProps)#isRegularFile;
         rs.assert "" (res#creationTime#getTime() > 0);
         rs.assert "" (res#lastAccessTime#getTime() > 0);
@@ -454,8 +450,9 @@ done,
                         done);
                     done));
                 done));
-            done)
-    }.f >>- \();
+            done);
+            return ()
+    }.f () >>- \();
 done,
 
 "http:hostport" : do rs:
@@ -475,14 +472,14 @@ done,
     server#listen(8080);
 
     _ = setTimer 1000 do:
-        client = createHttpClient "localhost:8080";
-        getHttpBodyNow
+        client = createHttpClient [] "localhost:8080";
+        httpRequestNow
             client
-            "/" 
-            [:] 
-            >>- maybe ()do {resp, buffer}:
-                closeHttpServer server do:
-                    rs.assure (string buffer) true;
+            (Get "/") 
+            [] 
+            >>- maybe ()do {response, body}:
+                closeHttpServer server >>- do:
+                    rs.assure (string body) true;
                 done;
             done;
     done;
@@ -512,14 +509,14 @@ done,
 
     server#listen(1234,"localhost");
 
-    serverCloseFn _ = closeNetServer server \(rs.assure "closed" true);
+    serverCloseFn _ = closeNetServer server >>- \(rs.assure "closed" true);
 
     client = createNetClient ();
 
-    connectNetClient client "localhost:1234" serverCloseFn
+    connectNetClient client "localhost:1234" serverCloseFn  
         do sock:
             dataHandler sock do buffer:
-                closeNetClient client;
+                _ = closeNetClient client;
                 serverCloseFn();
             done;
             _ = sock#write(newStringBuffer "this is a buffer");
@@ -604,12 +601,12 @@ done,
     server#listen(8080);
 
     _ = setTimer 1000 do:
-        client = createHttpClient "localhost:8080";
+        client = createHttpClient [] "localhost:8080";
         connectWebSocketClient client "/someurl" do ws:
             dataHandler ws do buff:
                 rs.assert "" ("foo" == string buff);
-                client#close();
-                closeHttpServer server do:
+                (client.vertxClient)#close();
+                closeHttpServer server >>- do:
                     rs.assure "close" true;
                 done;
             done
@@ -628,11 +625,11 @@ done,
     server#listen(8080);
 
     _ = setTimer 1000 do:
-        client = createHttpClient "localhost:8080";
+        client = createHttpClient [] "localhost:8080";
         connectWebSocketClient client "/someurl" do ws:
             closedWebSocket ws do:
-                client#close();
-                closeHttpServer server do:
+                (client.vertxClient)#close();
+                closeHttpServer server >>- do:
                     rs.assure "close" true;
                 done;
                 ws#writeTextFrame("foo");
@@ -650,11 +647,11 @@ done,
     server#listen(8080);
 
     _ = setTimer 1000 do:
-        client = createHttpClient "localhost:8080";
+        client = createHttpClient [] "localhost:8080";
         connectWebSocketClient client "/someurl" do ws:
             closedWebSocket ws do:
-                client#close();
-                closeHttpServer server do:
+                (client.vertxClient)#close();
+                closeHttpServer server >>- do:
                     rs.assure "close" true;
                 done;
             done;
