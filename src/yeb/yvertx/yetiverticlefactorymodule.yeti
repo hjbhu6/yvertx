@@ -127,6 +127,21 @@ _findYetiFiles dir exclude res =
 class YvertxURLClassLoader(URL[] urls, ClassLoader parent)
     extends URLClassLoader(urls, parent)
 end;
+
+//load the mod.json to see wheter autoredeploy
+_autoredeploy? loader =
+    (std = load yeb.std;
+    ins = (loader is ~ClassLoader)#getResourceAsStream("mod.json");
+    if defined? ins then
+        js = inputHandle ins "UTF-8"
+            |> getContents
+            |> std.parseJson;
+        //std.maybeBoolean \false id js.``auto-redeploy``; 
+        maybe false id js.obj["auto-redeploy"].bool
+    else
+        false
+    fi);
+
 _createClassLoader loader verticleName =
     (import yeti.lang.compiler:CompileException;
     import java.lang: RuntimeException;
@@ -134,26 +149,13 @@ _createClassLoader loader verticleName =
                      Struct;
    
     
-    //load the mod.json to see wheter autoredeploy
-    autoRedeploy = 
-        (std = load yeb.std;
-        ins = (loader is ~ClassLoader)#getResourceAsStream("mod.json");
-        if defined? ins then
-            js = inputHandle ins "UTF-8"
-                |> getContents
-                |> std.parseJson;
-            //std.maybeBoolean \false id js.``auto-redeploy``; 
-            maybe false id js.obj["auto-redeploy"].bool
-        else
-            false
-        fi);
     //the file name
     fileName = 
         (strReplace "." "/" 
             (strLeft verticleName ((strLength verticleName) - 5)))
         ^ strRight verticleName ((strLength verticleName) - 5);
     
-    resourceURL = loader#getResource(fileName);
+    resourceURL = (loader is ~ClassLoader)#getResource(fileName);
     if not defined? resourceURL then
         failWith "no verticle found for \(fileName) given \(verticleName)";
     fi;
@@ -207,22 +209,10 @@ _createClassLoader loader verticleName =
     //create URLClassLoader
     cl = new YvertxURLClassLoader(array [targetDir#toURI()#toURL()],
                                    loader);
-    {classLoader = cl, autoRedeploy}); 
+    cl); 
 
 _classLoaders = weakHash ();
 
-_getClassLoader loader verticleName = 
-    synchronized _classLoaders 
-        \(if loader instanceof YvertxURLClassLoader 
-            or loader in _classLoaders then
-            println "Using exting classloader for \(verticleName): \(loader)";
-            _classLoaders[loader];
-        else
-            println "Creating new classloader for \(verticleName) : \(loader)";
-            l = _createClassLoader loader verticleName;
-            _classLoaders[loader] := l;
-            l
-        fi);
         
 
 createStandardVerticle verticleName = 
@@ -231,14 +221,29 @@ createStandardVerticle verticleName =
     import yeti.lang:Fun,
                      Struct;
 
-    oldCl = Thread#currentThread()#getContextClassLoader();
-    {autoRedeploy, classLoader = cl} = 
-                            _getClassLoader oldCl verticleName;
-    Thread#currentThread()#setContextClassLoader(cl);
-    
+    var autoRedeploy = false;
     try
 
-        //create the url classLoader
+        oldCl = Thread#currentThread()#getContextClassLoader();
+        cl = synchronized _classLoaders 
+            \({ar,cl} = if oldCl instanceof YvertxURLClassLoader 
+                or oldCl in _classLoaders then
+                println "Using exting classloader for \(verticleName): \(oldCl)";
+                _classLoaders[oldCl];
+            else
+                println "Creating new classloader for \(verticleName) : \(oldCl)";
+                l = {
+                    ar = _autoredeploy? oldCl,
+                    cl = _createClassLoader oldCl verticleName
+                };
+                _classLoaders[oldCl] := l;
+                l
+            fi;
+            autoRedeploy := ar;
+            cl);
+        Thread#currentThread()#setContextClassLoader(cl);
+        
+        //load the module and invoke it
         {className,functionName}  = 
             (pa = if strEnds? verticleName ".yeti" 
                 or strEnds? verticleName ".teti" then
