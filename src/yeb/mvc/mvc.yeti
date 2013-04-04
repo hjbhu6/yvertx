@@ -682,6 +682,7 @@ etagMiddleware route req =
     noneBody = util.noneBody,
     response,
     continue,
+    continuePromise,
     request,
     escape,
     patternToRegex,
