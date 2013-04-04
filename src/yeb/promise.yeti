@@ -209,13 +209,13 @@ bind fn prom
     (ret = promise();
     fulfill \case of
         None msg: ret.setValue (None (msg is ~Exception));
-        Some v: 
-            pron = fn v;
-            fulfill \case of
-                    None ex: ret.setValue (None (ex is ~Exception));
-                    Some v2: ret.setValue (Some v2);
-                    esac
-                    pron
+        Some v:
+            try
+                pron = fn v;
+                fulfill ret.setValue pron
+            catch Exception ex:
+                ret.setValue (None ex);
+            yrt
         esac
         prom;
     ret.promise);
