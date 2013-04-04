@@ -321,8 +321,8 @@ done,
         reply repl;
     done;
 
-    busRequest "foo" msg >>- maybe () do {body}:
-        rs.assure "\(body)" (asserts and (body.jsonStruct == repl));
+    busRequest "foo" msg >>- maybe () do {jsonStruct}:
+        rs.assure "\(jsonStruct)" (asserts and (jsonStruct == repl));
     done;
 done,
 
@@ -342,7 +342,7 @@ done,
         done)
     done;
 
-    busRequest adr msg >>- maybe () do {body,request}:
+    sendToBusWithHandler adr msg >>- maybe () do {body,request}:
         rs.assert "" (body.jsonStruct == repl);
         request repl2 (maybe ()do {body}:
             rs.assure "" (body.jsonStruct == repl3);
@@ -362,7 +362,7 @@ done,
         handled := true;
         reply emptyJS;
     done;
-    busRequest adr msg >>- maybe ()do {body, reply}:
+    busRequest adr msg >>- maybe ()do body:
         rs.assure "" true;
     done;
 done,
