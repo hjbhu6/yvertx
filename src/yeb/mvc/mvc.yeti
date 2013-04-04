@@ -156,6 +156,11 @@ request {method,url,path,headers} =
         else
             path;
         fi;
+    path = if strStarts? path "/" then
+        strRight path 1;
+    else
+        path
+    fi;
     {
     method = strUpper method,
     url,
@@ -517,6 +522,9 @@ routes handlersIn req is list<route> -> route =
             cond := false;
             prom.setValue (None ex);
         yrt);
+    if cond and empty? handlers then
+        prom.setValue (Some continue);
+    fi;
     prom.promise);
 
 /**

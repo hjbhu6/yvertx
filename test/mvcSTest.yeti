@@ -1,6 +1,7 @@
 program mvcSTest;
 
 load yeb.std;
+load yeb.promise;
 load yeb.mvc.mvc;
 resm = load yeb.mvc.response;
 
@@ -56,7 +57,7 @@ done,
 "mvc:pattern-to-regex": do:
     import yeti.lang.Tag;
     checkPattern {match, pat, path,params} =
-        (rt = patternRoute pat do req res:
+        (rt = patternRoute pat do req:
             ha = [:];
             forHash params do k v:
                 ha[k] := [v];
@@ -68,7 +69,7 @@ done,
                 fi
             done;
             assertEquals ha2 ha;
-            res <== resm.html "hier";
+            return (rs.html "hier");
         done;
         req = request 
                 {method = "PUT",
@@ -77,7 +78,7 @@ done,
                 headers = [:]};
         
         var called = false;
-        rt req \case of
+        rt req >>- \case of
             None _: assert "Excpetion" false;
             Some res: 
                 called := true;
@@ -111,10 +112,10 @@ done,
 
 "mvc:mount": do:
     checkPattern {match, prefix, path, newPath, mountPath} =
-        (rt = mount prefix do req res:
+        (rt = mount prefix do req:
             assertEquals req.path newPath;
             assertEquals req.mountPath mountPath;
-            res <== resm.html "here";
+            return (rs.html "here");
         done;
         req = request
                 {method="POST",
@@ -122,7 +123,7 @@ done,
                 path,
                 headers=[:]};
         var called = false;
-        rt req \case of
+        rt req >>- \case of
             None _ : assert "Exception" false;
             Some res:
                 called := true;
@@ -148,11 +149,11 @@ done,
         (rts = patterns 
             |> map2 pair [0..length patterns]
             |> map do {fst = i ,snd = pat}:
-                patternRoute (Get pat) do req res:
+                patternRoute (Get pat) do req:
                     if i != hit then
                         assert "matched \(pat) as \(i)" false;
                     fi;
-                    res <== resm.html "here";    
+                    return (rs.html "here");    
                 done;
             done;
             
@@ -168,7 +169,7 @@ done,
             headers = [:]};
         
         var called = false;
-        routes rts req \case of
+        routes rts req >>- \case of
             None ex:
                 assert "Exception \(ex)" false;
             Some res:
@@ -180,10 +181,10 @@ done,
                         (res.statusCode == 200);
                 fi;
         esac;
-        assert "called" called;
+        assert "called: \(path)" called;
         );
 
-    patternsStr =  array ["/id", "", "/customer","/static","/index"];
+    patternsStr =  array ["id", "", "customer","static","index"];
     patterns = patternsStr
         |> concatMap do s:
             map ((s^) . string) [1 .. 2000]
@@ -218,17 +219,17 @@ done,
         fi;
 
         
-        rt = paramsMiddleware do req res:
+        rt = paramsMiddleware do req:
             assert "queryParams \(req.queryParams) \(checkQueryParams)"
                     (req.queryParams == checkQueryParams);
             assert "bodyParams \(req.bodyParams) \(bodyParams)"
                     (req.bodyParams == bodyParams);
 
-            res <== rs.html "some";
+            return (rs.html "some");
         done;
 
         var called = false;
-        rt req \(called := true);
+        rt req >>- \(called := true);
         assert "called" called);
 
     params = ["k1" :["v1","v2","v3"],
@@ -236,60 +237,15 @@ done,
               "k3" :[""],
               "k4" :["true"]];
     params2 = copy params;
-    params2["given":[""]];
+    params2["given"] := [""];
 
     check "path?" params params params;
     check "path?given&" params params2 params;
-    check "path" [] [] [];
-    check "path?" params params [];
-    check "path?" [] [] params;
-    check "path" [] [] params;
+    check "path" [:] [:] [:];
+    check "path?" params params [:];
+    check "path?" [:] [:] params;
+    check "path" [:] [:] params;
 
-done,
-
-"mvc:errorMiddleware" : do:
-    exe = new java.lang.IllegalStateException("");
-    erExe = new java.lang.IllegalStateException("");
-    err = None erExe;
-    requ = request {method = "GET", path="path", url="url", headers=[:]};
-    resp = Some (mres.html "here");
-
-    check inner handlerRes call handler =
-        (router = case inner of
-        Throw (): do req res: throw exe done;
-        Some () : do req res: res resp done;
-        None () : do req res: 
-                res err;
-            done;
-        esac;
-        nr = errorMiddleware handler router;
-        
-        var called = false;
-        nr requ do r:
-            called := true;
-            assert "in last" (handlerRes == r);
-        done;
-        assert "called" (called == call));
-        
-    check (Throw ()) err true do ex req res:
-        assertEquals ex exe;
-        res err; 
-    done;
-    
-    var called = false;
-    check (Some ()) resp true do ex req res:
-        called := true;
-        res err;
-    done;
-    assert "some" (not called);
-
-    var called := false;
-    check (None ()) resp true do ex req res:
-        called := true;
-        assertSame ex erExe;
-        res resp;
-    done;
-    assert "" called;
 done,
 
 "mvc:ifReq" : do:
@@ -300,12 +256,12 @@ done,
             called1 := true;
             true;
         done
-        do req res:
+        do req:
             called2 := true;
-            res <== html "hier"
+            return (rs.html "hier")
         done
         (request{method="post", path="p",url="u",headers = [:]})
-        \case of
+        >>- \case of
         None ex: assert "" false;
         Some r:
             called3 := true;
@@ -323,12 +279,12 @@ done,
             called1 := true;
             false;
         done
-        do req res:
+        do req:
             called2 := true;
-            res <== html "hier"
+            return (rs.html "hier")
         done
         (request{method="post", path="p",url="u",headers = [:]})
-        \case of
+        >>- \case of
         None ex: assert "" false;
         Some r:
             called3 := true;
@@ -344,28 +300,31 @@ done,
 
 "response:header" : do:
     res = response 400 ["cookie":"foo"] rBody;
-    resm.header res "co2" "v2";
+    rs.header res "co2" "v2";
     assertEquals res.headers["co2"] (array ["v2"]);
-    resm.header res "cookie" "v3";
+    rs.header res "cookie" "v3";
     assertEquals res.headers["cookie"] (array ["v3"]);
 done,
 
 "response:status-codes" : do:
-    assert "200" (200 in res.statusCodes);
+    assert "200" (200 in rs.statusCodes);
 done,
 
 "response:header" : do:
     res = rs.html "write";
     rs.header res "foo" "some";
-    assertEquals rs.headers["foo"] ["some"];
-    assertEquals rs.headers["Content-Type"] ["text/html; charset=utf-8"];
+    assertEquals res.headers["foo"] (array ["some"]);
+    assertEquals res.headers["Content-Type"] 
+        (array ["text/html; charset=utf-8"]);
     rs.header res "Content-Type" "foo";
-    assertEquals rs.headers["Content-Type"] ["foo"];
+    assertEquals res.headers["Content-Type"] (array ["foo"]);
 done,
 
 "response:locationpath" : do:
-    req = request {method="get", url = "/foo/some?query", path="some"};
-    assertEquals "http://google.com" (rs.calcLocationPath "http://google.com");
+    req = request {method="get", url = "/foo/some?query", 
+                    path="some", headers = [:]};
+    assertEquals "http://google.com" 
+            (rs.calcLocationPath req "http://google.com");
 done,
 
 
