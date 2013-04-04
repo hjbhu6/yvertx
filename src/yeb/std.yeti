@@ -277,6 +277,18 @@ class YebAssertionError(String reason)
     extends java.lang.AssertionError(reason,() as ~Throwable)
 end;
 
+
+/**
+ * Group: test
+ *
+ * Used inside 'simpleTest' to assert a condition. If the condition
+ * is wrong than an YebAssertError is thrown.
+ *
+ * Arguments:
+ * message - message of the YebAssertionError
+ * condidtion - false means that the YebAssertionError is thrown. true has
+ * no effect
+ */
 assert msg bo =
     if not bo then
         msg = if not defined? msg or msg == "" then
@@ -287,12 +299,42 @@ assert msg bo =
         throw new YebAssertionError(msg is string);
     fi;
 
+/**
+ * Group: test
+ *
+ * Used inside 'simpleTest' to assert that the expected value is equal to the
+ * value under test. If the values are not equal a YebAssertError is thrown.
+ *
+ * Arguments:
+ * expected - the excpected value
+ * testedValue - the value to test
+ */
 assertEquals test right =
     if right != test then
         throw new 
-            YebAssertionError("Expected \(right) but was \(test)");
+            YebAssertionError("Expected [\(right)] but was [\(test)]");
     fi;
 
+/**
+ * Group: test
+ *
+ * Utility function to run test functions.
+ *
+ * The tests are than run and a TAP protocol is printed to the printer argument
+ *
+ * Arguments:
+ *  exit - wheter to call System#exit(-1) if the tests fail
+ *  printer - function to print output
+ *  testHash - hash of test names to test functions. The test-functions
+ *  should use the 'assert' and 'assertEquals' functions to assert values
+ *
+ * Examples:
+ * : simpleTest false println [
+ * :   "plus" : do: assertEquals 3 == (2 + 1),
+ * :   "minus" : do: assert "minus is wrong" ( (3 - 1) == 2),
+ * : ]
+ *
+ */
 simpleTest exit? println testHash =
    (var bad = 0;
     var exception = 0;
