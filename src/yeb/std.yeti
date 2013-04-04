@@ -579,7 +579,7 @@ messageDigest algorithm message =
             do ar:
                 name = urlDecode (ar[1]);
                 value = urlDecode (ar[3]);
-                ols = if not name in ret then 
+                if not name in ret then 
                     ret[name] := [value];
                 else
                     ret[name] := reverse (value :: ret[name]);
