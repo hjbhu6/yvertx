@@ -4,7 +4,7 @@ import org.vertx.java.deploy:Container;
 import org.vertx.java.core.file:FileProps;
 
 load yeb.std;
-load yeb.async;
+load yeb.promise;
 
 load yeb.yvertx;
 
@@ -17,16 +17,17 @@ fileDir = "../../target/yeti-test-output";
 
 fshelper = {
     clean dir after = 
-        fileSystem.exists dir (maybe () do exi:
+        fileSystem.exists dir >>- maybe () do exi:
             if exi then
-                fileSystem.delete dir true (maybe () \(
-                    fileSystem.mkdir dir none true (maybe () 
-                        (after is 'a -> ()))
-                ))
+                fileSystem.delete dir true >>- maybe () do:
+                    fileSystem.mkdir dir none true 
+                        >>- maybe () (after is 'a -> ())
+                done;
+                
             else
-                fileSystem.mkdir dir none true (maybe () after)
+                fileSystem.mkdir dir none true >>- maybe () after
             fi
-        done);
+        done;
     
 };
 
@@ -224,28 +225,12 @@ done,
         done;
 done,
 */
-"cb:return" : do rs:
-   (return 2) do v: rs.assure "" ((Some 2) == v) done;
-done,
 
-"cb:bind" : do rs:
-    r = do cb: cb (Some 1) done
-    |> bind do x:
-        rs.assert "" (x == 1);
-        do cb2: cb2 (failNone "f") done
-    done;
-    r \case of
-        None ex: rs.assure "" true;
-        Some v: rs.assure "" false;
-    esac;
-done,
-
-
-"cb:parallel" : do rs:
+"promise:parallel" : do rs:
     //make services 
     adresses = [1..10] |> map (("adr"^) . string);
     for adresses do adr:
-        registerBusHandler adr \() do {reply, handler}:
+        registerBusHandler adr do {reply, handler}:
             reply {value = 1, 
                    for_json=E()};
             unregisterBusHandler adr handler \();
@@ -262,7 +247,7 @@ done,
     done)
 done,
 
-"cb:colllectAsync" : do rs:
+"promise:colllectPromise" : do rs:
     register adr =
         registerBusHandler adr \() do {reply, handler} :
             reply {value = adr ^ "foo", for_json=E()};
@@ -271,10 +256,10 @@ done,
     
     for [1..2] (register . ("adr"^) . string);
 
-    cfn = collectAsync do s:{
-         a = setAsync s
+    cfn = collectPromises do s:{
+         a = setPromise s
             (requestFromBus "adr1" emptyJS |> bind (return . (.value))),
-         b = setAsync s
+         b = setPromise s
             (requestFromBus "adr2" emptyJS |> bind (return . (.value))),
         }done;
         
@@ -285,15 +270,13 @@ done,
 done,
 
 
-
-
 "eventbus:simple" : do rs:
     msg = {address = "foo-address", price=23.45, for_json=E()};
     rs.setTimeout(2000);
     address = "foo-some";
     var handled = false;
-    registerBusHandler address \() do {body, handler}:
-        unregisterBusHandler address handler \();
+    _ = registerBusHandler (Global address) do {body, handlerId}:
+        _ = unregisterBusHandler handlerId;
         rs.assure "\(body)" (body == msg and not handled);
         handled := true;
     done;
@@ -304,9 +287,11 @@ done,
     var handled = false;
     adr = "foo";
     msg = emptyJS;
-    registerBusHandler adr \() do {body,handler}:
-        unregisterBusHandler adr handler \();
+    _ = registerBusHandler (Locale adr) do {body,handlerId}:
+        _ = unregisterBusHandler handlerId;
         rs.assure "\(body)" (body == msg and not handled);
+        //should do nothing
+        _ = unregisterBusHandler handlerId;
         handled := true;
     done;
     sendToBus adr msg;
@@ -316,11 +301,9 @@ done,
     var handled = false;
     msg = {count = 1, foo = "foo", for_json=E()};
     var assertion = true;
-    registerBusHandler "foo" \() do {body,handler}:
+    _ = registerBusHandler "foo" do {body,handlerId}:
         assertion := assertion and (body == msg and not handled);
-        unregisterBusHandler "foo" handler \();
-        //should do nothing
-        unregisterBusHandler "foo" handler \();
+        _ = unregisterBusHandler handlerId;
         handled := true;
         _ = setTimer 100 do:
             //complete the test
@@ -335,16 +318,16 @@ done,
     msg = {count=1, foo = "foo2", for_json=E()};
     repl = {reply = true, for_json=E()};
     var asserts = true;
-    registerBusHandler "foo" \() do {body,handler, reply}:
+    _ = registerBusHandler "foo" do {body,handler, reply}:
         asserts := asserts and (not handled and msg == body);
-        unregisterBusHandler "foo" handler \();
+        _ = unregisterBusHandler "foo" handler;
         handled := true;
         reply repl;
     done;
 
-    requestMessageFromBus "foo" msg (maybe ()do {body}:
+    requestMessageFromBus "foo" msg >>- maybe () do {body}:
         rs.assure "\(body)" (asserts and (body == repl));
-    done);
+    done;
 done,
 
 "eventbus:replyOfReplyOfReply" : do rs:
@@ -354,7 +337,7 @@ done,
     repl = {msg = "repl", for_json=E()};
     repl2 = {msg = "repl2", for_json=E()};
     repl3 = {msg = "repl3", for_json=E()};
-    registerBusHandler adr \() do {body, handler, request}:
+    _ = registerBusHandler adr do {body, handler, request}:
         rs.assert "" (msg == body);
         request repl (maybe () do {body, reply}:
             rs.assert "" (repl2 == body);
@@ -363,12 +346,12 @@ done,
         done)
     done;
 
-    requestMessageFromBus adr msg (maybe () do {body,request}:
+    requestMessageFromBus adr msg >>- maybe () do {body,request}:
         rs.assert "" (body == repl);
         request repl2 (maybe ()do {body}:
             rs.assure "" (body == repl3);
         done)
-    done);
+    done;
 done,
 
 "eventbus:emptyReply" : do rs:
@@ -376,109 +359,103 @@ done,
     var handled = false;
     adr = "foo";
     msg = emptyJS;
-    registerBusHandler adr \() do {reply, body, handler}:
+    _ = registerBusHandler adr do {reply, body, handler}:
         rs.assert "" (not handled);
         rs.assert "" (msg == body);
-        unregisterBusHandler adr handler \();
+        _ = unregisterBusHandler adr handler;
         handled := true;
         reply emptyJS;
     done;
-    requestMessageFromBus adr msg (maybe ()do {body, reply}:
+    requestMessageFromBus adr msg >>- maybe ()do {body, reply}:
         rs.assure "" true;
-    done);
+    done;
 done,
 
 "filesystem:copy" : do rs:
     dir = fileDir^"/copy";
-    fshelper.clean dir \(;
     from = dir ^"/foo.tmp";
     to = dir ^"/bar.tmp";
     content = "some-data";
-    fileSystem.writeFile from (newStringBuffer content) (maybe ()do:
-        fileSystem.copy from to true (maybe ()do:
-            fileSystem.readFile to (maybe ()do res:
-                rs.assure "" ((string res) == content)
-            done);
-        done)
-    done));
+    
+    fshelper.clean dir 
+    >>= \(fileSystem.writeFile from (newStringBuffer content))
+    >>= \(fileSystem.copy from to true) 
+    >>= \(fileSystem.readFile)
+    >>- maybe () do res:
+            rs.assure "" ((string res) == content)
+        done;
 done,
 
 "filesystem:move" : do rs:
-    fshelper.clean fileDir \(;
     from = fileDir ^"/foo.tmp";
     to = fileDir ^"/bar.tmp";
     content = "some-data";
-    fileSystem.writeFile from (newStringBuffer content) (maybe ()do:
-        fileSystem.move from to (maybe ()do:
-            fileSystem.readFile to (maybe ()do res:
+    fshelper.clean fileDir 
+    >>= \(fileSystem.writeFile from (newStringBuffer content)) 
+    >>= \(fileSystem.move from to) 
+    >>= \(fileSystem.readFile to) 
+    >>- maybe () do res:
                 rs.assure "" ((string res) == content)
-            done)
-        done)
-    done))
+        done
 done,    
 
 "filesystem:readDir" : do rs:
     dir = fileDir ^ "/readdir";
-    fshelper.clean dir \(
-        file1 = dir ^"/foo.tmp";
-        file2 = dir ^"/bar.tmp";
-        file3 = dir ^"/baz.tmp";
-        content = newStringBuffer "some-data";
-        fileSystem.writeFile file1 content (maybe ()do:
-            fileSystem.writeFile file2 content (maybe ()do:
-                fileSystem.writeFile file3 content (maybe ()do:
-                    fileSystem.readDir dir none (maybe ()do res:
-                        rs.assert "\(res)" (length res == 3);
-                    done)
-                done)
-            done)
-        done)
-    );
+    file1 = dir ^"/foo.tmp";
+    file2 = dir ^"/bar.tmp";
+    file3 = dir ^"/baz.tmp";
+    content = newStringBuffer "some-data";
+    fshelper.clean dir 
+    >>= \(fileSystem.writeFile file1 content)
+    >>= \(fileSystem.writeFile file2 content)
+    >>= \(fileSystem.writeFile file3 content)
+    >>= \(fileSystem.readDir dir none)
+    >>- maybe () do res:
+        rs.assert "\(res)" (length res == 3);
+    done
 done,
 
 "filesystem:props" : do rs:
     dir = fileDir ^ "/props";
-    fshelper.clean dir \(
-        content = newStringBuffer "some-data";
-        file = dir ^"/foo.tmp";
-        fileSystem.writeFile file content (maybe ()do:
-            fileSystem.props file (maybe ()do res:
-                rs.assert "" (res is ~FileProps)#isRegularFile;
-                rs.assert "" (res#creationTime#getTime() > 0);
-                rs.assert "" (res#lastAccessTime#getTime() > 0);
-                rs.assure "" (res#lastModifiedTime#getTime() > 0);
-            done)
-        done)
-    );
+    content = newStringBuffer "some-data";
+    file = dir ^"/foo.tmp";
+    fshelper.clean dir 
+    >>= \(fileSystem.writeFile file content)
+    >>= \(fileSystem.props file)
+    >>- do res:
+        rs.assert "" (res is ~FileProps)#isRegularFile;
+        rs.assert "" (res#creationTime#getTime() > 0);
+        rs.assert "" (res#lastAccessTime#getTime() > 0);
+        rs.assure "" (res#lastModifiedTime#getTime() > 0);
+    done
 done,
 
 "filesystem:pumpFile" : do tests:
     import org.vertx.java.core.file:AsyncFile;
     dir = fileDir^"/pumpfile";
-    fshelper.clean dir \(
-        from = dir^"/foo.tmp";
-        to = dir^"/bar.tmp";
-        content = newRandomBuffer(10000);
-        fileSystem.writeFile from content (maybe ()do:
-            fileSystem.open [] from (maybe ()do file1:
-                fileSystem.open [] to (maybe ()do file2:
-                    rs = (file1 is ~AsyncFile)#getReadStream();
-                    ws = (file2 is ~AsyncFile)#getWriteStream();
-                    pump = createPump rs ws;
-                    pump#start();
-                    rs#endHandler(toHandler do:
-                        file1#close(toAsyncResultHandler (maybe ()do:
-                            file2#close(toAsyncResultHandler (maybe ()do:
-                                fileSystem.readFile to (maybe ()do res:
-                                    tests.assert "" (content == res);
-                                done);
-                            done));
-                        done));
-                    done);
-                done);
-            done);
-        done);
-    )
+    from = dir^"/foo.tmp";
+    to = dir^"/bar.tmp";
+    content = newRandomBuffer(10000);
+    {
+        f () = f1 <- (fshelper.clean dir         
+                >>= \(fileSystem.writeFile from content)
+                >>= \(fileSystem.open [] from)),
+        f1 file1 = f2 file1 <- fileSystem.open [] to,
+        f2 file1 file2 =
+            rs = (file1 is ~AsyncFile)#getReadStream();
+            ws = (file2 is ~AsyncFile)#getWriteStream();
+            pump = createPump rs ws;
+            pump#start();
+            rs#endHandler(toHandler do:
+                file1#close(toAsyncResultHandler (maybe ()do:
+                    file2#close(toAsyncResultHandler (maybe ()do:
+                        fileSystem.readFile to >>- (maybe ()do res:
+                            tests.assert "" (content == res);
+                        done);
+                    done));
+                done));
+            done)
+    }.f >>- \();
 done,
 
 "http:hostport" : do rs:
@@ -503,11 +480,11 @@ done,
             client
             "/" 
             [:] 
-            (maybe ()do {resp, buffer}:
+            >>- maybe ()do {resp, buffer}:
                 closeHttpServer server do:
                     rs.assure (string buffer) true;
                 done;
-            done);
+            done;
     done;
 done,
     
