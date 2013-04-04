@@ -69,7 +69,7 @@ typedef route = request -> promise<response>;
 escape = util.escape;
 
 /**
- * Group: send (SEND)
+ * Group: send (RESPONSE)
  *
  * This function should be used to create the response struct
  * Creates a new response structure which can be sent to the response
@@ -77,6 +77,11 @@ escape = util.escape;
  *
  * The headers hash of the response has a default set to an empty
  * array which is also added to the hash itself.
+ *
+ * Arguments:
+ * statusCode - the http statuscode of the response
+ * headers - the headers-hash of the response
+ * body - the body of the response
  */
 response statusCode headers body = 
     ({var statusCode = statusCode, 
@@ -97,12 +102,21 @@ response statusCode headers body =
  * Group: send
  *
  * Internal response object used to signal that the route-searching should
- * continue
+ * continue.
+ *
+ * The status-code of this response is -1. Some middleware will
+ * check for this statuscode and handle the handling ovrer to another route
  */
 continue is response = 
     response (-1) [:] util.noneBody;
 
-_sContinue = return continue;    
+
+/**
+ * Group: send
+ *
+ * promise containing the continue response. Same as return continue
+ */
+continuePromise = return continue;    
 
 /**
  * Group: request (REQUEST)
@@ -112,10 +126,10 @@ _sContinue = return continue;
  * to an empty list. 
  *
  * Arguments:
- * - method: the http method in upper case
- * - url: the url of the request (whtihout domain and scheme)
- * - path: the path part of the url without query
- * - headers: a map of headers 
+ * method - the http method in upper case
+ * url - the url of the request (whtihout domain and scheme)
+ * path - the path part of the url without query
+ * headers - a map of headers 
  */
 request {method,url,path,headers} =
     (
@@ -203,6 +217,8 @@ _patternMatchAll =
         matchAll '(/?\.?):([A-Za-z0-9]+)(\$([^\$]+)\$)?(\?)?' (Token . tail) Text;
 
 /**
+ * Group: route (ROUTE)
+ *
  * Transform an url pattern to a regex. Patterns are used in routers to 
  * specify path pattern which should be handled.
  *
@@ -215,6 +231,9 @@ _patternMatchAll =
  * to specify a custom regex put it between $ $ after the name of the part.
  * ie to specify that id should only contain digits:
  * :/entry/:id$d+$
+ *
+ * Arguments:
+ * pattern - the pattern string
  */
 patternToRegex pat = 
    (//:a-z is name
@@ -284,7 +303,7 @@ _regexRoute method regex handler is string -> string -> route -> route  =
 
     do req:
         if checkMethod? and (meth != (strUpper req.method )) then
-            _sContinue;
+            continuePromise;
         else
             matcher = pattern#matcher(req.path is string);
             if matcher#matches() then
@@ -315,17 +334,38 @@ _regexRoute method regex handler is string -> string -> route -> route  =
                 try
                     handler nreq;
                 catch ValidationException ex:
-                    _sContinue;
+                    continuePromise;
                 yrt;
             else
-                _sContinue;
+                continuePromise;
             fi;
         fi;
     done);
 
 /**
- * Mounts the request to the given prefix
- * sets the mountPath the path and the url to the given value
+ * Group: route (ROUTE)
+ *
+ * Executes the given route if the path starts with the given 
+ * mountPoint, with a new request. The mountPath of the new request is the
+ * mountPoint and the new path is the part of the old path after the 
+ * mountPoint.
+ *
+ * Arguments:
+ * mountPoint - the prefix of the path which should match. It must end
+ * with "/"
+ *
+ * It is used to add subroutes:
+ * : routes [
+ * :    mount "user/" routes [
+ * :       Get "info" ==> do req: 
+ * :               //will match path 'user/info'     
+ * :               println req;
+ * :               rs.html "...";
+ * :        done;
+ * :    ]
+ * : ]
+ * : // => {mountPath="user/",path="info"...} 
+ *
  */
 mount mountPrefix handler is string -> route -> route = 
     (if not strEnds? mountPrefix "/" then
@@ -357,9 +397,34 @@ _methodPattern requestUrl =
 
 
 /**
- * Handleradapter which takes a request method and a regexpattern and 
- * executes on match the given route. 
- * Normally this is not used directly but a router is used.
+ * Group: route
+ *
+ * Used to match a route based on a regexpattern. See also the shorthand
+ * operators (~~>) and (~~>>)
+ *
+ * Arguments:
+ * pathPattern - regexPattern in a Method variant which is used to match the
+ * path
+ * route - route to execute if the pattern machtes
+ *
+ * Description:
+ * Middleware which takes a regex pattern in a method-variant and a route. 
+ * The route is executed if the http-method matches the variant and the path
+ * matches the regex.
+ *
+ * Named groups of the regex are added as request params and all regex-groups
+ * are added as the __urlParams param.
+ *
+ * Example:
+ * : regexRoute (Get 'user/(?id:\d+)') do req:
+ * :    //will match any path 'user/<number>"
+ * :    
+ * :    println req.params["id"];
+ * :    // => the id-number of the the user given in the path
+ * :
+ * :    return rs.html "..";
+ * : done;
+ * :
  *
  */
 regexRoute regex route =
@@ -367,10 +432,35 @@ regexRoute regex route =
     _regexRoute pa.fst pa.snd route);
 
 /**
- * RouteAdapter which takes a request method and a pattern 
- * (see patternToRegex) and 
- * executes on match the given route. 
- * Normally this is not used directly but a router is used.
+ * Group: route
+ *
+ * Used to match a route based on a path pattern. See also the shorthand
+ * operators (==>) and (==>>)
+ *
+ * Arguments:
+ * pathPattern - patter in a Method variant which is used to match the
+ * path. The pattern transfered to a regex using the patternToRegex function.
+ * route - route to execute if the pattern machtes
+ *
+ * Description:
+ * Middleware which takes a pattern in a method-variant and a route. 
+ * The route is executed if the http-method matches the variant and the path
+ * matches the patter.
+ *
+ * Parameters of the pattern are added to the requests.params hash.
+ *
+ *
+ * Example:
+ * : patternRoute (Get 'user/:id') do req:
+ * :    //will match any path 'user/<string>"
+ * :    
+ * :    println req.params["id"];
+ * :    // => the id of the the user given in the path (any string)
+ * :
+ * :    return rs.html "..";
+ * : done;
+ * :
+ *
  */
 patternRoute pattern route =
     (pa = _methodPattern pattern;
@@ -378,6 +468,23 @@ patternRoute pattern route =
 
 
 /**
+ * Group: route
+ * Middleware which creates a route which trys one route ofter another out of 
+ * a list of (sub)routes 
+ * until the first subroute has handled the request.
+ *
+ * Arguments:
+ * subroutes - list of routes to try. 
+ *
+ * If a soubroute does not handle a reuqest it should return the 'continue'
+ * response or a response with status-code -1. If this is the case the 
+ * middleware will hand over handling to the nex route.
+ * 
+ * Example:
+ * : routes [
+ * :    Get "user/:id" ==> ...,
+ * :    Post "user/:id" ==> ...
+ * : ]
  * Creates one route from many routes. The routes are executed
  * one ofter the other as long as they respons with status-code 
  * the internal status-code continue (= -1)
@@ -411,8 +518,15 @@ routes handlersIn req is list<route> -> route =
             prom.setValue (None ex);
         yrt);
     prom.promise);
+
 /**
- * Parses the query and form data in queryParams and bodyParams
+ * Group: middleware (MIDDLEWARE)
+ *
+ * Parses the query-string and (potential) body form data  and puts them
+ * in the queryParams and bodyParams hash
+ *
+ * Arguments:
+ * route - next route to call
  */
 paramsMiddleware route req is route -> route =
     (//the query
@@ -432,7 +546,12 @@ paramsMiddleware route req is route -> route =
     route req);
 
 /**
- * Cookie parser parses the cookies 
+ * Group: middleware
+ *
+ * Parses cookies and puts them in the cookies field of the request
+ * 
+ * Arguments:
+ * route - next route to call
 */
 cookiesMiddleware route req is route -> route=
     (nreq = req with {
@@ -442,17 +561,43 @@ cookiesMiddleware route req is route -> route=
 
 
 /**
- * Condition middleware 
+ * Group: middleware
+ *
+ * Evaluates the given condition function for the request if it returns true
+ * executes the route otherwise returns continue.
+ *
+ * Arguments:
+ * conditionFn - function which gets evaluated for the request and returns
+ * true or false to handle it
+ * route - next route
+ *
+ * Example:
+ * : routes [
+ * :   Get "user/:id" ==>> 
+ * :         (ifReq do req: req.params["id"] == "anon" done)
+ * :         do req:
+ * :             //handle anon user
+ * :         done,
+ * :   Get "user/:id" ==>> do req:
+ * :         //handle other users
+ * :   done
+ * : ];
  */
 ifReq fn route req is 'f -> route -> route=
     if fn req then
         route req 
     else
-        _sContinue
+        continuePromise
     fi;
 
 /**
+ * Group: middleware
+ *
  * calculates the etag and set the header
+ * works on the response
+ *
+ * Arguments:
+ * route - route to call and the response of which should be used for etag calc
  */
 etagMiddleware route req =
     route req 
@@ -472,16 +617,66 @@ etagMiddleware route req =
             esac;
         done;
 {
+    /**
+     * Group: route
+     * Same as pattern pattenRoute function
+     *
+     * Arguments:
+     * patter - the pattern to match
+     * route - the function to execute
+     */
     (==>>) = patternRoute,
+    
+    /**
+     * Group: route
+     * Same regesRoute function
+     *
+     * Arguments:
+     * pattern - the regexpattern
+     * route - the route
+     */
     (~~>>) = regexRoute,
+    
+    /**
+     * Group: route
+     * 
+     * Same as patternRoute but takes a function which returns a resposne.
+     * The response is than wrapped in a promise. Used to code sync routes
+     * which is fine if they do not block.
+     *
+     * Arguments:
+     * pattern - pattern to mathc on the path
+     * handler - a function which takes a request and returns a response
+     */
     (==>) p h = patternRoute p do req:
         try return (h req) catch Exception ex: returnEither (None ex) yrt
     done,
+
+
+    /**
+     * Group: route
+     * 
+     * Same as regexRoute but takes a function which returns a resposne.
+     * The response is than wrapped in a promise. Used to code sync routes
+     * which is fine if they do not block.
+     *
+     * Arguments:
+     * regexPattern - regex pattern to match on the path
+     * handler - a function which takes a request and returns a response
+     */
     (~~>) p h = regexRoute p do req:
         try returnEither (Some (h req)) catch 
             Exception ex: returnEither (None ex) yrt
     done,
 
+    /**
+     * Group: util (UTIL)
+     *
+     * Escapes the < > & html special chars
+     *
+     * Arguments:
+     * text - text to escape
+     */
     (@) text = escape text,
 
     noneBody = util.noneBody,
