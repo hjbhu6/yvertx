@@ -278,11 +278,12 @@ createStandardVerticle verticleName =
         //invoke the function
         fn#apply(() as ~Object) unsafely_as ~Verticle;
     catch CompileException ex:
-        println "Yeti Compilation Error: \(ex#getMessage())";
+        msg =  "Yeti Compilation Error: \(ex#getMessage())";
         if autoRedeploy then
+            println msg;
             (new MockVerticle()) as ~Verticle;
         else
-            throw ex;
+            failWith msg;
         fi
     catch InvocationTargetException ex:
         throw ex#getCause();
