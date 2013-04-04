@@ -229,7 +229,7 @@ done,
                 check: \(checkQueryParams)"
                 (req.queryParams == checkQueryParams);
             assert 
-                "url \(url) bodyParams \(req.bodyParams) check: \(bodyParams)"
+                "url \(path) bodyParams \(req.bodyParams) check: \(bodyParams)"
                 (req.bodyParams == bodyParams);
 
             return (rs.html "some");
