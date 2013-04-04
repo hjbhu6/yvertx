@@ -330,8 +330,8 @@ assertEquals test right =
  *
  * Examples:
  * : simpleTest false println [
- * :   "plus" : do: assertEquals 3 == (2 + 1),
- * :   "minus" : do: assert "minus is wrong" ( (3 - 1) == 2),
+ * :   "plus" : do: assertEquals 3 == (2 + 1) done,
+ * :   "minus" : do: assert "minus is wrong" ( (3 - 1) == 2) done,
  * : ]
  *
  */
