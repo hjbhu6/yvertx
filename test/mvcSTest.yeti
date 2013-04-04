@@ -10,6 +10,115 @@ rs = load yeb.mvc.response;
 rBody = randomByteArray 50;
 
 _ = simpleTest true println [
+
+"promise:return" : do rs:
+   _ = (return 2) >>= do v: assertEquals 2 v; return () done;
+done,
+
+"promise:bind" : do rs:
+    //normal operation
+    p = (return 1) |> bind do x:
+        assertEquals 1 x;
+        return "foo";
+    done;
+
+    p >>- assertEquals (Some "foo");
+
+    //exception
+    p = (return 1) |> bind do x:
+        assertEquals 1 x;
+        failWith "not ok";
+    done;
+
+    p >>- \case of
+        None ex: ();
+        Some v: assert "was value" false;
+    esac;
+
+    //fail
+    p = (return 1) |> bind do x:
+        assertEquals 1 x;
+        returnFail "not ok";
+    done;
+
+    p >>- \case of
+        None ex: ();
+        Some v: assert "was value" false;
+    esac;
+
+done,
+
+"promise:bindEither" : do rs:
+    //normal operation
+    p = (return 1) |> bindEither \case of
+        None ex: 
+            assert "error \(ex)" false;
+            returnEither (None ex);
+        Some x:
+            assertEquals 1 x;
+            return "foo";
+    esac;
+
+    p >>- assertEquals (Some "foo");
+
+    //exception
+    p = (return 1) |> bindEither \case of
+        None ex: 
+            assert "error \(ex)" false;
+            returnEither (None ex);
+        Some x:
+            assertEquals 1 x;
+            failWith "not ok";
+    esac;
+
+    p >>- \case of
+        None ex: ();
+        Some v: assert "was value" false;
+    esac;
+
+    //fail
+    p = (returnFail "some") |> bindEither \case of
+        None ex: 
+            returnFail "foo";
+        Some x:
+            assert "Expected x" false;
+            return 1;
+    esac;
+
+    p >>- \case of
+        None ex: ();
+        Some v: assert "was value" false;
+    esac;
+
+done,
+
+"promise:promise": do:
+    pro = promise ();
+    
+    var called = 0;
+    handler name = \case of
+        None ex : assert "handler \(name)" false;
+        Some v:
+            called := called + 1;
+            assert "handler \(name)" (v == "val");
+    esac;
+    
+    pro.promise >>- (handler 1);
+    pro.promise >>- (handler 2);
+    
+    assertEquals 0 called;
+    pro.setValue (Some "val");
+    assertEquals 2 called;
+
+    pro.promise >>- (handler 3);
+    assertEquals 3 called;
+
+    pro.setValue (Some "foo");
+    pro.promise >>- (handler 4);
+    assertEquals 4 called;
+done,
+
+
 "mvc:response": do:
     body = randomByteArray 50;
     res = response 340 ["Cookie":"foo"] body;
