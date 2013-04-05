@@ -220,7 +220,7 @@ typedef yvertxJsonValue<a> = {
     obj is hash<string,yvertxJsonValue>,
     bytes is Some ~byte[] | None (),
     type is number,
-    jsonStruct is a
+    stru is a
 };
 
 var _jsp = {
@@ -231,7 +231,7 @@ var _jsp = {
     arr = [],
     obj = [:],
     type = 0,
-    jsonStruct = (() unsafely_as ~Object) unsafely_as 'a
+    stru = (() unsafely_as ~Object) unsafely_as 'a
 };
 
 _jsonPrototype = {
@@ -245,7 +245,7 @@ _jsonPrototype = {
         setHashDefault ha \(_jsp);
         ha,
     type = 0,
-    jsonStruct = (() unsafely_as ~Object) unsafely_as 'a
+    stru = (() unsafely_as ~Object) unsafely_as 'a
 };
 
 _jsp := _jsonPrototype;
@@ -283,7 +283,7 @@ _fromJsonValue o is ~Object -> yvertxJsonValue<'a>=
                     calculated? := true;
                     ha
                 fi,
-            get jsonStruct () = (_fromJsonToStruct o) unsafely_as 'a, 
+            get stru () = (_fromJsonToStruct o) unsafely_as 'a, 
             type = 1,
         }
     elif o instanceof JsonArray then
@@ -354,7 +354,6 @@ _fromJsonValue o is ~Object -> yvertxJsonValue<'a>=
  */
 fromJson object is ~JsonObject -> 'a =
     _fromJsonValue object;
-    //{jsonStruct = (_fromJsonToStruct object) unsafely_as 'a};
 
 /**
  * Group: json
@@ -367,7 +366,6 @@ fromJson object is ~JsonObject -> 'a =
  */
 fromJsonArray ar is ~JsonArray -> list<'a> =
     (_fromJsonValue ar).arr;    
-    //(_fromJsonToStruct ar) unsafely_as list<'a>;
 
 
 

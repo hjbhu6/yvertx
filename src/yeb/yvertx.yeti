@@ -1856,7 +1856,7 @@ toEitherJsonMessageHandler address fn =
     (class YvertxEitherMessageHandler extends Handler
         void handle(Object ob)
             msg = ob unsafely_as ~Message;
-            {jsonStruct = body} = fromJson (msg#body unsafely_as ~JsonObject);
+            {stru = body} = fromJson (msg#body unsafely_as ~JsonObject);
             try
             if defined? body.status and body.status == "error" then
                 emg = if defined? body.message then
@@ -2004,10 +2004,10 @@ busRequest address msg =
             msg = ob unsafely_as ~Message;
             
             body = fromJson (msg#body unsafely_as ~JsonObject);
-            jsonStruct = body.jsonStruct;
-            if defined? jsonStruct.status and jsonStruct.status == "error" then
-                emg = if defined? jsonStruct.message then
-                          string jsonStruct.message
+            stru = body.stru;
+            if defined? stru.status and stru.status == "error" then
+                emg = if defined? stru.message then
+                          string stru.message
                       else 
                           "error but no message" 
                       fi;

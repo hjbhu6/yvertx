@@ -234,7 +234,7 @@ done,
     done;
     handlers = adresses |> map do adr:
         busRequest adr emptyJS 
-        |>bind do {jsonStruct = body} : 
+        |>bind do {stru = body} : 
             return body.value 
         done;
     done;
@@ -256,12 +256,12 @@ done,
 
     cfn = collectPromises do s:{
          a = setProm s
-            (busRequest "adr1" emptyJS |> bind do {jsonStruct = js}:
+            (busRequest "adr1" emptyJS |> bind do {stru = js}:
                 println "**** value \(js.value)";
                 return js.value
             done),
          b = setProm s
-            (busRequest "adr2" emptyJS |> bind do {jsonStruct = js}:
+            (busRequest "adr2" emptyJS |> bind do {stru = js}:
                 println "**** value2 \(js.value)";
                 return js.value
             done),
@@ -282,7 +282,7 @@ done,
     var handled = false;
     _ = registerBusHandler (Global address) do {body, handlerId}:
         _ = unregisterBusHandler handlerId;
-        rs.assure "\(body)" (body.jsonStruct == msg and not handled);
+        rs.assure "\(body)" (body.stru == msg and not handled);
         handled := true;
     done;
     sendToBus address msg;
@@ -294,7 +294,7 @@ done,
     msg = emptyJS;
     _ = registerBusHandler (Local adr) do {body,handlerId}:
         _ = unregisterBusHandler handlerId;
-        rs.assure "\(body)" (body.jsonStruct == msg and not handled);
+        rs.assure "\(body)" (body.stru == msg and not handled);
         //should do nothing
         _ = unregisterBusHandler handlerId;
         handled := true;
@@ -307,7 +307,7 @@ done,
     msg = {count = 1, foo = "foo", for_json=E()};
     var assertion = true;
     _ = registerBusHandler (Local "foo") do {body ,handlerId}:
-        assertion := assertion and (body.jsonStruct == msg and not handled);
+        assertion := assertion and (body.stru == msg and not handled);
         _ = unregisterBusHandler handlerId;
         handled := true;
         _ = setTimer 100 do:
@@ -324,14 +324,14 @@ done,
     repl = {reply = true, for_json=E()};
     var asserts = true;
     _ = registerBusHandler (Global "foo") do {body,handlerId, reply}:
-        asserts := asserts and (not handled and msg == body.jsonStruct);
+        asserts := asserts and (not handled and msg == body.stru);
         _ = unregisterBusHandler handlerId;
         handled := true;
         reply repl;
     done;
 
-    busRequest "foo" msg >>- maybe () do {jsonStruct}:
-        rs.assure "\(jsonStruct)" (asserts and (jsonStruct == repl));
+    busRequest "foo" msg >>- maybe () do {stru}:
+        rs.assure "\(stru)" (asserts and (stru == repl));
     done;
 done,
 
@@ -343,9 +343,9 @@ done,
     repl2 = {msg = "repl2", for_json=E()};
     repl3 = {msg = "repl3", for_json=E()};
     _ = registerBusHandler (Local adr) do {body, handlerId, request}:
-        rs.assert "" (msg == body.jsonStruct);
+        rs.assert "" (msg == body.stru);
         request repl (maybe () do {body, reply}:
-            rs.assert "" (repl2 == body.jsonStruct);
+            rs.assert "" (repl2 == body.stru);
             reply repl3;
             _ = unregisterBusHandler handlerId;
         done)
@@ -353,9 +353,9 @@ done,
 
     prom is promise<'a> = sendToBusWithHandler adr msg; 
     prom >>- maybe () do {body,request}:
-        rs.assert "" (body.jsonStruct == repl);
+        rs.assert "" (body.stru == repl);
         request repl2 (maybe ()do {body}:
-            rs.assure "" (body.jsonStruct == repl3);
+            rs.assure "" (body.stru == repl3);
         done)
     done;
 done,
@@ -367,7 +367,7 @@ done,
     msg = emptyJS;
     _ = registerBusHandler (Global adr) do {reply, body, handlerId}:
         rs.assert "" (not handled);
-        rs.assert "" (msg == body.jsonStruct);
+        rs.assert "" (msg == body.stru);
         _ = unregisterBusHandler handlerId;
         handled := true;
         reply emptyJS;
