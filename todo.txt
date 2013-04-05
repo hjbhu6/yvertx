@@ -1,6 +1,10 @@
+- json: rename jsonStruct to stru (or struct, js)
+- sql simplification like json
+- module for orient.db
+
+//done
 - make template project and test it
 - module for oauth
-- module for orient.db
 - documentation:
    - filesystem
    - json
