@@ -301,7 +301,7 @@ typedef opaque promiseCollector = {
     hasReceived is Ex ~Exception | Value () -> ()
 };
 
-_promiseCollectorUnwrap = do pc: pc done as promiseCollector -> { 
+_promiseCollectorUnwrap = id as promiseCollector -> { 
                             mutex is ~Object,
                             starting is () -> (),
                             hasReceived is Ex ~Exception | Value () -> ()
