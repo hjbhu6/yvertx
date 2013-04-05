@@ -391,7 +391,7 @@ collectPromises inex is ('b -> 'a) -> promise<'a>=
             No _ : ();
             Yes arg: pro.setValue arg
             esac),
-    };
+    } as promiseCollector;
     try 
         r = inex ctr;
         call? = synchronized mutex 
