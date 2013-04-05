@@ -1,4 +1,4 @@
-- json: rename jsonStruct to stru (or struct, js)
+- adjust readme to modifications
 - sql simplification like json
 - module for orient.db
 
@@ -8,4 +8,5 @@
 - documentation:
    - filesystem
    - json
+- json: rename jsonStruct to stru (or struct, js)
    

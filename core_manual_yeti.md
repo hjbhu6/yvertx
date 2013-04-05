@@ -21,7 +21,7 @@ Yvertx is just a yeti wrapper around the vertx Java api. It is itself written in
 Yeti only. So everything Yvertx provides can be acomplished by using the vertx
 Java api direclty - although less convinient. 
 
-Often it is even necessary to use the Java Api directly because Yvertx
+Often it is even necessary to use the Java api directly because Yvertx
 only wraps the parts of the Java api, where it pays of in terms of convinience.
 
 ## Getting started
