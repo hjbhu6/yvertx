@@ -244,8 +244,10 @@ done,
 done,
 
 "promise:colllectPromise" : do rs:
+    println "\n\n*********************************************\n";
     register adr =
         (_ = registerBusHandler (Global adr) do {reply, handlerId} :
+            println "***** msg \(adr)";
             reply {value = adr ^ "foo", for_json=E()};
             _ = unregisterBusHandler handlerId;
         done);
@@ -254,12 +256,19 @@ done,
 
     cfn = collectPromises do s:{
          a = setProm s
-            (busRequest "adr1" emptyJS |> bind (return . (.value))),
+            (busRequest "adr1" emptyJS |> bind do {jsonStruct = js}:
+                println "**** value \(js.value)";
+                return js.value
+            done),
          b = setProm s
-            (busRequest "adr2" emptyJS |> bind (return . (.value))),
+            (busRequest "adr2" emptyJS |> bind do {jsonStruct = js}:
+                println "**** value2 \(js.value)";
+                return js.value
+            done),
         }done;
         
     cfn >>- maybe () do r :
+            println "******** got finayl";
             rs.assure "\(r)" (r.a() == "adr1foo" 
                               and r.b() == "adr2foo");
         done;
