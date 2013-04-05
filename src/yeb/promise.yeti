@@ -295,6 +295,17 @@ parallel promises
     done;
     ret.promise);
 
+typedef opaque promiseCollector = {
+    mutex is ~Object,
+    starting is () -> (),
+    hasReceived is Ex ~Exception | Value () -> ()
+};
+
+_promiseCollectorUnwrap = do pc: pc done as promiseCollector -> { 
+                            mutex is ~Object,
+                            starting is () -> (),
+                            hasReceived is Ex ~Exception | Value () -> ()
+                        };
 
 /**
  * Group: parallel
@@ -304,42 +315,39 @@ parallel promises
  * For an example see cbCollect
  *
  * Arguments:
+ * collector - given by 'collectPromises' to the prepareFunction 
  * promise - the promise from which to take the value
  */
-setProm ctr promise is 'b -> promise<'a> -> (() -> 'a) =
-    (ctr.starting();
-    mutex = ctr.mutex;
-    var hasReceived = false;
+setProm ctri promise is 'b -> promise<'a> -> (() -> 'a) =
+    (ctr = _promiseCollectorUnwrap ctri;
+    /*
+    ctr = (ctri is promiseCollector) as { 
+                            mutex is ~Object,
+                            starting is () -> (),
+                            hasReceived is Ex ~Exception | Value () -> ()
+                        };*/
+    ctr.starting();
     var res = NotSet ();
     promise |> fulfill do r:
-        call? = synchronized mutex \case r of
+        v = synchronized ctr.mutex \case r of
             None ex: 
-                if not hasReceived then
-                    res := Exception (ex is ~Exception);
-                    hasReceived := true;
-                    Some (None ex);
-                else
-                    none
-                fi;
+                res := Exception (ex is ~Exception);
+                Ex ex;
             Some a:
-                if not hasReceived then
-                    hasReceived := true;
-                    res := Some a;
-                    Some (Some ());
-                else
-                    none
-                fi;
+                res := Some a;
+                Value ();
             esac;
-        case call? of
-        None _: ();
-        Some arg: ctr.hasReceived arg;
-        esac;
+        ctr.hasReceived v;
     done;
-    \(case res of
-        NotSet (): failWith "Not set";
+    do:
+        case res of
+        NotSet (): failWith "must be set";
         Exception ex: throw (ex is ~Exception);
         Some v: v
-      esac));    
+        esac
+    done);    
+
+
 
 /**
  * Group: parallel
@@ -354,7 +362,6 @@ setProm ctr promise is 'b -> promise<'a> -> (() -> 'a) =
 collectPromises inex is ('b -> 'a) -> promise<'a>=
     (pro = promise ();
      mutex = new Object();
-     var called = false;
      var requests = 0;
      var received = 0;
      var result = none;
@@ -363,61 +370,44 @@ collectPromises inex is ('b -> 'a) -> promise<'a>=
         starting () = 
             synchronized mutex \(requests := requests + 1),
 
-        hasReceived ex =
-            (call? = synchronized mutex \case ex of
-                None str :
-                    called := true;
-                    Some (None str);
-                Some _ :
+        hasReceived opt =
+            (call? = synchronized mutex \case opt of
+                Ex ex :
+                    Yes (None ex);
+                Value () :
                     received := received + 1;
-                    if not called then
-                        case result of
-                        None _ : none;
-                        Some v: 
-                            if received == requests then
-                                called := true;
-                                Some (Some v);
-                            else
-                                none
-                            fi;
-                        esac;
-                    else
-                        none
-                    fi;
+                    case result of
+                    None _ : No ();
+                    Some v: 
+                        if received == requests then
+                            Yes (Some v);
+                        else
+                            No ()
+                        fi;
+                    esac;
                 esac;
 
             case call? of
-            None _ : ();
-            Some arg: pro.setValue arg
+            No _ : ();
+            Yes arg: pro.setValue arg
             esac),
     };
     try 
         r = inex ctr;
         call? = synchronized mutex 
             \(result := Some r;
-            if not called and received == requests then
-                called := true;
-                Some (Some r);
+            if received == requests then
+                Yes (Some r);
             else 
-                none
+                No ()
             fi);
         case call? of
-        None _ : ();
-        Some arg: pro.setValue arg;
+        No () : ();
+        Yes arg: pro.setValue arg;
         esac;
             
     catch Exception ex:
-        call? = synchronized mutex 
-            \(if not called then
-                called := true;
-                Some (None ex);
-            else
-                none
-            fi);
-        case call? of 
-        None _: ();
-        Some arg: pro.setValue arg;
-        esac;
+        pro.setValue (None ex);
     yrt;
     pro.promise);
 
