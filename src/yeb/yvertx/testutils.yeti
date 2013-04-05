@@ -48,7 +48,7 @@ _runTestsImpl tests resultO allResults vertx container =
             esac
             done
             |> catSome;
-        println "=========\nResults of runTest\n----------";               
+        println "\n\n=========\nResults of runTest\n----------";               
         println "TAP version 13";
         println "1..\(length allResults)";
 
