@@ -342,7 +342,8 @@ done,
         done)
     done;
 
-    sendToBusWithHandler adr msg >>- maybe () do {body,request}:
+    prom is promise<'a> = sendToBusWithHandler adr msg; 
+    prom >>- maybe () do {body,request}:
         rs.assert "" (body.jsonStruct == repl);
         request repl2 (maybe ()do {body}:
             rs.assure "" (body.jsonStruct == repl3);
