@@ -1966,7 +1966,7 @@ sendToBus address msg =
  * address - the address to send to
  * structMessage - struct iwht will be sind
  */
-sendToBusWithHandler address msg handler =
+sendToBusWithHandler address msg is string -> 'a -> promise<'b>=
     (prom = promise();
     (getVertx ())#eventBus()#send(address is string, toJson msg, 
             toJsonMessageHandler address (prom.setValue . Some));
