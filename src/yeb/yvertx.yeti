@@ -341,12 +341,17 @@ setPeriodic  delay handler =
  * Just calls Vertx#setTimer
  *
  * Arguments:
- * delay - time in millis
+ * delay - time in millis if delay =< 0 then no timer will be set
  * handler - handler called after time is given the timer-id
  */
 setTimer delay handler =
-    (getVertx ())#setTimer(delay, 
-        toLongHandler handler);
+    if delay > 0 then
+        (getVertx ())#setTimer(delay, 
+            toLongHandler handler);
+    else
+        0
+    fi;
+    
 /**
  * Group: vertx
  * Cancels the timer for the given id
@@ -1451,7 +1456,6 @@ httpRequest clientStru muri opts handler =
     for opts \case of
     Auth fn : authenticator := fn;
     Headers ha : _ = putRequestHeaders req ha;
-    Timeout ms : _ = req#setTimeout(ms is number);
     WithRequest fn : fn req;
     JsonContent str : 
         bu = new Buffer(str is string);
@@ -2022,6 +2026,23 @@ busRequest address msg =
     (getVertx ())#eventBus()#send(address is string, toJson msg, ha);
     prom.promise);
 
+/**
+ * Group: eventbus
+ * deregisters the given handler
+ *
+ * calls EventBus#unregisterHandler
+ *
+ * Arguments:
+ * id - the handler id
+ * handler - the hanlder to deregister 
+ *      (it is given to the handler on each call)
+ */
+unregisterBusHandler {address,object} =
+    (prom = promise();
+    (getVertx ())#eventBus()#unregisterHandler(address is string, object, 
+                          toAsyncResultHandler prom.setValue);
+    prom.promise);
+
 _registerBusHandler address handlerOb =
     (ret = promise ();
     {snd = address, fst = global} = case address of
@@ -2091,26 +2112,87 @@ busRequestHandler address handler =
                 msg#reply(_toMessageJS (None ex));
             yrt
     end;
-    
-    _registerBusHandler address (new YvertxRequestMessageHandler()));
+    ha = new YvertxRequestMessageHandler();
+    _registerBusHandler address ha);
 
-        
 /**
  * Group: eventbus
- * deregisters the given handler
+ * register a JSON message handler on the eventbus, which gets automatically
+ * unregistered if it is not called within a certain time.
  *
- * calls EventBus#unregisterHandler
+ * Note only JsonMessages can be handled this way
+ *
+ * returns two promises. The timedout promis is called if no message was
+ * received in the given time and the handler was deregistered. Registered
+ * is called when the handler is registered in the whole cluste.
+ * Note both promisis are independent from each other.
+ *
+ * calls EventBus#registerHandler
  *
  * Arguments:
- * id - the handler id
- * handler - the hanlder to deregister 
- *      (it is given to the handler on each call)
+ * timeout - time in ms after which the handler will be deregistered if it has
+ * not be called before. A value of 0 or negative means that there will be 
+ * no timeout.
+ * address - the bus address to register to; Local address means only
+ * local handler registration, Global means global registration
+ * messageHandler - the handler which receives as first argument the handlerId
+ * (which can be used to deregister the handler) and as second argument 
+ * the jsonMessage. It should return a promise which is send back to as 
+ * response.
  */
-unregisterBusHandler {address,object} =
-    (prom = promise();
-    (getVertx ())#eventBus()#unregisterHandler(address is string, object, 
-                          toAsyncResultHandler prom.setValue);
-    prom.promise);
+busTempRequestHandler timeout address handlerIn =
+    (//timing
+    var called = false;
+    //timedout promise
+    tout = promise(); 
+    
+    class YvertxRequestMessageHandler2 extends Handler
+        var _handler = none,
+        handlerCon handlerO = 
+            case _handler of
+            None _ :
+                handlerId = {
+                    object =  handlerO is ~Handler,
+                    address = case address of
+                        Local a:a;
+                        Global a:a;
+                        esac
+                };
+            
+                //set the timer
+                _ = setTimer timeout do:
+                    if not called then
+                        prom = unregisterBusHandler handlerId;
+                        tout.setValue (Some prom);
+                    fi;
+                done;
+                hax = (handlerIn handlerId);
+                _handler := Some hax;
+                hax;
+            Some ha: ha
+            esac,
+
+        void handle(Object ob)
+            handler = handlerCon (this as ~Handler);
+            msg = ob unsafely_as ~Message;
+            try 
+                body = fromJson (msg#body unsafely_as ~JsonObject);
+                promise = handler body;
+                promise >>- do v: msg#reply(_toMessageJS v) done;
+            catch Exception ex:
+                msg#reply(_toMessageJS (None ex));
+            yrt
+    end;
+    
+    //the real handler 
+    registered = _registerBusHandler address 
+        (new YvertxRequestMessageHandler2());
+    //return the two promises
+    {
+        timedout = tout.promise,
+        registered
+    });
+
 
 
 //filesystem
@@ -2508,6 +2590,7 @@ fileSystem = ({
     busRequest,
     registerBusHandler,
     busRequestHandler,
+    busTempRequestHandler,
     unregisterBusHandler,
 
     /**
