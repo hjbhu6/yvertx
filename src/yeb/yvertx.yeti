@@ -1845,89 +1845,6 @@ closeNetClient client =
 
 //bus things
 
-_toMessageJS v =
-    case v of
-    None ex: 
-        toJson {status = "error", 
-              message = string (ex is ~Exception)#getMessage(),
-              exception = string ex,
-              for_json = E()};
-    Some va: toJson va;
-    esac;
-
-
-
-toEitherJsonMessageHandler address fn =
-    (class YvertxEitherMessageHandler extends Handler
-        void handle(Object ob)
-            msg = ob unsafely_as ~Message;
-            {stru = body} = fromJson (msg#body unsafely_as ~JsonObject);
-            try
-            if defined? body.status and body.status == "error" then
-                emg = if defined? body.message then
-                          string body.message
-                      else 
-                          "error but no message" 
-                      fi;
-                fn (failNone emg);
-            else
-                fn (Some  
-                    {message = msg is ~Message,
-                    handlerId =  
-                        {object = this as ~Handler,
-                        address is string},
-                    body,
-                    get replyAddress () = string msg#replyAddress,
-                    reply v = 
-                        msg#reply(_toMessageJS (Some v)),
-                    replyEither v = 
-                        msg#reply(_toMessageJS v),
-                    request v handler = 
-                        msg#reply(_toMessageJS (Some v), 
-                            (toEitherJsonMessageHandler address handler)
-                            as ~Handler),
-                    requestEither v handler = 
-                        msg#reply(_toMessageJS v, 
-                            (toEitherJsonMessageHandler address handler)
-                                as ~Handler)
-                   });
-            fi
-            catch Exception ex:
-                msg#reply(_toMessageJS (None ex));
-            yrt,
-
-    end;
-    new YvertxEitherMessageHandler() as ~Handler);
-
-toJsonMessageHandler address fn =
-    (class YvertxMessageHandler extends Handler
-        void handle(Object ob)
-            msg = ob unsafely_as ~Message;
-            try
-            fn {message = msg is ~Message,
-                handlerId =  
-                    {object = this as ~Handler,
-                    address is string},
-                get body () = 
-                    fromJson (msg#body unsafely_as ~JsonObject),
-                get replyAddress () = string msg#replyAddress,
-                reply v = 
-                    msg#reply(_toMessageJS (Some v)),
-                replyEither v = 
-                    msg#reply(_toMessageJS v),
-                request v handler = 
-                    msg#reply(_toMessageJS (Some v), 
-                        toEitherJsonMessageHandler address handler),
-                requestEither v handler = 
-                    msg#reply(_toMessageJS v, 
-                        toEitherJsonMessageHandler address handler)
-               };
-            catch Exception ex:
-                msg#reply(_toMessageJS (None ex));
-            yrt,
-    end;
-    new YvertxMessageHandler() as ~Handler);
-
 /**
  * Group: eventbus (EVENTBUS)
  * publish a JSON message on the eventbus
@@ -1960,22 +1877,96 @@ sendToBus address msg =
 
 /**
  * Group: eventbus
- * send a Json message on the eventbus and receive a promise which gets a full
- * hanlder
+ * deregisters the given handler
  *
- * Note only struct can be send/received 
- *
- * calls Eventbus#send
+ * calls EventBus#unregisterHandler
  *
  * Arguments:
- * address - the address to send to
- * structMessage - struct iwht will be sind
+ * id - the handler id
+ * handler - the hanlder to deregister 
+ *      (it is given to the handler on each call)
  */
-sendToBusWithHandler address msg is string -> 'a -> promise<'b>=
+unregisterBusHandler {address,object} =
     (prom = promise();
-    (getVertx ())#eventBus()#send(address is string, toJson msg, 
-            toJsonMessageHandler address (prom.setValue . Some));
+    (getVertx ())#eventBus()#unregisterHandler(address is string, object, 
+                          toAsyncResultHandler prom.setValue);
     prom.promise);
+
+_toMessageJS v =
+    case v of
+    None ex: 
+        (toJson {status = "error", 
+              message = string (ex is ~Exception)#getMessage(),
+              exception = string ex,
+              for_json = E()}) as ~Object;
+    Some va: 
+        case va.for_json of
+            E () : (toJson va) as ~Object;
+            E x :
+                import yeti.lang:Num,FloatNum,RatNum;
+                import java.lang:Number, Double, Long;
+                o = x as ~Object;
+                if (o instanceof FloatNum) 
+                    or (o instanceof RatNum) then
+                    (new Double ((o unsafely_as ~Num)#doubleValue())) as ~Object
+                elif (o instanceof Num) then
+                    (new Long ((o unsafely_as ~Num)#longValue())) as ~Object
+                else
+                    toJsonValue o
+                fi;
+        esac;
+    esac;
+
+
+_toMessageHandler addressOrId handlerFn =
+    (class YvertxMessageHandler extends Handler 
+        
+        var _myHandlerId = none,
+        handlerId object =
+            case _myHandlerId of
+            None _ :
+                case addressOrId of
+                Some address:
+                    a = {object is ~Handler,
+                        address is string};
+                    _myHandlerId := Some a;
+                    a;
+                Id i:
+                    _myHandlerId := Some i;
+                    i;
+                esac;
+            Some r:r
+            esac,
+        
+        void handle(Object ob)
+            msg = ob unsafely_as ~Message;
+            arg = fromJsonValue (msg#body);
+            arg = case arg.obj["status"].str of
+                Some "error": //error
+                    failNone (maybe "error" id arg.obj["message"].str);
+                
+                _ : //we have a value
+                    requestEither res  = 
+                        (prom = promise();
+                        ha = _toMessageHandler 
+                                    (Id (handlerId (this as ~Handler))) 
+                                    prom.setValue;
+                        msg#reply((_toMessageJS res) is ~Object,
+                                  ha as ~Handler));
+                    
+                    Some (arg with {
+                        message = msg,
+                        handlerId = handlerId (this as ~Handler),
+                        replyAddress = msg#replyAddress as string,
+                        requestEither,
+                        request res = requestEither res
+                    });
+                esac;
+            
+            handlerFn arg,
+    end;
+    new YvertxMessageHandler() as ~Handler);
+                    
 
 
 /**
@@ -1998,90 +1989,18 @@ sendToBusWithHandler address msg is string -> 'a -> promise<'b>=
  * : promise = busRequest "fooAdress" {msg="some", for_json=E()};
  * : promise |> fulfill \case of:
  * :    None ex: println ex; //an exception has happened
- * :    Some val: println val //handle json value
+ * :    Some {stru}: println stru //handle json value
  * : esac;
  *
  */
 busRequest address msg =
     (prom = promise();
-    class YvertxRequestMessageHandler extends Handler
-        void handle(Object ob)
-            msg = ob unsafely_as ~Message;
-            
-            body = fromJson (msg#body unsafely_as ~JsonObject);
-            stru = body.stru;
-            if defined? stru.status and stru.status == "error" then
-                emg = if defined? stru.message then
-                          string stru.message
-                      else 
-                          "error but no message" 
-                      fi;
-                prom.setValue (failNone emg);
-            else
-                prom.setValue (Some body)
-            fi,
-
-    end;
-    ha = new YvertxRequestMessageHandler() as ~Handler;
-    (getVertx ())#eventBus()#send(address is string, toJson msg, ha);
+    ha = _toMessageHandler (Some address) prom.setValue;
+    msg = _toMessageJS (Some msg);
+    (getVertx ())#eventBus()#send(address is string, msg is ~Object, ha);
     prom.promise);
 
-/**
- * Group: eventbus
- * deregisters the given handler
- *
- * calls EventBus#unregisterHandler
- *
- * Arguments:
- * id - the handler id
- * handler - the hanlder to deregister 
- *      (it is given to the handler on each call)
- */
-unregisterBusHandler {address,object} =
-    (prom = promise();
-    (getVertx ())#eventBus()#unregisterHandler(address is string, object, 
-                          toAsyncResultHandler prom.setValue);
-    prom.promise);
 
-_registerBusHandler address handlerOb =
-    (ret = promise ();
-    {snd = address, fst = global} = case address of
-        Global adr : pair true adr;
-        Local adr : pair false adr;
-    esac;
-    ids = Some {object = handlerOb, address};
-    eb = (getVertx())#eventBus();
-    if global then
-        eb#registerHandler(address is string,
-                        handlerOb,
-                        toAsyncResultHandler \(ret.setValue ids));
-    else
-        eb#registerLocalHandler(address is string, handlerOb);
-        ret.setValue(ids);
-    fi;
-    ret.promise);
-
-/**
- * Group: eventbus
- * register a JSON message handler on the eventbus
- *
- * Note only JsonMessages can be handled this way
- *
- * returns a promise when all the handler is registered on all nodes
- *
- * calls EventBus#registerHandler
- *
- * Arguments:
- * address - the bus address to register to; Local address means only
- * local handler registration, Global means global registration
- * messageHandler - the handler which receives the messages
- */
-registerBusHandler address handler =
-    (adr = case address of
-        Local adr:adr;
-        Global adr:adr;
-    esac;
-    _registerBusHandler address (toJsonMessageHandler adr handler));
 
 
 /**
@@ -2100,20 +2019,44 @@ registerBusHandler address handler =
  * messageHandler - the handler which receives the jsonMessage and should
  * return a promise
  */
-busRequestHandler address handler = 
-    (class YvertxRequestMessageHandler extends Handler
-        void handle(Object ob)
-            msg = ob unsafely_as ~Message;
-            try 
-                body = fromJson (msg#body unsafely_as ~JsonObject);
-                promise = handler body;
-                promise >>- do v: msg#reply(_toMessageJS v) done;
+busHandler address handlerFn =
+    ( {snd = address, fst = global} = case address of
+        Global adr : pair true adr;
+        Local adr : pair false adr;
+    esac;
+    
+    //the vertx Handler it only takes some value (you can not send
+    //an excpetion to an handler
+    handlerOb = _toMessageHandler (Some address) \case of
+        None ex: throw (ex is ~Exception);
+        Some msg: 
+            try
+                prom = handlerFn msg;
+                prom >>- do v: 
+                    (msg.message is ~Message)
+                        #reply((_toMessageJS v) is ~Object) 
+                done;
             catch Exception ex:
-                msg#reply(_toMessageJS (None ex));
+                (msg.message is ~Message)
+                    #reply((_toMessageJS (None ex)) is ~Object);
             yrt
-    end;
-    ha = new YvertxRequestMessageHandler();
-    _registerBusHandler address ha);
+        esac;
+
+    //return a promise which gets the handlerId on succesful registration
+    handlerId = Some {object = handlerOb, address};
+    ret = promise ();
+    
+    //register on the eventbus either global or local
+    eb = (getVertx())#eventBus();
+    if global then
+        eb#registerHandler(address is string,
+                        handlerOb,
+                        toAsyncResultHandler \(ret.setValue handlerId));
+    else
+        eb#registerLocalHandler(address is string, handlerOb);
+        ret.setValue(handlerId);
+    fi;
+    ret.promise);
 
 /**
  * Group: eventbus
@@ -2140,60 +2083,28 @@ busRequestHandler address handler =
  * the jsonMessage. It should return a promise which is send back to as 
  * response.
  */
-busTempRequestHandler timeout address handlerIn =
-    (//timing
-    var called = false;
-    //timedout promise
-    tout = promise(); 
-    
-    class YvertxRequestMessageHandler2 extends Handler
-        var _handler = none,
-        handlerCon handlerO = 
-            case _handler of
-            None _ :
-                handlerId = {
-                    object =  handlerO is ~Handler,
-                    address = case address of
-                        Local a:a;
-                        Global a:a;
-                        esac
-                };
-            
-                //set the timer
-                _ = setTimer timeout do:
-                    if not called then
-                        prom = unregisterBusHandler handlerId;
-                        tout.setValue (Some prom);
-                    fi;
-                done;
-                hax = (handlerIn handlerId);
-                _handler := Some hax;
-                hax;
-            Some ha: ha
-            esac,
-
-        void handle(Object ob)
-            handler = handlerCon (this as ~Handler);
-            msg = ob unsafely_as ~Message;
-            try 
-                body = fromJson (msg#body unsafely_as ~JsonObject);
-                promise = handler body;
-                promise >>- do v: msg#reply(_toMessageJS v) done;
-            catch Exception ex:
-                msg#reply(_toMessageJS (None ex));
-            yrt
-    end;
-    
-    //the real handler 
-    registered = _registerBusHandler address 
-        (new YvertxRequestMessageHandler2());
-    //return the two promises
+busTempHandler timeout address handlerFn = 
+    (var called = false;
+    timedout = promise();
+    registered = busHandler address do msg:
+        called := true;
+        handlerFn msg;
+    done;
+    registered >>- \case of
+        None ex: throw (ex is ~Exception);
+        Some handlerId:
+            _ = setTimer timeout do:
+                if not called then
+                    timedout.setValue (Some true);
+                    unregisterBusHandler handlerId
+                        >>- do: timedout.setValue (Some true) done;
+                fi
+            done;
+        esac;
     {
-        timedout = tout.promise,
+        timedout,
         registered
     });
-
-
 
 //filesystem
 fsHelper = {
@@ -2246,7 +2157,8 @@ fileSystem = ({
     copy from to recursive =
         (prom = promise();
         ((getVertx ())#fileSystem())#copy(from is string, to is string, 
-                         recursive is boolean, toAsyncResultHandler prom.setValue);
+                         recursive is boolean, 
+                         toAsyncResultHandler prom.setValue);
         prom.promise),
 
     createFile path perms =
@@ -2254,7 +2166,7 @@ fileSystem = ({
         case perms of
         None _ :
             ((getVertx ())#fileSystem())#createFile(path is string, 
-                                            toAsyncResultHandler prom.setValue);
+                                         toAsyncResultHandler prom.setValue);
         Some perm:
             ((getVertx ())#fileSystem())#createFile(path, perm is string, 
                         toAsyncResultHandler prom.setValue);
@@ -2299,10 +2211,12 @@ fileSystem = ({
         case perms of
         None () : 
             ((getVertx ())#fileSystem())#mkdir(path is string, 
-                       createParents is boolean, toAsyncResultHandler prom.setValue);
+                       createParents is boolean, 
+                       toAsyncResultHandler prom.setValue);
         Some perm:
             ((getVertx ())#fileSystem())#mkdir(path is string, perm is string, 
-                       createParents is boolean, toAsyncResultHandler prom.setValue);
+                       createParents is boolean, 
+                       toAsyncResultHandler prom.setValue);
         esac;
         prom.promise),
 
@@ -2315,7 +2229,8 @@ fileSystem = ({
     props path =
         (prom = promise();
         ((getVertx ())#fileSystem())#props(path is string, 
-                   toTypedAsyncResultHandler (unsafely_as ~FileProps) prom.setValue);
+                   toTypedAsyncResultHandler 
+                        (unsafely_as ~FileProps) prom.setValue);
         prom.promise),
         
     readDir path filter =
@@ -2327,14 +2242,16 @@ fileSystem = ({
                          toTypedAsyncResultHandler mfn prom.setValue);
         Some fil:
             ((getVertx ())#fileSystem())#readDir(path is string, 
-                         fil is string, toTypedAsyncResultHandler mfn prom.setValue);
+                         fil is string, 
+                         toTypedAsyncResultHandler mfn prom.setValue);
         esac;
         prom.promise),
 
     readFile path =
         (prom = promise();
         ((getVertx ())#fileSystem())#readFile(path is string, 
-                      toTypedAsyncResultHandler (unsafely_as ~Buffer) prom.setValue);
+                      toTypedAsyncResultHandler 
+                            (unsafely_as ~Buffer) prom.setValue);
         prom.promise),
 
     readSymlink path =
@@ -2359,8 +2276,9 @@ fileSystem = ({
 
     unlink link =
         (prom = promise();
-        ((getVertx ())#fileSystem())#unlink(link is string, 
-                                            toAsyncResultHandler prom.setValue);
+        ((getVertx ())#fileSystem())
+                #unlink(link is string, 
+                        toAsyncResultHandler prom.setValue);
         prom.promise),
 
     writeFile path data =
@@ -2586,12 +2504,10 @@ fileSystem = ({
     //bus functions
     publishToBus,
     sendToBus,
-    sendToBusWithHandler,
-    busRequest,
-    registerBusHandler,
-    busRequestHandler,
-    busTempRequestHandler,
     unregisterBusHandler,
+    busHandler,
+    busTempHandler,
+    busRequest,
 
     /**
      * Group: eventbus

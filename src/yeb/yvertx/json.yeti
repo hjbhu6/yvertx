@@ -256,7 +256,7 @@ _jsp := _jsonPrototype;
 //any value will get none (it is just empty)
 setHashDefault _jsonPrototype.obj \(_jsonPrototype);
 
-_fromJsonValue o is ~Object -> yvertxJsonValue<'a>= 
+fromJsonValue o is ~Object -> yvertxJsonValue<'a>= 
    (import java.util:List,HashMap,Map;
     import java.lang:Number;
     import yeb:HashStruct;
@@ -276,7 +276,7 @@ _fromJsonValue o is ~Object -> yvertxJsonValue<'a>=
                 else
                     for (mapJavaList string jo#getFieldNames()) do name:
                         ha[name] := 
-                            _fromJsonValue 
+                            fromJsonValue 
                                 jo#getField(name is string);
                     done;
                     setHashDefault ha \(_jsonPrototype);
@@ -289,7 +289,7 @@ _fromJsonValue o is ~Object -> yvertxJsonValue<'a>=
     elif o instanceof JsonArray then
         it = (o unsafely_as ~JsonArray)#iterator();
         ar = array [];
-        (it#hasNext()) loop push ar (_fromJsonValue it#next());
+        (it#hasNext()) loop push ar (fromJsonValue it#next());
         ls = (list ar);
         _jsonPrototype with {
             list = ls,
@@ -353,7 +353,7 @@ _fromJsonValue o is ~Object -> yvertxJsonValue<'a>=
  * jsonObject - the object to transfer 
  */
 fromJson object is ~JsonObject -> 'a =
-    _fromJsonValue object;
+    fromJsonValue object;
 
 /**
  * Group: json
@@ -365,7 +365,7 @@ fromJson object is ~JsonObject -> 'a =
  * jsonArray - the JsonArray object to transfer
  */
 fromJsonArray ar is ~JsonArray -> list<'a> =
-    (_fromJsonValue ar).arr;    
+    (fromJsonValue ar).arr;    
 
 
 
@@ -429,6 +429,8 @@ blend v1 v2 is 'a -> 'b -> 'c =
     toJson, 
     toJsonArray,
     fromJson, 
-    fromJsonArray
+    fromJsonArray,
+    fromJsonValue,
+    toJsonValue = _toJson,
 }
 
