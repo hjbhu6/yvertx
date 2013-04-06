@@ -90,7 +90,7 @@ Copy the following into a text editor and save it as `main.yeti`
     load yeb.yvertx;
 
     verticle do:
-        server = createNetServerWithHandler do sock:
+        server = createAndConnectNetServer do sock:
             (newPump sock sock)#start();
         done;
         server#listen(1234, "localhost");
@@ -159,18 +159,18 @@ Type on the repl (java -jar yubilder.jar vertx:repl)
 
 As you see the struct is mapped to a vert.x JsonObject
 
-Struct to encode must have a for_json field to mark it to be ready to be
+The struct to encode must have a `for_json` field to mark it to be ready to be
 encoded as json. It may contain all the JsonObject values: 
 number, string, boolean, byte[] and nested lists hashes and structs of this 
 values them. Hashes may only have strings as keys.  
 None() is encoded as json-null.  Some is encoded as the plain value ie Some 1
 becomes in JsonObject 1. The E() tag as value means that the struct field 
-should not be encoded.
+should not be encoded. E() is typically used on `for_json` field.
 
 ### Convinient not typesafe converstion from JSONObject
 To transfer a JsonObject back to a struct just use:
 
-    {jsonStruct} = yvertx.fromJson obj;
+    {stru} = yvertx.fromJson obj;
 
 Now you can use the jsonStruct as any other yeti struct.
 
@@ -182,26 +182,27 @@ yeb.std.
 
     std = load yeb.std;
 
-    {jsonStruct = js} = yvertx.fromJson obj;
-    name = std.maybeString fail id js.name;
-    sister = std.maybeString None Some js.sister;
+    {stru} = yvertx.fromJson obj;
+    name = std.maybeString fail id stru.name;
+    sister = std.maybeString None Some stru.sister;
 
 ### Typesafe conversiont from JSONObject
 
 The direct conversion to a struct is often all you need, but it is not 
-typesafe and therefor potentially dangerous. Therfore ther is also a second
-form to transfer JSONObject to yeti values:
+typesafe and therefor potentially dangerous. Therfore there is also a second
+form to convert JSONObjects to yeti values:
 
     js = yvertx.fromJson obj;
     name = std.maybe' fail js.obj["name"].str;
     sister = js.obj["sister"].str;
 
-That is a Json object is repesented as an hash which can be gotten by using
+A Json object is repesented as a hash which can be gotten by using
 the .obj function and every value can be gotten by using .str, .num. bool and
 .bytes function on the json object all these return None () or Some v 
-depending whether tey are set and ctain that value.
+depending whether they are set and contain that value.
 
-Again with maybe from std you can set and read these values.
+Again with the `maybe` function from the yeb.std module you can read 
+these values.
 
 ## Loading the yvertx module.
 
@@ -287,26 +288,27 @@ the parent verticle.
 ## Deploying a simple verticle
 
 To deploy a verticle programmatically call the function 
-`yvertx.deployVerticle`. The return value of `vertx.deployVerticle` is the 
-unique id of the deployment, which can be used later to undeploy the verticle.
+`yvertx.deployVerticle`. The return value of `vertx.deployVerticle` is a
+promise which is fullfilled when the verticle is deploy. The value of the 
+promise is the unique id of the deployment. 
 
 To deploy a verticle :
 
-    yvertx.deployVerticle name config numberOfInstances finishedCallback;
+    prom = yvertx.deployVerticle name config numberOfInstances;
 
 Ie to deploy one instance of the verticle `server.yeti`
 
-    _ = yvertx.deployVerticle 
+    prom = yvertx.deployVerticle 
         "server.yeti" 
         {for_json=E()}
-        1
-        do: println "finished deploy" done;
+        1;
+    prom >>-  do: println "finished deploy" done;
     
 ## Deploying a module programmatically
 
 Use `deployModule` to deploy a module, for example:
 
-    yvertx.deployModule name config numberOfInstances finishedCallback;
+    prom = yvertx.deployModule name config numberOfInstances;
 
 It works like deployVerticle just for modules. Please see the modules manual 
 for more information about modules.
@@ -322,8 +324,7 @@ with the `yvertx.config` function. For example:
     _ = yvertx.deployVerticle
         'server.yeti'
         config
-        1
-        \(); 
+        1; 
             
 Then, in `server.yeti` you can access the config via `yvertx.config ()` 
 as previously explained.
@@ -333,7 +334,7 @@ as previously explained.
 You can specify the number of instances of a verticle to deploy, when you 
 deploy a verticle:
 
-    _ = yvertx.deployVerticle 'my_verticle.js' emptyJS 5 \();   
+    _ = yvertx.deployVerticle 'my_verticle.js' emptyJS 5;   
   
 The above example would deploy 5 instances.
 
@@ -341,57 +342,12 @@ The above example would deploy 5 instances.
 
 The actual verticle deployment is asynchronous and might not complete until 
 some time after the call to `deployVerticle` has returned. When the verticle 
-has completed being deployed, you get notified throgh the handler you pass 
-as the final argument to `deployVerticle`:
+has completed being deployed, you get notified through the returned promise`:
 
-    _ = yvertx.deployVerticle 'my_verticle.js' emptyJS 10 do:
+    yvertx.deployVerticle 'my_verticle.js' emptyJS 10 >>- do:
         yvertx.logger#info("It's been deployed!");
     done;  
     
-## Using a Verticle to co-ordinate loading of an application
-
-If you have an application that is composed of multiple verticles that 
-all need to be started at application start-up, then you can use another 
-verticle that maintains the application configuration and starts all the other 
-verticles. You can think of this as your application starter verticle.
-
-For example, you could create a verticle `app.yeti` as follows:
-
-    module app;
-    yvertx = load yeb.yvertx;
-
-    verticle do:
-        // Application config
-        
-        appConfig = {
-            verticle1Config = {
-                // Config for verticle1
-            },
-            verticle2Config = {
-                // Config for verticle2
-            }, 
-            verticle3Config = {
-                // Config for verticle3
-            }
-        }  
-        
-        // Start the verticles that make up the app  
-        
-        yvertx.deployVerticle "verticle1.yeti", appConfig.verticle1Config 1 \();
-        yvertx.deployVerticle "verticle2.js"  appConfig.verticle2Config 5 \();
-        yvertx.deployVerticle "verticle3.yeti", appConfig.verticle3Config 1 \();
-        
-        \() //stop function
-    done;
-Then you can start your entire application by simply running:
-
-    vertx run app.yeti
-    
-or
-    
-    vertx deploy app.yeti
-                        
-
 ## Deploying Worker Verticles
 
 The `yvertx.deployVerticle` method deploys standard (non worker) verticles. 
@@ -406,12 +362,23 @@ and all of their children are automatically undeployed when the parent
 verticle is undeployed, so in most cases you will not need to undeploy a 
 verticle manually, however if you do want to do this, it can be done by 
 calling the function `vertx.undeployVerticle` passing in the deployment id 
-that is given to the callback method provided to `deployVerticle`
+that is contained in the promise returned by `deployVerticle`
 
-    vertx.deployVerticle 'my_verticle.js' emptyJS 1 do deploymentId:
-        yvertx.undeployVerticle deploymentID ;    
-    done;    
-            
+    prom = vertx.deployVerticle 'my_verticle.js' emptyJS 1;
+    prom >>- \case of
+        None ex: throw ex;
+        Some deploymentId:
+            yvertx.undeployVerticle deploymentID ;    
+    esac;
+
+    // alternatively you can also use the maybe' and fail functions from 
+    // yeb.std
+    load yeb.set;
+    prom >>- maybe fail do deploymentId:
+        yvertx.undeployVerticle deploymentId
+    done;
+
+
 # The Event Bus
 
 The event bus is the nervous system of vert.x.
@@ -509,37 +476,45 @@ from `eventBus` property of yvertx.
 
 ### Registering and Unregistering Handlers
 
-To set a message handler on the address `test.address`, you do the following:
+To set a message handler for the whole cluster on the address `test.address`, 
+you do the following:
 
-    _ = yvertx.registerBusHandler "test.address" \() do {body, reply}:
+    _ = yvertx.registerBusHandler (Global "test.address") do {body, reply}:
         logger#info("I received a message \(body)");
     done;
-    
+
 It's as simple as that. The handler will then receive any messages sent to 
 that address.
 
+If you want to register the handler only for the local maschine use 
+`(Local "test.address")` as address.
+
 When you register a handler on an address and you're in a cluster it can take 
 some time for the knowledge of that new handler to be propagated across the 
-entire cluster. When that has the readyHandler will be notified. The
-readyHandler is the second argument to the `registerBusHandler`. This function 
-will then be called once the information has reached all nodes of the cluster. 
-E.g. :
+entire cluster. Therefore `registerBusHanlder` returns a promise which gets 
+fulfilled when the handler is registered and it contains the handlerkey
+which is used to uninstall it.  E.g. :
 
-    _ = yvertx.registerBusHandler 'test.address' 
-        \(logger#info 'Yippee! The handler info has been propagated across the cluster')
-        do {body, reply}:
+    prom = yvertx.registerBusHandler 'test.address' do {body, reply}:
             //message handling
         done;
+        
+    prom >>-
+        \(logger#info 
+            'Yippee! The handler info has been propagated across the cluster')
 
 To unregister a handler it's just as straightforward. You simply call 
-`unregisterBusHandler` passing in the structure returned from 
-`registerBusHandler`, respectively given as `handler` to the callbacks of 
+`unregisterBusHandler` passing in the structure contained in the returned 
+promise or given as `handlerId` to the callbacks of 
 
-    handlerId = yvertx.registerBusHandler 'test.address' \()
+    prom = yvertx.registerBusHandler 'test.address' \()
         do {body}:
             //handler message;
         done;
-    yvertx.unregisterBusHandler handlerId \();
+    prom >>- \case of
+        None ex:
+        Some handlerId: yvertx.unregisterBusHandler handlerId;
+    esac;
 
     //or using the callback
     _ = yvertx.registerBusHandler 'test.address' \()
@@ -550,11 +525,10 @@ To unregister a handler it's just as straightforward. You simply call
 
 As with registering, when you unregister a handler and you're in a cluster 
 it can also take some time for the knowledge of that unregistration to be 
-propagated across the entire to cluster. If you want to be notified when that 
-has completed you provide a callback as the second argument to
-`unregisterBusHandler` :
+propagated across the entire to cluster. Therefore `unregisterBusHandler` also
+returns a promise :
 
-    yvertx.unregisterBusHandler handlerId
+    yvertx.unregisterBusHandler handlerId >>-
     \(logger#info('Yippee! The handler unregister has been propagated across the cluster'));
     
 If you want your handler to live for the full lifetime of your verticle there 
@@ -583,15 +557,16 @@ receiving the message. This is the point to point messaging pattern.
 Sometimes after you send a message you want to receive a reply from the 
 recipient. This is known as the *request-response pattern*.
 
-To do this you send a message, and specify a reply handler as the third 
-argument. When the receiver receives the message they are passed a replier 
+To do this you use the `busRequest` function. It sends a message to an address
+and returns a promise with the response argument. When the receiver receives 
+the message they are passed a replier 
 function as the second parameter to the handler. When this function is invoked 
-it causes a reply to be sent back to the sender where the reply handler is 
-invoked. An example will make this clear:
+it causes a reply to be sent back to the sender where the promise is filled. 
+An example will make this clear:
 
 The receiver:
 
-    yvertx.registerBusHandler 'test.address' \() do {body, reply}:
+    _ = yvertx.registerBusHandler (Global 'test.address') do {body, reply}:
         //Do some stuff
 
         //Now reply to it
@@ -601,16 +576,17 @@ The receiver:
     
 The sender:
 
-    yvertx.requestFromBus 'test.address' 
-            {msg='This is a message', for_json=E()}
-            \case of
-                None ex: logger#exception(string ex,ex);
-                Some msg: logger#info("I received a reply \(msg)");
-            esac;
+    answer = yvertx.requestFromBus 'test.address' 
+            {msg='This is a message', for_json=E()};
+    answer >>- \case of
+        None ex: logger#exception(string ex,ex);
+        Some msg: logger#info("I received a reply \(msg)");
+        esac;
     
 It is important to note that yvertx only supports JSON request/replies. If
 you want to use other message-types you have use the Java api.
 
+the reply etc use the 
 The replies themselves can also be replied to so you can create a dialog 
 between two different verticles consisting of multiple rounds. See the 
 `sendToBusWithHandler` function for that.
@@ -799,11 +775,10 @@ To close a net server just call the `close` function.
 The close is actually asynchronous and might not complete until some time 
 after the `close` function has returned. If you want to be notified when the 
 actual close has completed then you can use the `cloaseNetServer` function 
-which takas an handler.
+which returns a promise.
 
-This handler will then be called when the close has fully completed.
  
-    yvertx.closeNetServer server do:
+    yvertx.closeNetServer server >>- do:
       logger#info('The server is now fully closed.');
     done;
     
@@ -1477,11 +1452,11 @@ By default the `HTTPClient` pools HTTP connections. As you make requests a
 connection is borrowed from the pool and returned when the HTTP response 
 has ended.
 
-If you do not want connections to be pooled you can call `setKeepAlive` 
-with `false`:
+If you do not want connections to be pooled you can set `setKeepAlive` to
+false on the underlying vert.x HttpClient Object:
 
-    client = (yvertx.createHttpClient [] "foo.com:8181")
-                   #setKeepAlive(false);
+    client = (yvertx.createHttpClient [] "foo.com:8181");
+    _ = client.vertxClient#setKeepAlive(false);
 
 In this case a new connection will be created for each HTTP request and 
 closed once the response has ended.
@@ -1489,8 +1464,8 @@ closed once the response has ended.
 You can set the maximum number of connections that the client will pool 
 as follows:
 
-    client = (yvertx.createHttpClient [] "foo.com:8181")
-                   #setMaxPoolSize(10);
+    client = (yvertx.createHttpClient [] "foo.com:8181");
+    _ = client.vertxClient#setMaxPoolSize(10);
                    
 The default value is `1`.         
 
@@ -1499,7 +1474,7 @@ The default value is `1`.
 Vert.x will automatically close any clients when the verticle is stopped, 
 but if you want to close it explicitly you can:
 
-    client#close()            
+    client.vertxClient#close()            
                          
 ### Making Requests
 
@@ -1637,32 +1612,33 @@ And there is even a simpler form:
 
 To get the body and execute the request in one go use the `httpRequestNow` 
 function. It works like the `httpRequest` function but executes the
-the request immidately and gets the body content.
+the request immidately and returns a promise containing the 
+response and body content.
 
     client = yvertx.createHttpClient [] "localhost:8080";
     
-    yvertx.httpRequestNow client (Post '/some-path/') [] 
-        \case of
+    prom = yvertx.httpRequestNow client (Post '/some-path/') [];
+    
+    prom >>- \case of
         None ex: logger#error("An excpetion happended \(ex)");
         Some {response, body}:
             logger#info(
                 "Got a response, status code: \(resp#statusCode)");
-        done;
+        esac;
 
 If the request was succesful Some HttpClientResponse and a Buffer containing
-the body will be given to the handler. If an excpetion was raised with 
+the body will be in the promise. If an excpetion was raised with 
 HttpClientRequest#exceptionHandler or HttpClientResponse#excpetionHandler 
 from the java-api than a None Exception will be given.
 
-The httpRequestNow method will in this case also not end the request.
-
-If you want to manipulate the HttpClientRequest before sending it 
+If you want to manipulate the HttpClientRequest before sending (ending) it 
 use the WithRequest option. 
 
     client = yvertx.createHttpClient "localhost:8080";
     
     yvertx.httpRequestNow client (Post '/some-path/') 
         [WithRequest do req: req#setTimeout(2000)] 
+        >>-
         \case of
         None ex: logger#error("An excpetion happended \(ex)");
         Some {response, body}:
@@ -1761,7 +1737,7 @@ exception handler on the HTTP client will be called.
 
 Here's an example of WebSocket connection;
 
-    client = yvertx.createHttpClient "localhost:8080";
+    client = yvertx.createHttpClient [] "localhost:8080";
     
     yvertx.connectWebSocketClient server '/some-uri' do websocket:
       
@@ -2179,12 +2155,13 @@ amount of time (five minutes by default)
 # File System
 
 Vert.x lets you manipulate files on the file system. File system operations are 
-asynchronous and take a handler function as the last argument.
+asynchronous and return a promise, which gets fulfilled when the operation is
+finished.
 
-The yvertx api wraps all the async functions of FileSystem. They are exactly
-the same as the ones on the java FileSystem object except that they take
-a yeti-callback functions instead of an handler. So for documentation
-of the functions please consult the java api.
+The yvertx api wraps all the async functions of the vert.x FileSystem Object. 
+They are exactly the same as the ones on the java FileSystem object except 
+that they return a promise instead of taking an AsyncHandler. So for 
+documentation of the functions please consult the java api.
 
 The vert.x java-api also supports synchronous forms of that functions, however
 the yvertx api does not, because a yeti wrapper is there only of little benefit.
@@ -2203,12 +2180,11 @@ of fileSystem
     fsO is ~FileSystem = yvertx.fileSystem.fs;
     fsO#copySync(...);
 
-## Callback Handler
+## Promise
 
-All the fileSystem functions take a callback function which replaces the
-`AsyncResultHandler` in the java api. The callback function recieves either a
-`Some value` if the operation was succesful or an `None ~Exception` if there
-was a problem.
+All the fileSystem functions return a promise which replaces the
+`AsyncResultHandler` in the java api. The promise has a `Some value` if the 
+operation was succesful or an `None ~Exception` if there was a problem.
 
 Otherwise the functions all work exactly the same as their java counterpart.
 

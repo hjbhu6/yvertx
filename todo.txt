@@ -1,4 +1,4 @@
-- adjust readme to modifications
+- describe promise
 - sql simplification like json
 - module for orient.db
 
@@ -9,4 +9,5 @@
    - filesystem
    - json
 - json: rename jsonStruct to stru (or struct, js)
+- adjust manual to modifications in promise
    
