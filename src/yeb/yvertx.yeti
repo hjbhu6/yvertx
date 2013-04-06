@@ -1990,7 +1990,7 @@ sendToBusWithHandler address msg is string -> 'a -> promise<'b>=
  * structMessage - the struct which will be sind as JSON
  *
  * example:
- * : promise = requestFromBus "fooAdress" {msg="some", for_json=E()};
+ * : promise = busRequest "fooAdress" {msg="some", for_json=E()};
  * : promise |> fulfill \case of:
  * :    None ex: println ex; //an exception has happened
  * :    Some val: println val //handle json value
