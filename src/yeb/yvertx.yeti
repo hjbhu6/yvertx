@@ -1451,6 +1451,7 @@ httpRequest clientStru muri opts handler =
     for opts \case of
     Auth fn : authenticator := fn;
     Headers ha : _ = putRequestHeaders req ha;
+    Timeout ms : _ = req#setTimeout(ms is number);
     WithRequest fn : fn req;
     JsonContent str : 
         bu = new Buffer(str is string);
