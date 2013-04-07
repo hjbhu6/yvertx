@@ -441,7 +441,61 @@ messageByteDigest algorithm message =
 messageDigest algorithm message =
     messageByteDigest algorithm ((message is string) as ~String)#getBytes(); 
 
+
+/**
+ * Group: helper
+ *
+ * calls failWith with the given value. 
+ * If the value is a None Variant extracts the value from None. If the
+ * value (either the original one or the one extracted from None) is 
+ * an Throwable throws it. Otherwise calls failtWith with the value 
+ * toString
+ *
+ * Arguments:
+ * failable - the object to fail
+ */
+fail x = 
+    (import java.lang.Throwable;
+    import yeti.lang.Tag;
+    ob = x unsafely_as ~Object;
+    ob =if not defined? x then
+            ("" unsafely_as ~Object)
+        elif ob instanceof Tag then
+            t = (ob unsafely_as ~Tag);
+            if t#name == "None" or t#name == "none" then
+                t#value
+            else
+                ob
+            fi
+        else
+            ob
+        fi;
+
+    if ob instanceof Throwable then
+        throw (ob unsafely_as ~Throwable);
+    else 
+        failWith "Failure Value: [\(ob)]";
+    fi),
+
+
+/**
+ * Group: maybe
+ *
+ * fails if the value is none other wise executes the rightFn
+ *
+ * Same as 
+ * :maybe' fail rightFn value;
+ *
+ * Arguments:
+ * rightFn - function to be called with the value of some
+ * value - either Some value or None. The none value will be thrown using
+ * the fail function
+ */
+maybeFail rightFn value =
+    maybe' fail rightFn value;
+    
 {      
+    fail,
     assert,
     assertEquals,
     messageDigest, 
@@ -702,37 +756,6 @@ messageDigest algorithm message =
      */
     throwEx ex = throw (ex is ~Exception),
 
-    /**
-     * Group: helper
-     *
-     * calls failWith with the given value. 
-     * If the value is a None Variant extracts the value from None. If the
-     * value (either the original one or the one extracted from None) is 
-     * an Throwable throws it. Otherwise calls failtWith with the value 
-     * toString
-     */
-    fail x = 
-        (import java.lang.Throwable;
-        import yeti.lang.Tag;
-        ob = x unsafely_as ~Object;
-        ob =if not defined? x then
-                ("" unsafely_as ~Object)
-            elif ob instanceof Tag then
-                t = (ob unsafely_as ~Tag);
-                if t#name == "None" or t#name == "none" then
-                    t#value
-                else
-                    ob
-                fi
-            else
-                ob
-            fi;
-
-        if ob instanceof Throwable then
-            throw (ob unsafely_as ~Throwable);
-        else 
-            failWith "Failure Value: [\(ob)]";
-        fi),
 
     /**
      * Group: test
