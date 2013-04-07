@@ -226,10 +226,10 @@ done,
     //make services 
     adresses = [1..10] |> map (("adr"^) . string);
     for adresses do adr:
-        _ = registerBusHandler (Global adr) do {reply, handlerId}:
-            reply {value = 1, 
-                   for_json=E()};
+        _ = busHandler (Global adr) do {handlerId}:
             _ = unregisterBusHandler handlerId;
+            return {value = 1, 
+                   for_json=E()};
         done
     done;
     handlers = adresses |> map do adr:
