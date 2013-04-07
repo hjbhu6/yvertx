@@ -1914,7 +1914,7 @@ unregisterBusHandler {address,object} =
     prom.promise);
 
 
-_requestMessageHandler prom =
+_requestMessageHandler setValue =
     (class RequestMessageHandler extends Handler 
         
         void handle(Object ob)
@@ -1928,7 +1928,8 @@ _requestMessageHandler prom =
                     request res  = 
                         (prom = promise();
                         msg#reply(_toBusMsg res,
-                                  (_requestMessageHandler prom) as ~Handler);
+                                  (_requestMessageHandler prom.setValue) 
+                                    as ~Handler);
                         prom.promise);
                     
                     Some (arg with {
@@ -1937,7 +1938,7 @@ _requestMessageHandler prom =
                     });
                 esac;
             
-            prom.setValue arg,
+            setValue arg,
     end;
     new RequestMessageHandler() as ~Handler);
 
@@ -1969,7 +1970,7 @@ _requestMessageHandler prom =
  */
 busRequest address msg =
     (prom = promise();
-    ha = _requestMessageHandler prom;
+    ha = _requestMessageHandler prom.setValue;
     (getVertx ())#eventBus()#send(address is string, _toBusMsg msg, ha);
     prom.promise);
 

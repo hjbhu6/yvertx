@@ -364,7 +364,11 @@ done,
             done;
         done;
     done;
-
+    
+    _ = busRequest adr (Json msg) >>=
+        do i:
+            return (i + 1);
+        done;
     _ = busRequest adr (Json msg) 
     >>= do {stru,request}:
         rs.assert "" (stru == repl);

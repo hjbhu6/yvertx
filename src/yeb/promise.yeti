@@ -23,11 +23,7 @@ import java.lang:Exception,
 typedef either<a> = None ~Exception | Some a;
 typedef opaque promise<a> = (either<a> -> ()) -> (); 
 
-_idT r is ((either<'a> -> ()) -> ()) ->
-       ((either<'a> -> ()) -> ()) =
-        r;
-//_create = _idT as ((either<'a> -> ()) -> ()) -> promise<'a>;
-_resolve = (_idT as promise<'a> -> ((either<'a> -> ()) -> ()));
+_resolve = id as promise<'a> -> ((either<'a> -> ()) -> ());
 
 
 /**
@@ -75,7 +71,9 @@ promise () =
             fn x;
             (),
         /**
-         * the promise. 
+         * the promise. Just a function which takes a callback
+         * and either injects the present value or remembers the function
+         * and invokes it when the value is set.
          */
         promise cb = 
             fn = synchronized mutex do:
