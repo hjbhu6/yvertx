@@ -1864,6 +1864,8 @@ _toBusMsg msg =
         (b is ~Buffer) as ~Object;
     Array a:
         (toJsonArray a) as ~Object;
+    None (): 
+        () as ~Object;
     esac);
         
 
@@ -1974,14 +1976,23 @@ busRequest address msg =
 
 
 
-_toBusMessageHandler handlerFn =
+_toBusMessageHandler handlerFn is 'a -> ~Handler=
     (class BusMessageHandler extends Handler 
         
         void handle(Object ob)
             msg = ob unsafely_as ~Message;
             arg = fromJsonValue (msg#body);
+            yield m =
+                (yieldProm = promise();
+                ha = _toBusMessageHandler do arg:
+                    yieldProm.setValue (Some arg);
+                    return none;
+                done;
+                msg#reply(_toBusMsg m,
+                        ha as ~Handler);
+                yieldProm.promise);
             prom = try
-                handlerFn arg;
+                handlerFn (arg with {yield});
             catch Exception ex:
                 prom = promise();
                 prom.setValue (None ex);
@@ -2018,8 +2029,8 @@ _toBusMessageHandler handlerFn =
                     Requestable {msg = omsg, handler}:
                         m = _toBusMsg omsg;
                         msg#reply(m, 
-                            (_toBusMessageHandler handlerFn) as ~Handler);
-                    None _ : ();
+                            (_toBusMessageHandler handler) as ~Handler);
+                    None () : ();
                     esac;
                 esac,
     end;
@@ -2030,6 +2041,9 @@ _toBusMessageHandler handlerFn =
  * Creates response of a busHandler which expects a new request from the
  * calling busRequest. This is used to send based on a message#reply()
  * messages fore an back between caler and handler:
+ *
+ * As an alternative you can use the 'yield' function passed in the 
+ * busHandler argument.
  *
  * Arguments:
  * msg - the message to send as reply
@@ -2069,10 +2083,36 @@ returnRequestable msg handler =
  *
  * calls EventBus#registerHandler
  *
+ * The argument passed to the messagehandler contains the handlerId in a
+ * promise this can be used to deregister the handler:
+ * : _ = busHandler (Local "some") do js:
+ * :    js.handlerId >>- maybe \() do hid:
+ * :         _ = unregisterBusHandler hid;
+ * :    done;
+ * : done;
+ *
+ * The argument passed to the message-handler contains a yield function
+ * which can be used to send back the return message before finishing the
+ * function an getting a return from the caller back in from of a promise:
+ * : _ = busHandler (Remote "someadress") do js:
+ * :    _ = js.yield (Str "responseFromHandler plus \(js.stru)") 
+ * :    >>= do {stru = resFromRequester ,yield}:
+ * :        yield (Str "nextResponse plus \(resFromRequester)") 
+ * :    >>= do {stru = nextResFromRequester, yield}:
+ * :        yield ....
+ * :    done;
+ * :    //do any optional work here which is done after 
+ * :    //the response (return value)
+ * :    return none; //important to always return none in the end
+ * : done; //end handler
+ *
+ * When using yield it is important to return none in the end and that
+ * each subsequent return must also use yield.
+ *
  * Arguments:
  * address - the bus address to register to; Local address means only
  * local handler registration, Global means global registration
- * message - the handler which receives the jsonMessage and should
+ * messageHandler - the handler which receives the jsonMessage and should
  * return a promise which is the response
  */
 busHandler address handlerFn =

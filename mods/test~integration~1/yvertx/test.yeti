@@ -227,15 +227,16 @@ done,
     adresses = [1..10] |> map (("adr"^) . string);
     for adresses do adr:
         _ = busHandler (Global adr) do {handlerId}:
-            _ = unregisterBusHandler handlerId;
-            return {value = 1, 
-                   for_json=E()};
+            handlerId >>- maybe' fail 
+                do id: _ = unregisterBusHandler id done;
+            return (Json {value = 1, 
+                   for_json=E()});
         done
     done;
     handlers = adresses |> map do adr:
-        busRequest adr emptyJS 
+        busRequest adr (Json emptyJS) 
         |>bind do {stru = body} : 
-            return body.value 
+            return body.value; 
         done;
     done;
     parallel handlers >>- maybe () do res:
@@ -244,31 +245,27 @@ done,
 done,
 
 "promise:colllectPromise" : do rs:
-    println "\n\n*********************************************\n";
     register adr =
-        (_ = registerBusHandler (Global adr) do {reply, handlerId} :
-            println "***** msg \(adr)";
-            reply {value = adr ^ "foo", for_json=E()};
-            _ = unregisterBusHandler handlerId;
+        (_ = busHandler (Global adr) do {handlerId} :
+            handlerId >>- maybe' fail 
+                do handlerId: _ = unregisterBusHandler handlerId done;
+            return (Json {value = adr ^ "foo", for_json=E()});
         done);
     
     for [1..2] (register . ("adr"^) . string);
 
     cfn = collectPromises do s:{
          a = setProm s
-            (busRequest "adr1" emptyJS |> bind do {stru = js}:
-                println "**** value \(js.value)";
+            (busRequest "adr1" (Json emptyJS) |> bind do {stru = js}:
                 return js.value
             done),
          b = setProm s
-            (busRequest "adr2" emptyJS |> bind do {stru = js}:
-                println "**** value2 \(js.value)";
+            (busRequest "adr2" (Json emptyJS) |> bind do {stru = js}:
                 return js.value
             done),
         }done;
         
     cfn >>- maybe () do r :
-            println "******** got finayl";
             rs.assure "\(r)" (r.a() == "adr1foo" 
                               and r.b() == "adr2foo");
         done;
@@ -280,42 +277,53 @@ done,
     rs.setTimeout(2000);
     address = "foo-some";
     var handled = false;
-    _ = registerBusHandler (Global address) do {body, handlerId}:
-        _ = unregisterBusHandler handlerId;
-        rs.assure "\(body)" (body.stru == msg and not handled);
+    _ = busHandler (Global address) do {stru, handlerId}:
+        handlerId >>- maybe' fail do handlerId: 
+            _ = unregisterBusHandler handlerId
+        done;
+        rs.assure "\(stru)" (stru == msg and not handled);
         handled := true;
+        return none;
     done;
-    sendToBus address msg;
+    sendToBus address (Json msg);
 done,
 
 "eventbus:emptyMessage" : do rs:
     var handled = false;
     adr = "foo";
     msg = emptyJS;
-    _ = registerBusHandler (Local adr) do {body,handlerId}:
-        _ = unregisterBusHandler handlerId;
-        rs.assure "\(body)" (body.stru == msg and not handled);
+    _ = busHandler (Local adr) do {stru,handlerId}:
+        handlerId >>- maybe' fail do handlerId: 
+            _ = unregisterBusHandler handlerId
+        done;
+        rs.assure "\(stru)" (stru == msg and not handled);
         //should do nothing
-        _ = unregisterBusHandler handlerId;
+        handlerId >>- maybe' fail do handlerId: 
+            _ = unregisterBusHandler handlerId
+        done;
         handled := true;
+        return none;
     done;
-    sendToBus adr msg;
+    sendToBus adr (Json msg);
 done,
 
 "eventbus:unregister" : do rs:
     var handled = false;
     msg = {count = 1, foo = "foo", for_json=E()};
     var assertion = true;
-    _ = registerBusHandler (Local "foo") do {body ,handlerId}:
-        assertion := assertion and (body.stru == msg and not handled);
-        _ = unregisterBusHandler handlerId;
+    _ = busHandler (Local "foo") do {stru ,handlerId}:
+        assertion := assertion and (stru == msg and not handled);
+        handlerId >>- maybe' fail do handlerId: 
+            _ = unregisterBusHandler handlerId
+        done;
         handled := true;
         _ = setTimer 100 do:
             //complete the test
             rs.assure "" assertion;
         done;
+        return none;
     done;
-    for [1..3] \(sendToBus "foo" msg);
+    for [1..3] \(sendToBus "foo" (Json msg));
 done,
 
 "eventbus:withReply" : do rs:
@@ -323,40 +331,80 @@ done,
     msg = {count=1, foo = "foo2", for_json=E()};
     repl = {reply = true, for_json=E()};
     var asserts = true;
-    _ = registerBusHandler (Global "foo") do {body,handlerId, reply}:
-        asserts := asserts and (not handled and msg == body.stru);
-        _ = unregisterBusHandler handlerId;
+    _ = busHandler (Global "foo") do {stru,handlerId}:
+        asserts := asserts and (not handled and msg == stru);
+        handlerId >>- maybe' fail do handlerId: 
+            _ = unregisterBusHandler handlerId
+        done;
         handled := true;
-        reply repl;
+        return (Json repl);
     done;
 
-    busRequest "foo" msg >>- maybe () do {stru}:
+    busRequest "foo" (Json msg) >>- maybe' fail do {stru}:
         rs.assure "\(stru)" (asserts and (stru == repl));
     done;
 done,
 
-"eventbus:replyOfReplyOfReply" : do rs:
+"eventbus:replyOfReplyOfReply" : (do rs:
     _ = rs.assert is string -> boolean -> ();
     adr = "foo";
     msg = {msg = "message", for_json=E()};
     repl = {msg = "repl", for_json=E()};
     repl2 = {msg = "repl2", for_json=E()};
     repl3 = {msg = "repl3", for_json=E()};
-    _ = registerBusHandler (Local adr) do {body, handlerId, request}:
-        rs.assert "" (msg == body.stru);
-        request repl (maybe () do {body, reply}:
-            rs.assert "" (repl2 == body.stru);
-            reply repl3;
-            _ = unregisterBusHandler handlerId;
-        done)
+    _ = busHandler (Local adr) do {stru, handlerId}:
+        rs.assert "" (msg == stru);
+        returnRequestable (Json repl) do {stru}:
+            rs.assert "" (repl2 == stru);
+            returnRequestable (Json repl3) do {stru}:
+                handlerId >>- maybe' fail do handlerId: 
+                    _ = unregisterBusHandler handlerId
+                done;
+                return none
+            done;
+        done;
     done;
 
-    prom is promise<'a> = sendToBusWithHandler adr msg; 
-    prom >>- maybe () do {body,request}:
-        rs.assert "" (body.stru == repl);
-        request repl2 (maybe ()do {body}:
-            rs.assure "" (body.stru == repl3);
-        done)
+    _ = busRequest adr (Json msg) 
+    >>= do {stru,request}:
+        rs.assert "" (stru == repl);
+        request (Json repl2) 
+    done
+    >>- maybe' fail do {stru}:
+        rs.assure "" (stru == repl3);
+    done;
+    ()
+done),
+
+"eventbus:yieldReplyOfReplyOfReply" : do rs:
+    _ = rs.assert is string -> boolean -> ();
+    adr = "foo";
+    msg = {msg = "message", for_json=E()};
+    repl = {msg = "repl", for_json=E()};
+    repl2 = {msg = "repl2", for_json=E()};
+    repl3 = {msg = "repl3", for_json=E()};
+    _ = busHandler (Local adr) do {stru, yield,handlerId}:
+        rs.assert "" (msg == stru);
+        yield (Json repl) 
+        >>= do {stru,yield}:
+            rs.assert "" (repl2 == stru);
+            yield (Json repl3);
+        done
+        >>= do {stru}:
+            handlerId >>- maybe' fail do handlerId: 
+                _ = unregisterBusHandler handlerId
+            done;
+            return none
+        done;
+    done;
+
+    busRequest adr (Json msg) 
+    >>= do {stru,request}:
+        rs.assert "" (stru == repl);
+        request (Json repl2) 
+    done
+    >>- maybe' fail do {stru}:
+        rs.assure "" (stru == repl3);
     done;
 done,
 
@@ -365,14 +413,17 @@ done,
     var handled = false;
     adr = "foo";
     msg = emptyJS;
-    _ = registerBusHandler (Global adr) do {reply, body, handlerId}:
+    _ = busHandler (Global adr) do {stru, handlerId}:
         rs.assert "" (not handled);
-        rs.assert "" (msg == body.stru);
-        _ = unregisterBusHandler handlerId;
+        rs.assert "" (msg == stru);
+        handlerId >>- maybe' fail do handlerId: 
+            _ = unregisterBusHandler handlerId
+        done;
+
         handled := true;
-        reply emptyJS;
+        return (Json emptyJS);
     done;
-    busRequest adr msg >>- maybe ()do body:
+    busRequest adr (Json msg) >>- maybe' fail do body:
         rs.assure "" true;
     done;
 done,
