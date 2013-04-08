@@ -291,6 +291,21 @@ createStandardVerticle verticleName =
         //Thread#currentThread()#setContextClassLoader(oldCl);
     yrt);
 
+runRepl check =
+    if check or System#getProperty("yvertx.repl","false") == "true" then
+        _ = System#setProperty("yvertx.repl","false");
+        try 
+            moduleCl = Thread#currentThread()#getContextClassLoader()
+                        #loadClass("yeb.yvertx.ReplVerticle");
+            rs = (moduleCl#newInstance()) unsafely_as ~Verticle;
+        
+            Some rs;
+        catch InvocationTargetException ex:
+            throw ex#getCause();
+        yrt;
+    else
+        none
+    fi;
 
 class YetiVerticleFactory extends VerticleFactory
     //var loader = () as ~ClassLoader,
@@ -304,26 +319,31 @@ class YetiVerticleFactory extends VerticleFactory
         (),
 
     Verticle createVerticle(String verticleName)
-        if System#getProperty("yvertx.repl","false") == "true" then
-            _ = System#setProperty("yvertx.repl","false");
-            try 
-                moduleCl = Thread#currentThread()#getContextClassLoader()
-                            #loadClass("yeb.yvertx.ReplVerticle");
-                rs = (moduleCl#newInstance()) unsafely_as ~Verticle;
-            
-                rs;
-            catch InvocationTargetException ex:
-                throw ex#getCause();
-            yrt;
-        else
-            createStandardVerticle verticleName
-        fi,
+        case runRepl true of
+            Some r : r is ~Verticle;
+            None () : createStandardVerticle verticleName;
+        esac,
 
     void reportException(Logger logger, Throwable t)
         logger#error("Exception in Yeti verticle script", t),
 
 end;
 
+class YetiVerticle extends Verticle
+
+    void doStart(VoidResult startedResult)
+        super#start(startedResult),
+
+    void start(VoidResult startedResult)
+        vhl.vertx := this#getVertx();
+        vhl.container := this#getContainer();
+        case runRepl true of
+        Some r:  (r is ~Verticle)#start(startedResult);
+        None _ : this#doStart(startedResult);
+        esac,
+end;
+
+                
 
 class MainVerticle extends Verticle 
     var verticle = () as ~Verticle,
@@ -349,5 +369,7 @@ class MainVerticle extends Verticle
         verticle#stop(),
 end;
 
-
-()
+{
+    runRepl,
+    createStandardVerticle
+} 
