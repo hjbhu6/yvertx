@@ -273,129 +273,8 @@ timer () =
         System#currentTimeMillis() - start
     done);
 
-class YebAssertionError(String reason) 
-    extends java.lang.AssertionError(reason,() as ~Throwable)
-end;
 
 
-/**
- * Group: test
- *
- * Used inside 'simpleTest' to assert a condition. If the condition
- * is wrong than an YebAssertError is thrown.
- *
- * Arguments:
- * message - message of the YebAssertionError
- * condidtion - false means that the YebAssertionError is thrown. true has
- * no effect
- */
-assert msg bo =
-    if not bo then
-        msg = if not defined? msg or msg == "" then
-            " "
-        else
-            msg
-        fi;
-        throw new YebAssertionError(msg is string);
-    fi;
-
-/**
- * Group: test
- *
- * Used inside 'simpleTest' to assert that the expected value is equal to the
- * value under test. If the values are not equal a YebAssertError is thrown.
- *
- * Arguments:
- * expected - the excpected value
- * testedValue - the value to test
- */
-assertEquals test right =
-    if right != test then
-        throw new 
-            YebAssertionError("Expected [\(right)] but was [\(test)]");
-    fi;
-
-/**
- * Group: test
- *
- * Utility function to run test functions.
- *
- * The tests are than run and a TAP protocol is printed to the printer argument
- *
- * Arguments:
- *  exit - wheter to call System#exit(-1) if the tests fail
- *  printer - function to print output
- *  testHash - hash of test names to test functions. The test-functions
- *  should use the 'assert' and 'assertEquals' functions to assert values
- *
- * Examples:
- * : simpleTest false println [
- * :   "plus" : do: assertEquals 3 == (2 + 1) done,
- * :   "minus" : do: assert "minus is wrong" ( (3 - 1) == 2) done,
- * : ]
- *
- */
-simpleTest exit? println testHash =
-   (var bad = 0;
-    var exception = 0;
-
-    var count = 0;
-    println "TAP version 13";
-    println "1..\(length testHash)";
-   
-    //sort the string/fn pairs by name in a list
-    pairs = array [];
-    forHash testHash do k v: push pairs (pair k v) done;
-    pairs = sortBy do {fst} {fst = f2}: fst < f2 done pairs;
-
-    //execute the sorted tests
-    for pairs do {fst = name, snd = f}:
-        count := count + 1;
-        tr = timer ();
-        try
-            
-            f();
-            println "ok \(count) - \(name) [\((tr())/1000) s] ";
-        catch YebAssertionError ex:
-
-            //extract linke number
-            import java.lang.StackTraceElement;
-            var ster = () as ~StackTraceElement;
-            for ex#getStackTrace() do ste:
-                if nullptr? ster and 
-                    not strStarts? ste#getClassName() "yeb.std" then
-                    ster := ste
-                fi
-            done;
-            //print out
-            println ("not ok \(count) - \(name) [\((tr())/1000) s] "
-                    ^"because [\(ex#getMessage())] at [\(ster)]");
-
-            bad := bad + 1;
-        catch Throwable ex:
-            println "not ok \(count) - \(name) [\((tr())/1000) s] \n\(ex)";
-            import java.io:StringWriter, PrintWriter;
-            sw = new StringWriter();
-            pw = new PrintWriter(sw);
-            ex#printStackTrace(pw);
-            println (string sw);
-            exception := exception + 1;
-        yrt
-        
-    done;
-
-    total = length testHash;
-    if bad == 0 and exception == 0 then
-        println "Testing done, \(total) OK.";
-        0  
-    else
-        println ("FAILURE: Testing done, \(exception) exceptions, "
-        ^ "\(bad) failed, \(total - bad - exception) ok of total \(total)");
-        if exit? then
-            _ = System#exit(-1);
-        fi;
-        (-1)
-    fi);
 
 //json things
 
@@ -496,8 +375,6 @@ maybeFail rightFn value =
     
 {      
     fail,
-    assert,
-    assertEquals,
     messageDigest, 
 
     messageByteDigest,
@@ -735,7 +612,6 @@ maybeFail rightFn value =
     number',
     boolean,
     nan?,
-    simpleTest,
 
     /**
      * Group: convert
@@ -796,5 +672,5 @@ maybeFail rightFn value =
     writeJson,
     parseJson,
 
-
+    timer,
 }

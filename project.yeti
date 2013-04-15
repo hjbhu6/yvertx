@@ -49,10 +49,11 @@ config = createBaseConfig config [
     dependency "io.vertx" "vertx-platform" "2.0.0-SNAPSHOT"
         [ProvidedScope ()],
 
+    
+    dependency "junit" "junit" "3.8.2" [ProvidedScope ()],
     dependency "org.slf4j" "slf4j-api" "1.7.2" [],
 
     /*
-    dependency "junit" "junit" "3.8.2" [TestScope ()],
     dependency "org.mockito" "mockito-all" "1.8.5" [TestScope ()],
     dependency "org.hsqldb" "hsqldb" "2.0.0" [TestScope ()],
     dependency "org.springframework" 

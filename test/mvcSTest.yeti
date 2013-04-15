@@ -1,8 +1,12 @@
 program mvcSTest;
 
+load yeb.simpletest;
+
 load yeb.std;
+
 load yeb.promise;
 load yeb.mvc.mvc;
+
 resm = load yeb.mvc.response;
 
 rs = load yeb.mvc.response;

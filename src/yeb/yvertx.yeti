@@ -1864,6 +1864,10 @@ _toBusMsg msg =
         (b is ~Buffer) as ~Object;
     Array a:
         (toJsonArray a) as ~Object;
+    VArray va :
+        (va is ~JsonArray) as ~Object;
+    VObject vo:
+        (vo is ~JsonObject) as ~Object;
     None (): 
         () as ~Object;
     esac);
@@ -2008,7 +2012,7 @@ _toBusMessageHandler handlerFn is 'a -> ~Handler=
                           for_json = E()}) as ~Object;
                     msg#reply(m);
                 Some va:  
-                    import java.lang:Number, Double, Long;
+                    /*import java.lang:Number, Double, Long;
                     
                     case va of
                     Json v : msg#reply(toJson v);
@@ -2032,7 +2036,13 @@ _toBusMessageHandler handlerFn is 'a -> ~Handler=
                         msg#reply(m, 
                             (_toBusMessageHandler handler) as ~Handler);
                     None () : ();
-                    esac;
+                    esac;*/
+                    
+                    r = _toBusMsg va;
+                    
+                    if not nullptr? r then
+                        msg#reply(r is ~Object);
+                    fi
                 esac,
     end;
     new BusMessageHandler() as ~Handler);

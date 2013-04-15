@@ -219,19 +219,9 @@ typedef yvertxJsonValue<a> = {
     arr is list<yvertxJsonValue>,
     obj is hash<string,yvertxJsonValue>,
     bytes is Some ~byte[] | None (),
+    object is ~Object,
     type is number,
     stru is a
-};
-
-var _jsp = {
-    str = none,
-    num = none,
-    bool = none,
-    bytes = none,
-    arr = [],
-    obj = [:],
-    type = 0,
-    stru = (() unsafely_as ~Object) unsafely_as 'a
 };
 
 _jsonPrototype = {
@@ -240,16 +230,11 @@ _jsonPrototype = {
     bool = none,
     bytes = none,
     arr = [],
-    obj = 
-        ha = [:];
-        setHashDefault ha \(_jsp);
-        ha,
+    obj = [:],
+    object = () as ~Object,
     type = 0,
     stru = (() unsafely_as ~Object) unsafely_as 'a
 };
-
-_jsp := _jsonPrototype;
-
 
 
 //the empty json object should just return itself so
@@ -283,7 +268,8 @@ _fromJsonValue o is ~Object -> yvertxJsonValue<'a>=
                     calculated? := true;
                     ha
                 fi,
-            get stru () = (_fromJsonToStruct o) unsafely_as 'a, 
+            get stru () = (_fromJsonToStruct o) unsafely_as 'a,
+            object = o,
             type = 1,
         }
     elif o instanceof JsonArray then
@@ -293,6 +279,7 @@ _fromJsonValue o is ~Object -> yvertxJsonValue<'a>=
         ls = (list ar);
         _jsonPrototype with {
             list = ls,
+            object = o,
             type = 2 
         }
     elif o instanceof String then
@@ -300,12 +287,14 @@ _fromJsonValue o is ~Object -> yvertxJsonValue<'a>=
         _jsonPrototype with {
             str = Some s,
             someStr = Some s,
+            object = o,
             type = 3,
         }
     elif o instanceof Boolean then
         s = (o unsafely_as ~Boolean)#booleanValue();
         _jsonPrototype with {
             bool = Some s,
+            object = o,
             type = 4
         }
     elif o instanceof Number then
@@ -330,12 +319,14 @@ _fromJsonValue o is ~Object -> yvertxJsonValue<'a>=
         numi = (nu unsafely_as number);
         _jsonPrototype with {
             num = Some numi,
+            object = o,
             type = 5
         }
     elif o instanceof Buffer then
         b = (o unsafely_as ~Buffer)#getBytes();
         _jsonPrototype with {
             bytes = Some b,
+            object = o,
             type = 6
         }
     else 

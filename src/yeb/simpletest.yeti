@@ -1,0 +1,254 @@
+/*
+ * Copyright 2011 Christian Essl
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions
+ * and limitations under the License.
+ */
+
+module yeb.simpletest;
+
+import java.lang: AssertionError,
+                  Throwable;
+
+import junit.framework:Assert,
+                       AssertionFailedError,
+                       TestCase,
+                       TestSuite;
+                   
+load yeb.std;
+                        
+class YebAssertionError(String reason) 
+    extends AssertionError(reason,() as ~Throwable)
+end;
+
+//test wheter junit is on classpath
+_isJunit = 
+    try
+        import junit.framework:Assert;
+        _ = (classOf YebAssertionError)#getClassLoader()
+            #loadClass("junit.framework.Assert");
+        true;
+    catch Exception ex:
+        false
+    yrt;
+/**
+ * Group: assert (ASSERT)
+ *
+ * Used inside 'simpleTest' to assert a condition. 
+ *
+ * If junit is on the classpath the function delegates to 
+ * junit.framework.Assert#assertTrue(String, boolean) method, otherwise
+ * a YebAssertionError is thrown.
+ *
+ * Arguments:
+ * message - message of the YebAssertionError
+ * condidtion - false means that the YebAssertionError is thrown. true has
+ * no effect
+ */
+assert msg bo =
+    if _isJunit then
+        Assert#assertTrue(msg, bo);
+    elif not bo then
+        msg = if not defined? msg or msg == "" then
+            " "
+        else
+            msg
+        fi;
+        throw new YebAssertionError(msg is string);
+    else
+        ()
+    fi;
+
+/**
+ * Group: assert
+ *
+ * Used inside 'simpleTest' to assert that the expected value is equal to the
+ * value under test. 
+ *
+ * If junit is on the classpath the function delegates to 
+ * junit.framework.Assert#assertEquals(Object, Object) functions, oterwise
+ * a YebAssertionError is thrown.
+ *
+ * Arguments:
+ * expected - the excpected value
+ * actual - the value to test
+ */
+assertEquals expected actual =
+    if _isJunit then
+        Assert#assertEquals(expected as ~Object, actual as ~Object);
+    elif expected != actual then
+        throw new 
+            YebAssertionError("Expected [\(expected)] but was [\(actual)]");
+    else
+        ()
+    fi;
+
+/**
+ * Group: run (RUNNER)
+ *
+ * Utility function to run test functions.
+ *
+ * The tests are than run and a TAP protocol is printed to the printer argument
+ *
+ * Arguments:
+ *  exit - wheter to call System#exit(-1) if the tests fail
+ *  printer - function to print output
+ *  testHash - hash of test names to test functions. The test-functions
+ *  should use the 'assert' and 'assertEquals' functions to assert values
+ *
+ * Examples:
+ * : simpleTest false println [
+ * :   "plus" : do: assertEquals 3 == (2 + 1) done,
+ * :   "minus" : do: assert "minus is wrong" ( (3 - 1) == 2) done,
+ * : ]
+ *
+ */
+simpleTest exit? println testHash =
+   (var bad = 0;
+    var exception = 0;
+
+    var count = 0;
+    
+    println "TAP version 13";
+    println "1..\(length testHash)";
+   
+    //sort the string/fn pairs by name in a list
+    pairs = array [];
+    forHash testHash do k v: push pairs (pair k v) done;
+    pairs = sortBy do {fst} {fst = f2}: fst < f2 done pairs;
+
+    //execute the sorted tests
+    for pairs do {fst = name, snd = f}:
+        count := count + 1;
+        tr = timer ();
+        try
+            
+            f();
+            println "ok \(count) - \(name) [\((tr())/1000) s] ";
+        catch AssertionError ex:
+
+            //extract linke number
+            import java.lang.StackTraceElement;
+            var ster = () as ~StackTraceElement;
+            for ex#getStackTrace() do ste:
+                if nullptr? ster and 
+                    not strStarts? ste#getClassName() "yeb.std" then
+                    ster := ste
+                fi
+            done;
+            //print out
+            println ("not ok \(count) - \(name) [\((tr())/1000) s] "
+                    ^"because [\(ex#getMessage())] at [\(ster)]");
+
+            bad := bad + 1;
+        catch Throwable ex:
+            println "not ok \(count) - \(name) [\((tr())/1000) s] \n\(ex)";
+            import java.io:StringWriter, PrintWriter;
+            sw = new StringWriter();
+            pw = new PrintWriter(sw);
+            ex#printStackTrace(pw);
+            println (string sw);
+            exception := exception + 1;
+        yrt
+        
+    done;
+
+    total = length testHash;
+    if bad == 0 and exception == 0 then
+        println "Testing done, \(total) OK.";
+        0  
+    else
+        println ("FAILURE: Testing done, \(exception) exceptions, "
+        ^ "\(bad) failed, \(total - bad - exception) ok of total \(total)");
+        if exit? then
+            _ = System#exit(-1);
+        fi;
+        (-1)
+    fi);
+
+/**
+ * Group: junit (JUNIT)
+ *
+ * Creates a JUnit TestSuite from a hash<string,function>. 
+ * From each key value pair of the the hash a TestCase is created, the name
+ * of which is the key and the value is the function to execute for testing.
+ *
+ * Inside the function either the junit.framework.Assert methods are use to
+ * assert condition or the assert functions of the module.
+ *
+ * Arguments:
+ * testHash - hash of name funciton pairs to test
+ *
+ * To integrate the suite with common java build-tools and ides the best way
+ * is to create a Java class in Java which loads the suite from a 
+ * list of modules.
+ *
+ * Example:
+ * : module foo.stdtests:
+ * : load simpletest;
+ * : 
+ * : tests = [
+ * :    "plus" : do: assertEquals 2 (1 + 1),
+ * :    "minus" : do: assertEquals 2 (3 - 1)
+ * : ];
+ * : tests; //yeti module returns the hash 
+ * :
+ * : //////////////////
+ * : //java file MyTest:
+ * : public class MyTest extends TestCase {
+ * :    public MyTest(String name) { 
+ * :         super(name) 
+ * :     }
+ * :
+ * :    public static Test suite() {
+ * :         //use helper function to load the suite
+ * :         return yeb.JunitHelper.loadSuite(new String[]{"foo.stdtests"})
+ * :    }
+ * : }
+ */
+testSuite testHash =
+    (suite = new TestSuite();
+    //sort the string/fn pairs by name in a list
+    pairs = array [];
+    forHash testHash do k v: push pairs (pair k v) done;
+    pairs = sortBy do {fst} {fst = f2}: fst < f2 done pairs;
+
+    //execute the sorted tests
+    for pairs do {fst = name, snd = fn}:
+        class SimpletestTestCase extends TestCase(name is string)
+            void runTest() 
+                fn(),
+        end;
+        t = new SimpletestTestCase();
+        suite#addTest(t);
+    done;
+    suite);
+
+
+class JunitHelper 
+    static TestSuite loadSuite(String[] moduleNames)
+        import java.lang:ClassLoader;
+        //collect ha
+        ha = [:];
+        for (moduleNames as list<string>) do name:
+            hm = YebUtils#moduleLoad(() as ~ClassLoader, name);
+            insertHash ha (hm unsafely_as hash<string,() -> ()>);
+        done;
+        testSuite ha,
+end;
+
+{
+    simpleTest,
+    assert,
+    assertEquals,
+    testSuite
+}
